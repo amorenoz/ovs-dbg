@@ -2,6 +2,7 @@
 """
 
 import re
+import functools
 from dataclasses import dataclass
 
 
@@ -209,4 +210,28 @@ class KVParser:
             return ival
         except ValueError:
             return value
+
+
+def _parse_kv_value(parsers, free_parser, _, value):
+    """ A value parser that extracts nested key-value pairs and returns them
+    in a dictionary
+
+    :param: parsers: a dictionary of parsers to be fed to KVParser
+    :type: parsers: dict, optional
+    :param free_parser: the free parser function to be fed to KVParser
+    :type free_parser: a callable that accepts a value and returns a key-value
+    :param: key: the keyword
+    :type key: str
+    :param value: the value string
+    :type value: str
+    """
+    parser = KVParser(parsers, free_parser)
+    parser.parse(value)
+    return {
+        kv.key: kv.value
+        for kv in parser.kv()
+    }
+
+
+default_kv_value_parser = functools.partial(_parse_kv_value, None, None)
 
