@@ -7,6 +7,8 @@ from dataclasses import dataclass
 
 
 class ParseError(RuntimeError):
+    """Exception raised when an error occurs during parsing
+    """
     pass
 
 
@@ -65,24 +67,82 @@ class KeyValue:
         return "{}: {} ({})".format(self.key, str(self.value), str(self.meta))
 
 
+class KVDecoders:
+    """KVDecoders class is used by KVParser to select how to decoode the value
+    of a specific keyword.
+
+    A decoder is simply a function that accepts the keyword and value strings
+    and returns the keyword and value objects to be stored. The returned
+    keyword must be a string but may not be the same as the given keyword.
+    The returned value may be of any type.
+
+    :param decoders: A dictionary of decoders indexed by keyword
+    :type decoders: dict, optional
+    :param default: A decoder used if a match is not found in configured
+        decoders. If not provided, the default behavior is to try to decode
+        the value into an integer and, if that fails, just return the string
+        as-is
+    :type default: callable, optional
+    :param default_free: A decoder used if a match is not found in configured
+        decoders and it's a free value (e.g: a keyword without a value).
+        Defaults to returning the free value as keyword and "True" as value
+    :type default_free: callable that accepts a single string parameter
+        and returns a keyword and a value, optional
+    """
+
+    def __init__(self, decoders=None, default=None, default_free=None):
+        self._decoders = decoders or dict()
+        self._default = default or self._default_decoder
+        self._default_free = default_free or self._default_free_decoder
+
+    def decode(self, keyword, value_str):
+        """Decode a keyword and value
+
+        :param: keyword: The keyword whose value is to be decoded
+        :type keyword: str
+        :param: value_str: The value string
+        :type value_str: str
+
+        :return: the key and value to be stored
+        :rtype: key(str), value(any)
+        """
+        decoder = self._decoders.get(keyword)
+        if decoder:
+            return decoder(keyword, value_str)
+        else:
+            if value_str:
+                return self._default(keyword, value_str)
+            else:
+                return self._default_free(keyword)
+
+    @staticmethod
+    def _default_free_decoder(key):
+        """Default decoder for free kewords"""
+        return key, True
+
+    @staticmethod
+    def _default_decoder(key, value):
+        """Default decoder
+
+        It tries to convert into an integer value and, if it fails, just
+        returns the string"""
+        try:
+            ival = int(value, 0)
+            return key, ival
+        except ValueError:
+            return key, value
+
+
 class KVParser:
     """KVParser parses a string looking for key-value pairs
 
-    :param kw_parsers: A dictionary of parsers indexed by key
-        A special key '*' can be used to specify a default parser
-    :type kw_parser dict(str, callable) where the callable must accept
-        the key and value as string parameter and return the value object,
-        optional
-    :param free_parser: A parser to be called on free keys (keys without
-        values)
-    :type free_parser: A callable that accepts the key string and returns
-        a tuple of (key, value)
+    :param decoders: A KVDecoders instance to use
+    :type decoders: KVDecoders, optional
     """
 
-    def __init__(self, kw_parsers=None, free_parser=None):
+    def __init__(self, decoders=None):
         """Constructor"""
-        self._kw_parsers = kw_parsers or dict()
-        self._free_parser = free_parser
+        self._decoders = decoders or KVDecoders()
         self._keyval = list()
 
     def keys(self):
@@ -159,7 +219,7 @@ class KVParser:
                 next_kpos = kpos + len(keyword)
                 vpos = -1
 
-            key, val = self._get_key_val(keyword, value_str)
+            key, val = self._decoders.decode(keyword, value_str)
 
             meta = KeyMetadata(
                 kpos=kpos,
@@ -173,65 +233,21 @@ class KVParser:
 
             kpos = next_kpos
 
-    def _get_key_val(self, keyword, value_str):
-        """Decode the key, value pair from keyword and value strings
 
-        :param keyword: the keyword string
-        :type keyword: str
-        :param value_str: the value string
-        :type value_str: str
+def _kv_decoder(decoders, key, value):
+    """A key-value decoder that extracts nested key-value pairs and returns
+    them in a dictionary
 
-        :return: a tuple of key and value
-        :type rtype: tuple(str, any)
-        """
-        if value_str:
-            parser = (
-                self._kw_parsers.get(keyword)
-                or self._kw_parsers.get("*")
-                or self._default_parser
-            )
-            return keyword, parser(keyword, value_str)
-
-        else:
-            if self._free_parser:
-                return self._free_parser(keyword)
-            else:
-                # By default with set the 'flag' to True
-                return keyword, True
-
-    @staticmethod
-    def _default_parser(_, value):
-        """Default kw parser
-
-        It tries to convert into an integer value and, if it fails, just
-        returns the string """
-        try:
-            ival = int(value, 0)
-            return ival
-        except ValueError:
-            return value
-
-
-def _parse_kv_value(parsers, free_parser, _, value):
-    """ A value parser that extracts nested key-value pairs and returns them
-    in a dictionary
-
-    :param: parsers: a dictionary of parsers to be fed to KVParser
-    :type: parsers: dict, optional
-    :param free_parser: the free parser function to be fed to KVParser
-    :type free_parser: a callable that accepts a value and returns a key-value
+    :param: decoders: the KVDecoders to use
+    :type: decoders: KVDecoders, optional
     :param: key: the keyword
     :type key: str
     :param value: the value string
     :type value: str
     """
-    parser = KVParser(parsers, free_parser)
+    parser = KVParser(decoders)
     parser.parse(value)
-    return {
-        kv.key: kv.value
-        for kv in parser.kv()
-    }
+    return key, {kv.key: kv.value for kv in parser.kv()}
 
 
-default_kv_value_parser = functools.partial(_parse_kv_value, None, None)
-
+default_kv_decoder = functools.partial(_kv_decoder, None)
