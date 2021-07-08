@@ -9,4 +9,4 @@ name = "pypi"
 sphinx = "*"
 flake8 = "*"
 pytest = "*"
-
+sphinx-rtd-theme = "*"

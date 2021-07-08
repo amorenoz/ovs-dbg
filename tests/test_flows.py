@@ -49,6 +49,6 @@ def test_kv_parser(input_string, expected):
         kstr = result[i].meta.kstring
         vpos = result[i].meta.vpos
         vstr = result[i].meta.vstring
-        assert input_string[kpos : kpos + len(kstr)] == kstr
+        assert input_string[kpos: kpos + len(kstr)] == kstr
         if vpos != -1:
-            assert input_string[vpos : vpos + len(vstr)] == vstr
+            assert input_string[vpos: vpos + len(vstr)] == vstr
