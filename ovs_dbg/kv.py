@@ -65,10 +65,11 @@ class KVDecoders:
     """KVDecoders class is used by KVParser to select how to decoode the value
     of a specific keyword.
 
-    A kv_decoder is simply a function that accepts the keyword and value
-    strings and returns the keyword and value objects to be stored.
-    The returned keyword must be a string but may not be the same as the given
-    keyword. The returned value may be of any type.
+    A decoder is simply a function that accepts a value string
+    and returns the value objects to be stored.
+    The returned value may be of any type.
+
+    The free_decoder, however, must return the key and value to be stored
 
     Args:
         decoders (dict): Optional; A dictionary of decoders indexed by keyword.
@@ -76,10 +77,11 @@ class KVDecoders:
             configured decoders. If not provided, the default behavior is to
             try to decode the value into an integer and, if that fails,
             just return the string as-is.
-        default_free (callable): Optional; A decoder used if a match is not
-            found in configured decoders and it's a free value (e.g: a keyword
-            without a value). Defaults to returning the free value as keyword
-            and "True" as value.
+        default_free (callable): Optional; The decoder used if a match is not
+            found in configured decoders and it's a free value (e.g:
+            a value without a key) Defaults to returning the free value as
+            keyword and "True" as value.
+            The callable must accept a string and return a key, value pair
     """
 
     def __init__(self, decoders=None, default=None, default_free=None):
@@ -99,7 +101,7 @@ class KVDecoders:
         """
         decoder = self._decoders.get(keyword)
         if decoder:
-            return decoder(keyword, value_str)
+            return keyword, decoder(value_str)
         else:
             if value_str:
                 return self._default(keyword, value_str)
@@ -112,7 +114,7 @@ class KVDecoders:
         return key, True
 
     @staticmethod
-    def _default_decoder(key, value):
+    def _default_decoder(value):
         """Default decoder.
 
         It tries to convert into an integer value and, if it fails, just
@@ -120,9 +122,9 @@ class KVDecoders:
         """
         try:
             ival = int(value, 0)
-            return key, ival
+            return ival
         except ValueError:
-            return key, value
+            return value
 
 
 class KVParser:
