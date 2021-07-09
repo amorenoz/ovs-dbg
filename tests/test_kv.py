@@ -1,10 +1,10 @@
 import pytest
 
-from ovs_dbg.flows import KVParser, KeyValue, KeyMetadata
+from ovs_dbg.kv import KVParser, KeyValue, KeyMetadata
 
 
 @pytest.mark.parametrize(
-    "input_string,expected",
+    "input_data,expected",
     [
         (
             "cookie=0x0, duration=147566.365s, table=0, n_packets=39, n_bytes=2574, idle_age=65534, hard_age=65534",
@@ -35,10 +35,16 @@ from ovs_dbg.flows import KVParser, KeyValue, KeyMetadata
             "l1(l2(l3(l4()))),foo:bar",
             [KeyValue("l1", "l2(l3(l4()))"), KeyValue("foo", "bar")],
         ),
+        (
+            "enqueue:1:2,output=2",
+            [KeyValue("enqueue", "1:2"), KeyValue("output", 2)]
+        ),
     ],
 )
-def test_kv_parser(input_string, expected):
-    tparser = KVParser()
+def test_kv_parser(input_data, expected):
+    input_string = input_data[0]
+    decoders = input_data[1]
+    tparser = KVParser(decoders)
     tparser.parse(input_string)
     result = tparser.kv()
     assert len(expected) == len(result)

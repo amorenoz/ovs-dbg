@@ -65,10 +65,10 @@ class KVDecoders:
     """KVDecoders class is used by KVParser to select how to decoode the value
     of a specific keyword.
 
-    A decoder is simply a function that accepts the keyword and value strings
-    and returns the keyword and value objects to be stored. The returned
-    keyword must be a string but may not be the same as the given keyword.
-    The returned value may be of any type.
+    A kv_decoder is simply a function that accepts the keyword and value
+    strings and returns the keyword and value objects to be stored.
+    The returned keyword must be a string but may not be the same as the given
+    keyword. The returned value may be of any type.
 
     Args:
         decoders (dict): Optional; A dictionary of decoders indexed by keyword.
@@ -162,7 +162,7 @@ class KVParser:
                 kpos += 1
                 continue
 
-            split_parts = re.split(r"(\(|=|:|,|\n|\r|\t)", string[kpos:], 1)
+            split_parts = re.split(r"(\(|=|:|,|\n|\r|\t|$)", string[kpos:], 1)
             # the delimiter should be included in the returned list
             if len(split_parts) < 3:
                 break
@@ -208,7 +208,7 @@ class KVParser:
                 next_kpos = vpos + len(value_str) + 1
                 end_delimiter = True
 
-            elif delimiter in (",", "\n", "\t", "\r"):
+            elif delimiter in (",", "\n", "\t", "\r", ""):
                 # key with no value
                 next_kpos = kpos + len(keyword)
                 vpos = -1
@@ -227,19 +227,3 @@ class KVParser:
 
             kpos = next_kpos
 
-
-def _kv_decoder(decoders, key, value):
-    """A key-value decoder that extracts nested key-value pairs and returns
-    them in a dictionary
-
-    Args:
-        decoders (KVDecoders): the KVDecoders to use.
-        key (str): the keyword we're decoding.
-        value (str): the value string to decode.
-    """
-    parser = KVParser(decoders)
-    parser.parse(value)
-    return key, {kv.key: kv.value for kv in parser.kv()}
-
-
-default_kv_decoder = functools.partial(_kv_decoder, None)
