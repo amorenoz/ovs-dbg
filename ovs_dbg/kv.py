@@ -5,6 +5,8 @@ import re
 import functools
 from dataclasses import dataclass
 
+from ovs_dbg.decoders import decode_default
+
 
 class ParseError(RuntimeError):
     """Exception raised when an error occurs during parsing.
@@ -86,7 +88,7 @@ class KVDecoders:
 
     def __init__(self, decoders=None, default=None, default_free=None):
         self._decoders = decoders or dict()
-        self._default = default or self._default_decoder
+        self._default = default or decode_default
         self._default_free = default_free or self._default_free_decoder
 
     def decode(self, keyword, value_str):
@@ -104,7 +106,7 @@ class KVDecoders:
             return keyword, decoder(value_str)
         else:
             if value_str:
-                return self._default(keyword, value_str)
+                return keyword, self._default(value_str)
             else:
                 return self._default_free(keyword)
 
@@ -112,19 +114,6 @@ class KVDecoders:
     def _default_free_decoder(key):
         """Default decoder for free kewords."""
         return key, True
-
-    @staticmethod
-    def _default_decoder(value):
-        """Default decoder.
-
-        It tries to convert into an integer value and, if it fails, just
-        returns the string.
-        """
-        try:
-            ival = int(value, 0)
-            return ival
-        except ValueError:
-            return value
 
 
 class KVParser:
