@@ -9,8 +9,8 @@ from ovs_dbg.decoders import decode_default
 
 
 class ParseError(RuntimeError):
-    """Exception raised when an error occurs during parsing.
-    """
+    """Exception raised when an error occurs during parsing."""
+
     pass
 
 
@@ -101,6 +101,7 @@ class KVDecoders:
         Returns:
             The key (str) and value(any) to be stored.
         """
+
         decoder = self._decoders.get(keyword)
         if decoder:
             return keyword, decoder(value_str)
@@ -119,8 +120,8 @@ class KVDecoders:
 class KVParser:
     """KVParser parses a string looking for key-value pairs.
 
-        Args:
-            decoders (KVDecoders): Optional; the KVDecoders instance to use.
+    Args:
+        decoders (KVDecoders): Optional; the KVDecoders instance to use.
     """
 
     def __init__(self, decoders=None):
@@ -218,3 +219,21 @@ class KVParser:
 
             kpos = next_kpos
 
+
+def decode_nested_kv(decoders, value):
+    """A key-value decoder that extracts nested key-value pairs and returns
+    them in a dictionary
+
+    Args:
+        decoders (KVDecoders): the KVDecoders to use.
+        value (str): the value string to decode.
+    """
+    parser = KVParser(decoders)
+    parser.parse(value)
+    return {kv.key: kv.value for kv in parser.kv()}
+
+
+def nested_kv_decoder(decoders=None):
+    """ Helper function that creates a nested kv decoder with given KVDecoders
+    """
+    return functools.partial(decode_nested_kv, decoders)

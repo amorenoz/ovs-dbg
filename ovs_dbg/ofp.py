@@ -19,6 +19,7 @@ from ovs_dbg.decoders import (
     decode_ip,
     decode_mac,
 )
+from ovs_dbg.ofp_act import decode_free_output, decode_output
 
 
 @dataclass
@@ -98,13 +99,13 @@ class OFPFlow:
         :return: an OFPFlow with the content of the flow string
         :rtype: OFPFlow
         """
-        parts = ofp_string.split(" actions=")
+        parts = ofp_string.split("actions=")
         if len(parts) != 2:
             raise ValueError("malformed ofproto flow: {}", ofp_string)
 
         actions = parts[1]
 
-        field_parts = parts[0].rpartition(" ")
+        field_parts = parts[0].rstrip(" ").rpartition(" ")
         if len(field_parts) != 3:
             raise ValueError("malformed ofproto flow: {}", ofp_string)
 
@@ -242,9 +243,9 @@ class OFPFlow:
     @classmethod
     def _act_decoders(cls):
         """Generate the actions decoders"""
-        adec = dict()
+        adec = {"output": decode_output}
 
-        return KVDecoders(adec, default_free=decode_free_action_field)
+        return KVDecoders(adec, default_free=decode_free_output)
 
     def __str__(self):
         if self._orig:
@@ -254,18 +255,3 @@ class OFPFlow:
             string += "Fields: {}\n" + self.fields
             string += "Actions: {}\n " + self.actions
             return string
-
-
-def decode_free_action_field(value):
-    """decoder that handles free (non key-value) vields in action strings
-
-    :param: value: the free value to decode
-    :type value: str
-
-    :return: the key and the value to store
-    :rtype: (string, [int or string])
-    """
-    try:
-        return "output", int(value)
-    except ValueError:
-        return "output", value
