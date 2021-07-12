@@ -71,6 +71,9 @@ class KVDecoders:
     and returns the value objects to be stored.
     The returned value may be of any type.
 
+    Decoders may return a KeyValue instance to indicate that the keyword should
+    also be modified to match the one provided in the returned KeyValue
+
     The free_decoder, however, must return the key and value to be stored
 
     Args:
@@ -104,7 +107,14 @@ class KVDecoders:
 
         decoder = self._decoders.get(keyword)
         if decoder:
-            return keyword, decoder(value_str)
+            result = decoder(value_str)
+            if isinstance(result, KeyValue):
+                keyword = result.key
+                value = result.value
+            else:
+                value = result
+
+            return keyword, value
         else:
             if value_str:
                 return keyword, self._default(value_str)
@@ -234,6 +244,5 @@ def decode_nested_kv(decoders, value):
 
 
 def nested_kv_decoder(decoders=None):
-    """ Helper function that creates a nested kv decoder with given KVDecoders
-    """
+    """Helper function that creates a nested kv decoder with given KVDecoders"""
     return functools.partial(decode_nested_kv, decoders)
