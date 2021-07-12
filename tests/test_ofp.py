@@ -24,6 +24,43 @@ from ovs_dbg.kv import KeyValue
                 KeyValue("controller", {"max_len": 200}),
             ],
         ),
+        (
+            "actions=enqueue(foo,42),enqueue:foo:42,enqueue(bar,4242)",
+            [
+                KeyValue("enqueue", {"port": "foo", "queue": 42}),
+                KeyValue("enqueue", {"port": "foo", "queue": 42}),
+                KeyValue("enqueue", {"port": "bar", "queue": 4242}),
+            ],
+        ),
+        (
+            "actions=bundle(eth_src,0,hrw,ofport,members:4,8)",
+            [
+                KeyValue(
+                    "bundle",
+                    {
+                        "fields": "eth_src",
+                        "basis": 0,
+                        "algorithm": "hrw",
+                        "members": [4, 8],
+                    },
+                ),
+            ],
+        ),
+        (
+            "actions=bundle_load(eth_src,0,hrw,ofport,reg0,members:4,8)",
+            [
+                KeyValue(
+                    "bundle_load",
+                    {
+                        "fields": "eth_src",
+                        "basis": 0,
+                        "algorithm": "hrw",
+                        "dst": "reg0",
+                        "members": [4, 8],
+                    },
+                ),
+            ],
+        ),
     ],
 )
 def test_act(input_string, expected):

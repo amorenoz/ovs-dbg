@@ -6,8 +6,9 @@ import functools
 import re
 
 from ovs_dbg.kv import KVParser, KVDecoders, ParseError
-from ovs_dbg.list import ListParser, ListDecoders
+from ovs_dbg.list import ListParser, ListDecoders, nested_list_decoder
 from ovs_dbg.decoders import (
+    decode_default,
     decode_int,
     decode_time,
     decode_mask8,
@@ -19,7 +20,13 @@ from ovs_dbg.decoders import (
     decode_ip,
     decode_mac,
 )
-from ovs_dbg.ofp_act import decode_free_output, decode_output, decode_controller
+from ovs_dbg.ofp_act import (
+    decode_free_output,
+    decode_output,
+    decode_controller,
+    decode_bundle,
+    decode_bundle_load,
+)
 
 
 @dataclass
@@ -243,7 +250,16 @@ class OFPFlow:
     @classmethod
     def _act_decoders(cls):
         """Generate the actions decoders"""
-        adec = {"output": decode_output, "controller": decode_controller}
+        adec = {
+            "output": decode_output,
+            "controller": decode_controller,
+            "enqueue": nested_list_decoder(
+                ListDecoders([("port", decode_default), ("queue", int)]),
+                delims=[",", ":"],
+            ),
+            "bundle": decode_bundle,
+            "bundle_load": decode_bundle_load,
+        }
 
         return KVDecoders(adec, default_free=decode_free_output)
 
