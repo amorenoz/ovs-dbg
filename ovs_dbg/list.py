@@ -52,11 +52,16 @@ class ListParser:
 
     Args:
         decoders (ListDecoders): Optional, the decoders to use
+        delims (list): Optional, list of delimiters of the list. Defaults to
+            [',']
     """
 
-    def __init__(self, decoders=None):
+    def __init__(self, decoders=None, delims=None):
         self._decoders = decoders or ListDecoders()
         self._keyval = list()
+        delims = delims or [","]
+        delims.append("$")
+        self._regexp = r"({})".format("|".join(delims))
 
     def kv(self):
         return self._keyval
@@ -76,7 +81,7 @@ class ListParser:
         kpos = 0
         index = 0
         while kpos < len(string) and string[kpos] != "\n":
-            split_parts = re.split(r"(,|$)", string[kpos:], 1)
+            split_parts = re.split(self._regexp, string[kpos:], 1)
             if len(split_parts) < 3:
                 break
 
@@ -97,7 +102,7 @@ class ListParser:
             index += 1
 
 
-def decode_nested_list(decoders, value):
+def decode_nested_list(decoders, delims, value):
     """Extracts nested list from te string and returns it in a dictionary
     them in a dictionary
 
@@ -105,13 +110,13 @@ def decode_nested_list(decoders, value):
         decoders (ListDecoders): the ListDecoders to use.
         value (str): the value string to decode.
     """
-    parser = ListParser(decoders)
+    parser = ListParser(decoders, delims)
     parser.parse(value)
     return {kv.key: kv.value for kv in parser.kv()}
 
 
-def nested_list_decoder(decoders=None):
+def nested_list_decoder(decoders=None, delims=None):
     """Helper function that creates a nested list decoder with given
     ListDecoders
     """
-    return functools.partial(decode_nested_list, decoders)
+    return functools.partial(decode_nested_list, decoders, delims)

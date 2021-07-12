@@ -8,7 +8,7 @@ from ovs_dbg.kv import KeyValue
     "input_data,expected",
     [
         (
-            ("field1,field2,3,nested:value", None),
+            ("field1,field2,3,nested:value", None, None),
             [
                 KeyValue("elem_0", "field1"),
                 KeyValue("elem_1", "field2"),
@@ -17,12 +17,18 @@ from ovs_dbg.kv import KeyValue
             ],
         ),
         (
-            ("field1,field2,3,nested:value", ListDecoders([
-                ("key1", str),
-                ("key2", str),
-                ("key3", int),
-                ("key4", lambda x: x.split(':'))
-            ])),
+            (
+                "field1,field2,3,nested:value",
+                ListDecoders(
+                    [
+                        ("key1", str),
+                        ("key2", str),
+                        ("key3", int),
+                        ("key4", lambda x: x.split(":"), None),
+                    ]
+                ),
+                None,
+            ),
             [
                 KeyValue("key1", "field1"),
                 KeyValue("key2", "field2"),
@@ -30,12 +36,22 @@ from ovs_dbg.kv import KeyValue
                 KeyValue("key4", ["nested", "value"]),
             ],
         ),
+        (
+            ("field1:field2:3", None, [":"]),
+            [
+                KeyValue("elem_0", "field1"),
+                KeyValue("elem_1", "field2"),
+                KeyValue("elem_2", 3),
+            ],
+        ),
     ],
 )
 def test_kv_parser(input_data, expected):
     input_string = input_data[0]
     decoders = input_data[1]
-    tparser = ListParser(decoders)
+    delims = input_data[2]
+    tparser = ListParser(decoders, delims)
+
     tparser.parse(input_string)
     result = tparser.kv()
     assert len(expected) == len(result)
@@ -46,6 +62,6 @@ def test_kv_parser(input_data, expected):
         kstr = result[i].meta.kstring
         vpos = result[i].meta.vpos
         vstr = result[i].meta.vstring
-        assert input_string[kpos: kpos + len(kstr)] == kstr
+        assert input_string[kpos : kpos + len(kstr)] == kstr
         if vpos != -1:
-            assert input_string[vpos: vpos + len(vstr)] == vstr
+            assert input_string[vpos : vpos + len(vstr)] == vstr
