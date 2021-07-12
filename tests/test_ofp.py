@@ -61,6 +61,10 @@ from ovs_dbg.kv import KeyValue
                 ),
             ],
         ),
+        (
+            "actions=group:3",
+            [KeyValue("group", 3)],
+        ),
     ],
 )
 def test_act(input_string, expected):
