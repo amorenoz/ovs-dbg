@@ -6,7 +6,7 @@ This respository stores scripts and documentation to help debug OVS and OVN.
    :maxdepth: 2
    :caption: Contents:
 
-
+   ofofproto
 
 Indices and tables
 ==================
