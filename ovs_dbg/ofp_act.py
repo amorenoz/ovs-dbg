@@ -23,3 +23,20 @@ def decode_free_output(value):
         return "output", {"port": int(value)}
     except ValueError:
         return "output", {"port": value.strip('"')}
+
+
+def decode_controller(value):
+    """Decodes the controller action"""
+    if not value:
+        return KeyValue("output", "controller")
+    else:
+        # Try controller:max_len
+        try:
+            max_len = int(value)
+            return {
+                "max_len": max_len,
+            }
+        except ValueError:
+            pass
+        # controller(key[=val], ...)
+        return nested_kv_decoder()(value)

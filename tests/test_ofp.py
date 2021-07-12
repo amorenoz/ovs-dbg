@@ -17,6 +17,13 @@ from ovs_dbg.kv import KeyValue
                 KeyValue("output", {"port": "foo"}),
             ],
         ),
+        (
+            "actions=controller,controller:200",
+            [
+                KeyValue("output", "controller"),
+                KeyValue("controller", {"max_len": 200}),
+            ],
+        ),
     ],
 )
 def test_act(input_string, expected):
@@ -34,9 +41,9 @@ def test_act(input_string, expected):
         kstr = actions[i].meta.kstring
         vpos = actions[i].meta.vpos
         vstr = actions[i].meta.vstring
-        assert astring[kpos: kpos + len(kstr)] == kstr
+        assert astring[kpos : kpos + len(kstr)] == kstr
         if vpos != -1:
-            assert astring[vpos: vpos + len(vstr)] == vstr
+            assert astring[vpos : vpos + len(vstr)] == vstr
 
         # assert astring meta is correct
-        assert input_string[apos: apos + len(astring)] == astring
+        assert input_string[apos : apos + len(astring)] == astring

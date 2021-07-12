@@ -19,7 +19,7 @@ from ovs_dbg.decoders import (
     decode_ip,
     decode_mac,
 )
-from ovs_dbg.ofp_act import decode_free_output, decode_output
+from ovs_dbg.ofp_act import decode_free_output, decode_output, decode_controller
 
 
 @dataclass
@@ -243,7 +243,7 @@ class OFPFlow:
     @classmethod
     def _act_decoders(cls):
         """Generate the actions decoders"""
-        adec = {"output": decode_output}
+        adec = {"output": decode_output, "controller": decode_controller}
 
         return KVDecoders(adec, default_free=decode_free_output)
 
