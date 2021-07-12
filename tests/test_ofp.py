@@ -65,6 +65,53 @@ from ovs_dbg.kv import KeyValue
             "actions=group:3",
             [KeyValue("group", 3)],
         ),
+        (
+            "actions=strip_vlan",
+            [KeyValue("strip_vlan", True)],
+        ),
+        (
+            "actions=pop_vlan",
+            [KeyValue("pop_vlan", True)],
+        ),
+        (
+            "actions=push_vlan:0x8100",
+            [KeyValue("push_vlan", 0x8100)],
+        ),
+        (
+            "actions=push_mpls:0x8848",
+            [KeyValue("push_mpls", 0x8848)],
+        ),
+        (
+            "actions=pop_mpls:0x8848",
+            [KeyValue("pop_mpls", 0x8848)],
+        ),
+        (
+            "actions=pop_mpls:0x8848",
+            [KeyValue("pop_mpls", 0x8848)],
+        ),
+        (
+            "actions=encap(nsh(md_type=2,tlv(0x1000,10,0x12345678)))",
+            [
+                KeyValue(
+                    "encap",
+                    {
+                        "nsh": {
+                            "md_type": 2,
+                            "tlv": {"class": 0x1000, "type": 10, "value": 0x12345678},
+                        }
+                    },
+                )
+            ],
+        ),
+        (
+            "actions=encap(0x0800)",
+            [
+                KeyValue(
+                    "encap",
+                    {"ethernet": 0x800},
+                )
+            ],
+        ),
     ],
 )
 def test_act(input_string, expected):

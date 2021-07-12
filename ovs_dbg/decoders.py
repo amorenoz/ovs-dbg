@@ -22,6 +22,11 @@ def decode_default(value):
         return value
 
 
+def decode_flag(value):
+    """Default a flag. It's exising is just flagged by returning True"""
+    return True
+
+
 def decode_int(value):
     """integer decoder
 

@@ -5,10 +5,11 @@ from dataclasses import dataclass
 import functools
 import re
 
-from ovs_dbg.kv import KVParser, KVDecoders, ParseError
-from ovs_dbg.list import ListParser, ListDecoders, nested_list_decoder
+from ovs_dbg.kv import KVParser, KVDecoders, ParseError, nested_kv_decoder
+from ovs_dbg.list import ListDecoders, nested_list_decoder
 from ovs_dbg.decoders import (
     decode_default,
+    decode_flag,
     decode_int,
     decode_time,
     decode_mask8,
@@ -26,6 +27,7 @@ from ovs_dbg.ofp_act import (
     decode_controller,
     decode_bundle,
     decode_bundle_load,
+    decode_encap_ethernet,
 )
 
 
@@ -250,6 +252,7 @@ class OFPFlow:
     @classmethod
     def _act_decoders(cls):
         """Generate the actions decoders"""
+
         adec = {
             "output": decode_output,
             "controller": decode_controller,
@@ -261,7 +264,42 @@ class OFPFlow:
             "bundle_load": decode_bundle_load,
         }
 
-        return KVDecoders(adec, default_free=decode_free_output)
+        # Actions using default decoder:
+        # group
+        # push_vlan: ethertype
+
+        encap = {
+            "pop_vlan": decode_flag,
+            "strip_vlan": decode_flag,
+            "decap": decode_flag,
+            "encap": nested_kv_decoder(
+                KVDecoders(
+                    {
+                        "nsh": nested_kv_decoder(
+                            KVDecoders(
+                                {
+                                    "md_type": decode_default,
+                                    "tlv": nested_list_decoder(
+                                        ListDecoders(
+                                            [
+                                                ("class", decode_int),
+                                                ("type", decode_int),
+                                                ("value", decode_int),
+                                            ]
+                                        )
+                                    ),
+                                }
+                            )
+                        ),
+                    },
+                    default=None,
+                    default_free=decode_encap_ethernet,
+                )
+            ),
+        }
+
+        actions = {**adec, **encap}
+        return KVDecoders(actions, default_free=decode_free_output)
 
     def __str__(self):
         if self._orig:

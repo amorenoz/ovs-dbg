@@ -66,3 +66,8 @@ def decode_bundle(value, load=False):
     mvalues = value.split("members:")
     result["members"] = [int(port) for port in mvalues[1].split(",")]
     return result
+
+
+def decode_encap_ethernet(value):
+    """Decodes encap ethernet value"""
+    return "ethernet", int(value, 0)
