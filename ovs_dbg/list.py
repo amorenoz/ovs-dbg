@@ -1,4 +1,5 @@
 import re
+import functools
 
 from ovs_dbg.kv import KeyValue, KeyMetadata, ParseError
 from ovs_dbg.decoders import decode_default
@@ -94,3 +95,23 @@ class ListParser:
 
             kpos += len(value_str) + 1
             index += 1
+
+
+def decode_nested_list(decoders, value):
+    """Extracts nested list from te string and returns it in a dictionary
+    them in a dictionary
+
+    Args:
+        decoders (ListDecoders): the ListDecoders to use.
+        value (str): the value string to decode.
+    """
+    parser = ListParser(decoders)
+    parser.parse(value)
+    return {kv.key: kv.value for kv in parser.kv()}
+
+
+def nested_list_decoder(decoders=None):
+    """Helper function that creates a nested list decoder with given
+    ListDecoders
+    """
+    return functools.partial(decode_nested_list, decoders)
