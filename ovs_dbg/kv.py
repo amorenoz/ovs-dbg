@@ -206,9 +206,19 @@ class KVParser:
                     )
 
                 value_str = rest[: index - 1]
-
                 next_kpos = vpos + len(value_str) + 1
                 end_delimiter = True
+
+                # Exceptionally, if after the () we find -> {}, do not treat
+                # the content of the parenthesis as the value, consider
+                # ({})->{} as the string value
+                if index < len(rest) - 2 and rest[index : index + 2] == "->":
+                    extra_val = rest[index + 2 :].split(",")[0]
+                    value_str = "({})->{}".format(value_str, extra_val)
+                    # remove the first "("
+                    vpos -= 1
+                    next_kpos = vpos + len(value_str)
+                    end_delimiter = False
 
             elif delimiter in (",", "\n", "\t", "\r", ""):
                 # key with no value

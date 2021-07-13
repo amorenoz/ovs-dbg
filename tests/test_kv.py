@@ -45,6 +45,10 @@ from ovs_dbg.kv import KVParser, KeyValue, KeyMetadata
             ("enqueue:1:2,output=2", None),
             [KeyValue("enqueue", "1:2"), KeyValue("output", 2)],
         ),
+        (
+            ("value_to_reg(100)->someReg[10],foo:bar", None),
+            [KeyValue("value_to_reg", "(100)->someReg[10]"), KeyValue("foo", "bar")],
+        ),
     ],
 )
 def test_kv_parser(input_data, expected):
