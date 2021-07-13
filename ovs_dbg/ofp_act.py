@@ -142,3 +142,14 @@ def decode_dec_ttl(value):
     if not value:
         return True
     return [int(idx) for idx in value.split(",")]
+
+
+def decode_chk_pkt_larger(value):
+    """Decodes 'check_pkt_larger(pkt_len)->dst' actions"""
+    parts = value.split("->")
+    if len(parts) != 2:
+        raise ValueError("Malformed check_pkt_larger action : %s" % value)
+
+    pkt_len = int(parts[0].strip("()"))
+    dst = _decode_field(parts[1])
+    return {"pkt_len": pkt_len, "dst": dst}

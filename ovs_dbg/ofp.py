@@ -32,6 +32,7 @@ from ovs_dbg.ofp_act import (
     decode_set_field,
     decode_move_field,
     decode_dec_ttl,
+    decode_chk_pkt_larger,
 )
 
 
@@ -315,6 +316,7 @@ class OFPFlow:
             "dec_ttl": decode_dec_ttl,
             "dec_mpls_ttl": decode_flag,
             "dec_nsh_ttl": decode_flag,
+            "check_pkt_larger": decode_chk_pkt_larger,
         }
         # Field actions using default decoder:
         # set_mpls_label

@@ -188,6 +188,15 @@ from ovs_dbg.decoders import EthMask, IPMask
                 KeyValue("set_mpls_ttl", 10),
             ],
         ),
+        (
+            "actions=check_pkt_larger(100)->reg0[10]",
+            [
+                KeyValue(
+                    "check_pkt_larger",
+                    {"pkt_len": 100, "dst": {"field": "reg0", "start": 10, "end": 10}},
+                ),
+            ],
+        ),
     ],
 )
 def test_act(input_string, expected):
