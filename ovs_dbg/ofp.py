@@ -327,7 +327,14 @@ class OFPFlow:
         # mod_tcp_src
         # mod_tcp_dst
 
-        actions = {**adec, **encap, **fields}
+        # Metadata Actions
+        meta = {"pop_queue": decode_flag}
+        # Metadata actions using default decoder:
+        # set_tunnel
+        # set_tunnel64
+        # set_queue
+
+        actions = {**adec, **encap, **fields, **meta}
         return KVDecoders(actions, default_free=decode_free_output)
 
     def __str__(self):

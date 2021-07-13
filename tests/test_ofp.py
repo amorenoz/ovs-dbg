@@ -197,6 +197,15 @@ from ovs_dbg.decoders import EthMask, IPMask
                 ),
             ],
         ),
+        (
+            "actions=pop_queue,set_tunnel:0x10,set_tunnel64:0x65000,set_queue=3",
+            [
+                KeyValue("pop_queue", True),
+                KeyValue("set_tunnel", 0x10),
+                KeyValue("set_tunnel64", 0x65000),
+                KeyValue("set_queue", 3),
+            ],
+        ),
     ],
 )
 def test_act(input_string, expected):
