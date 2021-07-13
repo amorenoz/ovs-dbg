@@ -1,7 +1,9 @@
 """ Defines decoders for openflow actions
 """
 
-from ovs_dbg.kv import nested_kv_decoder, KVDecoders, KeyValue
+import netaddr
+
+from ovs_dbg.kv import nested_kv_decoder, KVDecoders, KeyValue, KVParser
 from ovs_dbg.decoders import decode_default
 
 
@@ -153,3 +155,59 @@ def decode_chk_pkt_larger(value):
     pkt_len = int(parts[0].strip("()"))
     dst = _decode_field(parts[1])
     return {"pkt_len": pkt_len, "dst": dst}
+
+
+# CT decoders
+def decode_zone(value):
+    """Decodes the 'zone' keyword of the ct action"""
+    try:
+        return int(value, 0)
+    except ValueError:
+        pass
+    return _decode_field(value)
+
+
+def decode_nat(value):
+    """Decodes the 'nat' keyword of the ct action"""
+    if not value:
+        return True
+
+    result = dict()
+    type_parts = value.split("=")
+    if len(type_parts) != 2:
+        raise ValueError("Malformed nat action: %s" % value)
+
+    value_parts = type_parts[1].split(",")
+    addr_parts = value_parts[0].split(":")
+    addr_range = addr_parts[0].split("-")
+    addr_start = netaddr.IPAddress(addr_range[0])
+    addr_end = netaddr.IPAddress(addr_range[1]) if len(addr_range) > 1 else addr_start
+
+    result = {
+        "type": type_parts[0],
+        "addrs": {"start": addr_start, "end": addr_end},
+    }
+
+    if len(addr_parts) > 1:
+        port_parts = addr_parts[1].split("-")
+        port_start = int(port_parts[0])
+        port_end = int(port_parts[1]) if len(port_parts) > 1 else port_start
+        result["ports"] = {"start": port_start, "end": port_end}
+
+    for flag in value_parts[1:]:
+        result[flag] = True
+
+    return result
+
+
+def decode_exec(action_decoders, value):
+    """Decodes the 'exec' keyword of the ct action
+
+    Args:
+        decode_actions (KVDecoders): the decoders to be used to decode the
+            nested exec
+        value (string): the string to be decoded
+    """
+    exec_parser = KVParser(action_decoders)
+    exec_parser.parse(value)
+    return [{kv.key: kv.value} for kv in exec_parser.kv()]

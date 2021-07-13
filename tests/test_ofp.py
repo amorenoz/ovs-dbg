@@ -1,3 +1,4 @@
+import netaddr
 import pytest
 
 from ovs_dbg.ofp import OFPFlow
@@ -204,6 +205,59 @@ from ovs_dbg.decoders import EthMask, IPMask
                 KeyValue("set_tunnel", 0x10),
                 KeyValue("set_tunnel64", 0x65000),
                 KeyValue("set_queue", 3),
+            ],
+        ),
+        (
+            "actions=ct(zone=10,table=2,nat(snat=192.168.0.0-192.168.0.200:1000-2000,random))",
+            [
+                KeyValue(
+                    "ct",
+                    {
+                        "zone": 10,
+                        "table": 2,
+                        "nat": {
+                            "type": "snat",
+                            "addrs": {
+                                "start": netaddr.IPAddress("192.168.0.0"),
+                                "end": netaddr.IPAddress("192.168.0.200"),
+                            },
+                            "ports": {
+                                "start": 1000,
+                                "end": 2000,
+                            },
+                            "random": True,
+                        },
+                    },
+                )
+            ],
+        ),
+        (
+            "actions=ct(commit,zone=NXM_NX_REG13[0..15],table=2,exec(load:0->NXM_NX_CT_LABEL[0]))",
+            [
+                KeyValue(
+                    "ct",
+                    {
+                        "commit": True,
+                        "zone": {
+                            "field": "NXM_NX_REG13",
+                            "start": 0,
+                            "end": 15,
+                        },
+                        "table": 2,
+                        "exec": [
+                            {
+                                "load": {
+                                    "value": 0,
+                                    "dst": {
+                                        "field": "NXM_NX_CT_LABEL",
+                                        "start": 0,
+                                        "end": 0,
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                )
             ],
         ),
     ],

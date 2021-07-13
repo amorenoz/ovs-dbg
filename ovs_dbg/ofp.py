@@ -33,6 +33,9 @@ from ovs_dbg.ofp_act import (
     decode_move_field,
     decode_dec_ttl,
     decode_chk_pkt_larger,
+    decode_zone,
+    decode_nat,
+    decode_exec,
 )
 
 
@@ -334,7 +337,34 @@ class OFPFlow:
         # set_tunnel64
         # set_queue
 
-        actions = {**adec, **encap, **fields, **meta}
+        ct_dec = nested_kv_decoder(
+            KVDecoders(
+                {
+                    "commit": decode_flag,
+                    "zone": decode_zone,
+                    "table": decode_int,
+                    "nat": decode_nat,
+                    "force": decode_flag,
+                    "exec": functools.partial(
+                        decode_exec,
+                        KVDecoders(
+                            {
+                                **encap,
+                                **fields,
+                                **meta,
+                            }
+                        ),
+                    ),
+                    "alg": decode_default,
+                }
+            )
+        )
+        ct = {
+            "ct": ct_dec,
+            "ct_clear": decode_flag,
+        }
+
+        actions = {**adec, **encap, **fields, **meta, **ct}
         return KVDecoders(actions, default_free=decode_free_output)
 
     def __str__(self):
