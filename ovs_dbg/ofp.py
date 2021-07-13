@@ -28,6 +28,10 @@ from ovs_dbg.ofp_act import (
     decode_bundle,
     decode_bundle_load,
     decode_encap_ethernet,
+    decode_load_field,
+    decode_set_field,
+    decode_move_field,
+    decode_dec_ttl,
 )
 
 
@@ -268,6 +272,7 @@ class OFPFlow:
         # group
         # push_vlan: ethertype
 
+        # Encapsulation actions
         encap = {
             "pop_vlan": decode_flag,
             "strip_vlan": decode_flag,
@@ -298,7 +303,29 @@ class OFPFlow:
             ),
         }
 
-        actions = {**adec, **encap}
+        # Field modification actions
+        fields = {
+            "load": decode_load_field,
+            "set_field": functools.partial(decode_set_field, cls._field_decoders()),
+            "move": decode_move_field,
+            "mod_dl_dst": decode_mac,
+            "mod_dl_src": decode_mac,
+            "mod_nw_dst": decode_ip,
+            "mod_nw_src": decode_ip,
+            "dec_ttl": decode_dec_ttl,
+            "dec_mpls_ttl": decode_flag,
+            "dec_nsh_ttl": decode_flag,
+        }
+        # Field actions using default decoder:
+        # set_mpls_label
+        # set_mpls_tc
+        # set_mpls_ttl
+        # mod_nw_tos
+        # mod_nw_ecn
+        # mod_tcp_src
+        # mod_tcp_dst
+
+        actions = {**adec, **encap, **fields}
         return KVDecoders(actions, default_free=decode_free_output)
 
     def __str__(self):

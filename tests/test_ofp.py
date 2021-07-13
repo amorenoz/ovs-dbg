@@ -2,6 +2,7 @@ import pytest
 
 from ovs_dbg.ofp import OFPFlow
 from ovs_dbg.kv import KeyValue
+from ovs_dbg.decoders import EthMask, IPMask
 
 
 @pytest.mark.parametrize(
@@ -110,6 +111,81 @@ from ovs_dbg.kv import KeyValue
                     "encap",
                     {"ethernet": 0x800},
                 )
+            ],
+        ),
+        (
+            "actions=load:0x001122334455->eth_src",
+            [KeyValue("load", {"value": 0x001122334455, "dst": {"field": "eth_src"}})],
+        ),
+        (
+            "actions=load:1->eth_src[1]",
+            [
+                KeyValue(
+                    "load",
+                    {"value": 1, "dst": {"field": "eth_src", "start": 1, "end": 1}},
+                )
+            ],
+        ),
+        (
+            "actions=set_field:00:11:22:33:44:55->eth_src",
+            [
+                KeyValue(
+                    "set_field",
+                    {
+                        "value": {"eth_src": EthMask("00:11:22:33:44:55")},
+                        "dst": {"field": "eth_src"},
+                    },
+                )
+            ],
+        ),
+        (
+            "actions=set_field:01:00:00:00:00:00/01:00:00:00:00:00->eth_src",
+            [
+                KeyValue(
+                    "set_field",
+                    {
+                        "value": {
+                            "eth_src": EthMask("01:00:00:00:00:00/01:00:00:00:00:00")
+                        },
+                        "dst": {"field": "eth_src"},
+                    },
+                )
+            ],
+        ),
+        (
+            "actions=move:reg0[0..5]->reg1[16..31]",
+            [
+                KeyValue(
+                    "move",
+                    {
+                        "src": {"field": "reg0", "start": 0, "end": 5},
+                        "dst": {"field": "reg1", "start": 16, "end": 31},
+                    },
+                )
+            ],
+        ),
+        (
+            "actions=mod_dl_dst:00:11:22:33:44:55",
+            [KeyValue("mod_dl_dst", EthMask("00:11:22:33:44:55"))],
+        ),
+        (
+            "actions=mod_nw_dst:192.168.1.1",
+            [KeyValue("mod_nw_dst", IPMask("192.168.1.1"))],
+        ),
+        (
+            "actions=mod_nw_dst:fe80::ec17:7bff:fe61:7aac",
+            [KeyValue("mod_nw_dst", IPMask("fe80::ec17:7bff:fe61:7aac"))],
+        ),
+        (
+            "actions=dec_ttl,dec_ttl(1,2,3)",
+            [KeyValue("dec_ttl", True), KeyValue("dec_ttl", [1, 2, 3])],
+        ),
+        (
+            "actions=set_mpls_label:0x100,set_mpls_tc:2,set_mpls_ttl:10",
+            [
+                KeyValue("set_mpls_label", 0x100),
+                KeyValue("set_mpls_tc", 2),
+                KeyValue("set_mpls_ttl", 10),
             ],
         ),
     ],

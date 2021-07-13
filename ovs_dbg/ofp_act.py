@@ -71,3 +71,74 @@ def decode_bundle(value, load=False):
 def decode_encap_ethernet(value):
     """Decodes encap ethernet value"""
     return "ethernet", int(value, 0)
+
+
+def _decode_field(value):
+    """Decodes a field as defined in the 'Field Specification' of the actions
+    man page: http://www.openvswitch.org/support/dist-docs/ovs-actions.7.txt
+    """
+    parts = value.strip("]").split("[")
+    result = {
+        "field": parts[0],
+    }
+
+    if len(parts) > 1 and parts[1]:
+        field_range = parts[1].split("..")
+        start = field_range[0]
+        end = field_range[1] if len(field_range) > 1 else start
+        if start:
+            result["start"] = int(start)
+        if end:
+            result["end"] = int(end)
+
+    return result
+
+
+def decode_load_field(value):
+    """Decodes 'load:value->dst' actions"""
+    parts = value.split("->")
+    if len(parts) != 2:
+        raise ValueError("Malformed load action : %s" % value)
+
+    return {"value": int(parts[0], 0), "dst": _decode_field(parts[1])}
+
+
+def decode_set_field(field_decoders, value):
+    """Decodes 'set_field:value/mask->dst' actions
+
+    The value is decoded by field_decoders which is a KVDecoders instance
+    Args:
+        field_decoders
+    """
+    parts = value.split("->")
+    if len(parts) != 2:
+        raise ValueError("Malformed set_field action : %s" % value)
+
+    val = parts[0]
+    dst = parts[1]
+
+    val_result = field_decoders.decode(dst, val)
+
+    return {
+        "value": {val_result[0]: val_result[1]},
+        "dst": _decode_field(dst),
+    }
+
+
+def decode_move_field(value):
+    """Decodes 'move:src->dst' actions"""
+    parts = value.split("->")
+    if len(parts) != 2:
+        raise ValueError("Malformed move action : %s" % value)
+
+    return {
+        "src": _decode_field(parts[0]),
+        "dst": _decode_field(parts[1]),
+    }
+
+
+def decode_dec_ttl(value):
+    """Decodes dec_ttl and dec_ttl(id, id[2], ...) actions"""
+    if not value:
+        return True
+    return [int(idx) for idx in value.split(",")]
