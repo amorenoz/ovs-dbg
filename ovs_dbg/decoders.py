@@ -105,6 +105,10 @@ class EthMask:
         """The ethernet address mask"""
         return self._mask
 
+    def __eq__(self, other):
+        """Returns True if this EthMask is numerically the same as other"""
+        return self._mask == other._mask and self._eth == other._eth
+
     def __contains__(self, other):
         """
         Args:
@@ -174,6 +178,13 @@ class IPMask:
                 raise ValueError(
                     "value {}: is not an ipv4 or ipv6 address".format(string)
                 ) from exc
+
+    def __eq__(self, other):
+        """Returns True if this IPMask is numerically the same as other"""
+        if self._ipnet:
+            return self._ipnet == other._ipnet
+
+        return self._ip == other._ip and self._mask == other._mask
 
     def __contains__(self, other):
         """
