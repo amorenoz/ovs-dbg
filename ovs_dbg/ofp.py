@@ -43,11 +43,11 @@ from ovs_dbg.ofp_act import (
 class OFPFlowMeta:
     """OFPFlow Metadata"""
 
-    def __init__(self, ipos, istring, fpos, fstring, apos, astring):
+    def __init__(self, ipos, istring, mpos, mstring, apos, astring):
         self.ipos = ipos
         self.istring = istring
-        self.fpos = fpos
-        self.fstring = fstring
+        self.mpos = mpos
+        self.mstring = mstring
         self.apos = apos
         self.astring = astring
 
@@ -55,10 +55,10 @@ class OFPFlowMeta:
 class OFPFlow:
     """OpenFlow Flow"""
 
-    def __init__(self, info, fields, actions, meta=None, orig=""):
+    def __init__(self, info, match, actions, meta=None, orig=""):
         """Constructor"""
         self._info = info
-        self._fields = fields
+        self._match = match
         self._actions = actions
         self._meta = meta
         self._orig = orig
@@ -69,9 +69,9 @@ class OFPFlow:
         return {item.key: item.value for item in self._info}
 
     @property
-    def fields(self):
-        """Returns a dictionary representing the fields"""
-        return {item.key: item.value for item in self._fields}
+    def match(self):
+        """Returns a dictionary representing the match"""
+        return {item.key: item.value for item in self._match}
 
     @property
     def actions(self):
@@ -84,9 +84,9 @@ class OFPFlow:
         return self._info
 
     @property
-    def fields_kv(self):
-        """Returns the fields KeyValue  list"""
-        return self._fields
+    def match_kv(self):
+        """Returns the match KeyValue  list"""
+        return self._match
 
     @property
     def actions_kv(self):
@@ -108,7 +108,7 @@ class OFPFlow:
         """Parse a ofproto flow string
 
         The string is expected to have the follwoing format:
-            [flow data] [fields] actions=[actions]
+            [flow data] [match] actions=[actions]
 
         :param ofp_string: a ofproto string as dumped by ovs-ofctl tool
         :type ofp_string: str
@@ -127,15 +127,17 @@ class OFPFlow:
             raise ValueError("malformed ofproto flow: {}", ofp_string)
 
         info = field_parts[0]
-        fields = field_parts[2]
+        match = field_parts[2]
 
         info_decoders = cls._info_decoders()
         iparser = KVParser(info_decoders)
         iparser.parse(info)
 
-        field_decoders = cls._field_decoders()
-        fparser = KVParser(field_decoders)
-        fparser.parse(fields)
+        match_decoders = KVDecoders(
+            {**cls._field_decoders(), **cls._flow_match_decoders()}
+        )
+        mparser = KVParser(match_decoders)
+        mparser.parse(match)
 
         act_decoders = cls._act_decoders()
         adecoder = KVParser(act_decoders)
@@ -144,13 +146,13 @@ class OFPFlow:
         meta = OFPFlowMeta(
             ipos=ofp_string.find(info),
             istring=info,
-            fpos=ofp_string.find(fields),
-            fstring=fields,
+            mpos=ofp_string.find(match),
+            mstring=match,
             apos=ofp_string.find(actions),
             astring=actions,
         )
 
-        return cls(iparser.kv(), fparser.kv(), adecoder.kv(), meta, ofp_string)
+        return cls(iparser.kv(), mparser.kv(), adecoder.kv(), meta, ofp_string)
 
     @classmethod
     def _info_decoders(cls):
@@ -166,6 +168,14 @@ class OFPFlow:
             "hard_age": decode_time,
         }
         return KVDecoders(info)
+
+    @classmethod
+    def _flow_match_decoders(cls):
+        """Returns the decoders for key-values that are part of the flow match
+        but not a flow field"""
+        return {
+            "priority": decode_int,
+        }
 
     @classmethod
     def _field_decoders(cls):
@@ -240,22 +250,16 @@ class OFPFlow:
             "nsh_flags": decode_mask8,
         }
 
-        fields = {
-            "priority": decode_int,
+        return {
+            **ip,
+            **eth,
+            **tun_meta,
+            **regs,
+            **xregs,
+            **nsh,
+            **nsh_,
+            **mask_fields,
         }
-        return KVDecoders(
-            {
-                **fields,
-                **ip,
-                **eth,
-                **tun_meta,
-                **regs,
-                **xregs,
-                **nsh,
-                **nsh_,
-                **mask_fields,
-            }
-        )
 
     @classmethod
     def _act_decoders(cls):
@@ -310,7 +314,9 @@ class OFPFlow:
         # Field modification actions
         fields = {
             "load": decode_load_field,
-            "set_field": functools.partial(decode_set_field, cls._field_decoders()),
+            "set_field": functools.partial(
+                decode_set_field, KVDecoders(cls._field_decoders())
+            ),
             "move": decode_move_field,
             "mod_dl_dst": decode_mac,
             "mod_dl_src": decode_mac,
@@ -372,6 +378,6 @@ class OFPFlow:
             return self._orig
         else:
             string = "Info: {}\n" + self.info
-            string += "Fields: {}\n" + self.fields
+            string += "Match : {}\n" + self.match
             string += "Actions: {}\n " + self.actions
             return string
