@@ -262,10 +262,9 @@ class OFPFlow:
         }
 
     @classmethod
-    def _act_decoders(cls):
-        """Generate the actions decoders"""
-
-        adec = {
+    def _output_actions_decoders(cls):
+        """Returns the decoders for the output actions"""
+        return {
             "output": decode_output,
             "controller": decode_controller,
             "enqueue": nested_list_decoder(
@@ -274,16 +273,17 @@ class OFPFlow:
             ),
             "bundle": decode_bundle,
             "bundle_load": decode_bundle_load,
+            "group": decode_default,
         }
 
-        # Actions using default decoder:
-        # group
-        # push_vlan: ethertype
+    @classmethod
+    def _encap_actions_decoders(cls):
+        """Returns the decoders for the encap actions"""
 
-        # Encapsulation actions
-        encap = {
+        return {
             "pop_vlan": decode_flag,
             "strip_vlan": decode_flag,
+            "push_vlan": decode_default,
             "decap": decode_flag,
             "encap": nested_kv_decoder(
                 KVDecoders(
@@ -311,8 +311,20 @@ class OFPFlow:
             ),
         }
 
+    @classmethod
+    def _field_action_decoders(cls):
+        """Returns the decoders for the field modification actions"""
         # Field modification actions
-        fields = {
+        field_default_decoders = [
+            "set_mpls_label",
+            "set_mpls_tc",
+            "set_mpls_ttl",
+            "mod_nw_tos",
+            "mod_nw_ecn",
+            "mod_tcp_src",
+            "mod_tcp_dst",
+        ]
+        return {
             "load": decode_load_field,
             "set_field": functools.partial(
                 decode_set_field, KVDecoders(cls._field_decoders())
@@ -326,51 +338,58 @@ class OFPFlow:
             "dec_mpls_ttl": decode_flag,
             "dec_nsh_ttl": decode_flag,
             "check_pkt_larger": decode_chk_pkt_larger,
+            **{field: decode_default for field in field_default_decoders},
         }
-        # Field actions using default decoder:
-        # set_mpls_label
-        # set_mpls_tc
-        # set_mpls_ttl
-        # mod_nw_tos
-        # mod_nw_ecn
-        # mod_tcp_src
-        # mod_tcp_dst
 
-        # Metadata Actions
-        meta = {"pop_queue": decode_flag}
-        # Metadata actions using default decoder:
-        # set_tunnel
-        # set_tunnel64
-        # set_queue
+    @classmethod
+    def _meta_action_decoders(cls):
+        """Returns the decoders for the metadata actions"""
+        meta_default_decoders = ["set_tunnel", "set_tunnel64", "set_queue"]
+        return {
+            "pop_queue": decode_flag,
+            **{field: decode_default for field in meta_default_decoders},
+        }
 
-        ct_dec = nested_kv_decoder(
-            KVDecoders(
-                {
-                    "commit": decode_flag,
-                    "zone": decode_zone,
-                    "table": decode_int,
-                    "nat": decode_nat,
-                    "force": decode_flag,
-                    "exec": functools.partial(
-                        decode_exec,
-                        KVDecoders(
-                            {
-                                **encap,
-                                **fields,
-                                **meta,
-                            }
+    @classmethod
+    def _ct_action_decoders(cls):
+        """Returns the decoders for the ct actions"""
+        return {
+            "ct": nested_kv_decoder(
+                KVDecoders(
+                    {
+                        "commit": decode_flag,
+                        "zone": decode_zone,
+                        "table": decode_int,
+                        "nat": decode_nat,
+                        "force": decode_flag,
+                        "exec": functools.partial(
+                            decode_exec,
+                            KVDecoders(
+                                {
+                                    **cls._encap_actions_decoders(),
+                                    **cls._field_action_decoders(),
+                                    **cls._meta_action_decoders(),
+                                }
+                            ),
                         ),
-                    ),
-                    "alg": decode_default,
-                }
-            )
-        )
-        ct = {
-            "ct": ct_dec,
+                        "alg": decode_default,
+                    }
+                )
+            ),
             "ct_clear": decode_flag,
         }
 
-        actions = {**adec, **encap, **fields, **meta, **ct}
+    @classmethod
+    def _act_decoders(cls):
+        """Generate the actions decoders"""
+
+        actions = {
+            **cls._output_actions_decoders(),
+            **cls._encap_actions_decoders(),
+            **cls._field_action_decoders(),
+            **cls._meta_action_decoders(),
+            **cls._ct_action_decoders(),
+        }
         return KVDecoders(actions, default_free=decode_free_output)
 
     def __str__(self):
