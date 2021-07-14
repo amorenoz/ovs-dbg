@@ -79,7 +79,7 @@ def _decode_field(value):
     """Decodes a field as defined in the 'Field Specification' of the actions
     man page: http://www.openvswitch.org/support/dist-docs/ovs-actions.7.txt
     """
-    parts = value.strip("]").split("[")
+    parts = value.strip("]\n\r").split("[")
     result = {
         "field": parts[0],
     }
