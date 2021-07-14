@@ -2,9 +2,11 @@
 """
 
 import netaddr
+import functools
 
 from ovs_dbg.kv import nested_kv_decoder, KVDecoders, KeyValue, KVParser
-from ovs_dbg.decoders import decode_default
+from ovs_dbg.decoders import decode_default, decode_time, decode_flag, decode_int
+from ovs_dbg.fields import field_decoders
 
 
 def decode_output(value):
@@ -211,3 +213,53 @@ def decode_exec(action_decoders, value):
     exec_parser = KVParser(action_decoders)
     exec_parser.parse(value)
     return [{kv.key: kv.value} for kv in exec_parser.kv()]
+
+
+def decode_learn(action_decoders):
+    """Create the decoder to be used to decode the 'learn' action.
+
+    The learn action can include any nested action, therefore we need decoders
+    for all possible actions.
+
+    Args:
+        action_decoders (dict): dictionary of decoders to be used in nested
+            action decoding
+
+    """
+
+    def decode_learn_field(decoder, value):
+        """Generates a decoder to be used for the 'field' argument of the
+        'learn' action.
+
+        The field can hold a value that should be decoded, either as a field,
+        or as a the value (see man(7) ovs-actions)
+
+        Args:
+            decoder (callable): The decoder
+
+        """
+        if value in field_decoders.keys():
+            # It's a field
+            return value
+        else:
+            return decoder(value)
+
+    learn_field_decoders = {
+        field: functools.partial(decode_learn_field, decoder)
+        for field, decoder in field_decoders.items()
+    }
+    learn_decoders = {
+        **action_decoders,
+        **learn_field_decoders,
+        "idle_timeout": decode_time,
+        "hard_timeout": decode_time,
+        "priority": decode_int,
+        "cooke": decode_int,
+        "send_flow_rem": decode_flag,
+        "table": decode_int,
+        "delete_learned": decode_flag,
+        "limit": decode_int,
+        "result_dst": _decode_field,
+    }
+
+    return functools.partial(decode_exec, KVDecoders(learn_decoders))

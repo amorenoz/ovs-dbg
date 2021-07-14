@@ -260,6 +260,38 @@ from ovs_dbg.decoders import EthMask, IPMask
                 )
             ],
         ),
+        (
+            "actions=load:0x1->NXM_NX_REG10[7],learn(table=69,delete_learned,cookie=0xda6f52b0,OXM_OF_METADATA[],eth_type=0x800,NXM_OF_IP_SRC[],ip_dst=172.30.204.105,nw_proto=6,NXM_OF_TCP_SRC[]=NXM_OF_TCP_DST[],load:0x1->NXM_NX_REG10[7])",
+            [
+                KeyValue(
+                    "load",
+                    {
+                        "value": 1,
+                        "dst": {"field": "NXM_NX_REG10", "start": 7, "end": 7},
+                    },
+                ),
+                KeyValue(
+                    "learn",
+                    [
+                        {"table": 69},
+                        {"delete_learned": True},
+                        {"cookie": 3664728752},
+                        {"OXM_OF_METADATA[]": True},
+                        {"eth_type": 2048},
+                        {"NXM_OF_IP_SRC[]": True},
+                        {"ip_dst": IPMask("172.30.204.105/32")},
+                        {"nw_proto": 6},
+                        {"NXM_OF_TCP_SRC[]": "NXM_OF_TCP_DST[]"},
+                        {
+                            "load": {
+                                "value": 1,
+                                "dst": {"field": "NXM_NX_REG10", "start": 7, "end": 7},
+                            }
+                        },
+                    ],
+                ),
+            ],
+        ),
     ],
 )
 def test_act(input_string, expected):

@@ -37,6 +37,7 @@ from ovs_dbg.ofp_act import (
     decode_zone,
     decode_nat,
     decode_exec,
+    decode_learn,
 )
 
 
@@ -289,8 +290,8 @@ class OFPFlow:
         }
 
     @classmethod
-    def _ct_action_decoders(cls):
-        """Returns the decoders for the ct actions"""
+    def _fw_action_decoders(cls):
+        """Returns the decoders for the Firewalling actions"""
         return {
             "ct": nested_kv_decoder(
                 KVDecoders(
@@ -315,6 +316,22 @@ class OFPFlow:
                 )
             ),
             "ct_clear": decode_flag,
+            "learn": decode_learn(
+                {
+                    **cls._output_actions_decoders(),
+                    **cls._encap_actions_decoders(),
+                    **cls._field_action_decoders(),
+                    **cls._meta_action_decoders(),
+                    "fin_timeout": nested_kv_decoder(
+                        KVDecoders(
+                            {
+                                "idle_timeout": decode_time,
+                                "hard_timeout": decode_time,
+                            }
+                        )
+                    ),
+                }
+            ),
         }
 
     @classmethod
@@ -326,7 +343,7 @@ class OFPFlow:
             **cls._encap_actions_decoders(),
             **cls._field_action_decoders(),
             **cls._meta_action_decoders(),
-            **cls._ct_action_decoders(),
+            **cls._fw_action_decoders(),
         }
         return KVDecoders(actions, default_free=decode_free_output)
 
