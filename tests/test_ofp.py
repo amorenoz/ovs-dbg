@@ -300,6 +300,38 @@ from ovs_dbg.decoders import EthMask, IPMask
                 KeyValue("resubmit", {"port": 1, "table": 2, "ct": True}),
             ],
         ),
+        (
+            "actions=clone(ct_clear,load:0->NXM_NX_REG11[],load:0->NXM_NX_REG12[],load:0->NXM_NX_REG13[],load:0x1d->NXM_NX_REG13[],load:0x1f->NXM_NX_REG11[],load:0x1c->NXM_NX_REG12[],load:0x11->OXM_OF_METADATA[],load:0x2->NXM_NX_REG14[],load:0->NXM_NX_REG10[],load:0->NXM_NX_REG15[],load:0->NXM_NX_REG0[],load:0->NXM_NX_REG1[],load:0->NXM_NX_REG2[],load:0->NXM_NX_REG3[],load:0->NXM_NX_REG4[],load:0->NXM_NX_REG5[],load:0->NXM_NX_REG6[],load:0->NXM_NX_REG7[],load:0->NXM_NX_REG8[],load:0->NXM_NX_REG9[],resubmit(,8))",
+            [
+                KeyValue(
+                    "clone",
+                    [
+                        {"ct_clear": True},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG11"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG12"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG13"}}},
+                        {"load": {"value": 29, "dst": {"field": "NXM_NX_REG13"}}},
+                        {"load": {"value": 31, "dst": {"field": "NXM_NX_REG11"}}},
+                        {"load": {"value": 28, "dst": {"field": "NXM_NX_REG12"}}},
+                        {"load": {"value": 17, "dst": {"field": "OXM_OF_METADATA"}}},
+                        {"load": {"value": 2, "dst": {"field": "NXM_NX_REG14"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG10"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG15"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG0"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG1"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG2"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG3"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG4"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG5"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG6"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG7"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG8"}}},
+                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG9"}}},
+                        {"resubmit": {"port": "", "table": 8}},
+                    ],
+                )
+            ],
+        ),
     ],
 )
 def test_act(input_string, expected):

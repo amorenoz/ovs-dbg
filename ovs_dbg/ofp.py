@@ -316,22 +316,6 @@ class OFPFlow:
                 )
             ),
             "ct_clear": decode_flag,
-            "learn": decode_learn(
-                {
-                    **cls._output_actions_decoders(),
-                    **cls._encap_actions_decoders(),
-                    **cls._field_action_decoders(),
-                    **cls._meta_action_decoders(),
-                    "fin_timeout": nested_kv_decoder(
-                        KVDecoders(
-                            {
-                                "idle_timeout": decode_time,
-                                "hard_timeout": decode_time,
-                            }
-                        )
-                    ),
-                }
-            ),
         }
 
     @classmethod
@@ -349,6 +333,30 @@ class OFPFlow:
         }
 
     @classmethod
+    def _clone_actions_decoders(cls, action_decoders):
+        """Generate the decoders for clone actions
+
+        Args:
+            action_decoders (dict): The decoders of the supported nested actions
+        """
+        return {
+            "learn": decode_learn(
+                {
+                    **action_decoders,
+                    "fin_timeout": nested_kv_decoder(
+                        KVDecoders(
+                            {
+                                "idle_timeout": decode_time,
+                                "hard_timeout": decode_time,
+                            }
+                        )
+                    ),
+                }
+            ),
+            "clone": functools.partial(decode_exec, KVDecoders(action_decoders)),
+        }
+
+    @classmethod
     def _act_decoders(cls):
         """Generate the actions decoders"""
 
@@ -360,6 +368,8 @@ class OFPFlow:
             **cls._fw_action_decoders(),
             **cls._control_action_decoders(),
         }
+        clone_actions = cls._clone_actions_decoders(actions)
+        actions.update(clone_actions)
         return KVDecoders(actions, default_free=decode_free_output)
 
     def __str__(self):
