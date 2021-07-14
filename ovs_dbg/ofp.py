@@ -419,7 +419,11 @@ class OFPFlow:
         if self._orig:
             return self._orig
         else:
-            string = "Info: {}\n" + self.info
-            string += "Match : {}\n" + self.match
-            string += "Actions: {}\n " + self.actions
-            return string
+            return self.to_string()
+
+    def to_string(self):
+        """Print a text representation of the flow"""
+        string = "Info: {}\n" + self.info
+        string += "Match : {}\n" + self.match
+        string += "Actions: {}\n " + self.actions
+        return string
