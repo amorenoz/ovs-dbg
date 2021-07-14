@@ -335,6 +335,20 @@ class OFPFlow:
         }
 
     @classmethod
+    def _control_action_decoders(cls):
+        return {
+            "resubmit": nested_list_decoder(
+                ListDecoders(
+                    [
+                        ("port", decode_default),
+                        ("table", decode_int),
+                        ("ct", decode_flag),
+                    ]
+                )
+            )
+        }
+
+    @classmethod
     def _act_decoders(cls):
         """Generate the actions decoders"""
 
@@ -344,6 +358,7 @@ class OFPFlow:
             **cls._field_action_decoders(),
             **cls._meta_action_decoders(),
             **cls._fw_action_decoders(),
+            **cls._control_action_decoders(),
         }
         return KVDecoders(actions, default_free=decode_free_output)
 

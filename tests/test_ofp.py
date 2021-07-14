@@ -292,6 +292,14 @@ from ovs_dbg.decoders import EthMask, IPMask
                 ),
             ],
         ),
+        (
+            "actions=resubmit(,8),resubmit:3,resubmit(1,2,ct)",
+            [
+                KeyValue("resubmit", {"port": "", "table": 8}),
+                KeyValue("resubmit", {"port": 3}),
+                KeyValue("resubmit", {"port": 1, "table": 2, "ct": True}),
+            ],
+        ),
     ],
 )
 def test_act(input_string, expected):
