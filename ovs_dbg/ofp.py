@@ -25,6 +25,7 @@ from ovs_dbg.decoders import (
 from ovs_dbg.ofp_act import (
     decode_free_output,
     decode_output,
+    decode_field,
     decode_controller,
     decode_bundle,
     decode_bundle_load,
@@ -329,7 +330,22 @@ class OFPFlow:
                         ("ct", decode_flag),
                     ]
                 )
-            )
+            ),
+            "push": decode_field,
+            "pop": decode_field,
+            "exit": decode_flag,
+            "multipath": nested_list_decoder(
+                ListDecoders(
+                    [
+                        ("fields", decode_default),
+                        ("basis", decode_int),
+                        ("algorithm", decode_default),
+                        ("n_links", decode_int),
+                        ("arg", decode_int),
+                        ("dst", decode_field),
+                    ]
+                )
+            ),
         }
 
     @classmethod
@@ -357,6 +373,32 @@ class OFPFlow:
         }
 
     @classmethod
+    def _other_action_decoders(cls):
+        """Recoders for other actions (see man(7) ovs-actions)"""
+        return {
+            "conjunction": nested_list_decoder(
+                ListDecoders(
+                    [("id", decode_int), ("k", decode_int), ("n", decode_int)]
+                ),
+                delims=[",", "/"],
+            ),
+            "note": decode_default,
+            "sample": nested_kv_decoder(
+                KVDecoders(
+                    {
+                        "probability": decode_int,
+                        "collector_set_id": decode_int,
+                        "obs_domain_id": decode_int,
+                        "obs_point_id": decode_int,
+                        "sampling_port": decode_default,
+                        "ingress": decode_flag,
+                        "egress": decode_flag,
+                    }
+                )
+            ),
+        }
+
+    @classmethod
     def _act_decoders(cls):
         """Generate the actions decoders"""
 
@@ -367,6 +409,7 @@ class OFPFlow:
             **cls._meta_action_decoders(),
             **cls._fw_action_decoders(),
             **cls._control_action_decoders(),
+            **cls._other_action_decoders(),
         }
         clone_actions = cls._clone_actions_decoders(actions)
         actions.update(clone_actions)

@@ -332,6 +332,24 @@ from ovs_dbg.decoders import EthMask, IPMask
                 )
             ],
         ),
+        (
+            "actions=conjunction(1234, 1/2),note:00.00.11.22.33.ff,sample(probability=123,collector_set_id=0x123,obs_domain_id=0x123,obs_point_id=0x123,sampling_port=inport0,ingress)",
+            [
+                KeyValue("conjunction", {"id": 1234, "k": 1, "n": 2}),
+                KeyValue("note", "00.00.11.22.33.ff"),
+                KeyValue(
+                    "sample",
+                    {
+                        "probability": 123,
+                        "collector_set_id": 0x123,
+                        "obs_domain_id": 0x123,
+                        "obs_point_id": 0x123,
+                        "sampling_port": "inport0",
+                        "ingress": True,
+                    },
+                ),
+            ],
+        ),
     ],
 )
 def test_act(input_string, expected):
