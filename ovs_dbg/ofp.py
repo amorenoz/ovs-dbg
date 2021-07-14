@@ -6,6 +6,7 @@ import functools
 import re
 
 from ovs_dbg.kv import KVParser, KVDecoders, ParseError, nested_kv_decoder
+from ovs_dbg.fields import field_decoders
 from ovs_dbg.list import ListDecoders, nested_list_decoder
 from ovs_dbg.decoders import (
     decode_default,
@@ -179,87 +180,24 @@ class OFPFlow:
 
     @classmethod
     def _field_decoders(cls):
-        ip_fields = [
-            "tun_src",
-            "tun_dst",
-            "tun_ipv6_src",
-            "tun_ipv6_dst",
-            "ct_nw_src",
-            "ct_nw_dst",
-            "ct_ipv6_dst",
-            "ip_src",
-            "nw_src",
-            "ip_dst",
-            "nw_dst",
-            "ipv6_src",
-            "ipv6_dst",
-            "arp_spa",
-            "arp_tpa",
-            "nd_target",
+        shorthands = [
+            "eth",
+            "ip",
+            "ipv6",
+            "icmp",
+            "icmp6",
+            "tcp",
+            "tcp6",
+            "udp",
+            "udp6",
+            "sctp",
+            "arp",
+            "rarp",
+            "mpls",
+            "mplsm",
         ]
-        eth_fields = [
-            "eth_src",
-            "dl_src",
-            "dl_dst",
-            "eth_dst",
-            "arp_sha",
-            "arp_tha",
-            "nd_sll",
-            "nd_tll",
-        ]
-        ip = {field: decode_ip for field in ip_fields}
-        eth = {field: decode_mac for field in eth_fields}
 
-        tun_meta = dict(
-            (
-                ("tun_metadata{}".format(i), functools.partial(decode_mask, 992))
-                for i in range(0, 64)
-            )
-        )
-
-        nsh = dict((("nshc{}".format(i), decode_mask32) for i in range(1, 5)))
-        nsh_ = dict((("nsh_c{}".format(i), decode_mask32) for i in range(1, 5)))
-
-        regs = dict((("reg{}".format(i), decode_mask32) for i in range(0, 4)))
-        xregs = dict((("xreg{}".format(i), decode_mask32) for i in range(0, 4)))
-
-        mask_fields = {
-            "dp_hash": decode_mask32,
-            "tun_id": decode_mask64,
-            "tunnel_id": decode_mask64,
-            "tun_gbp_id": decode_mask16,
-            "tun_gbp_flags": decode_mask8,
-            "tun_erspan_idx": decode_mask32,
-            "tun_erspan_ver": decode_mask8,
-            "tun_erspan_dir": decode_mask8,
-            "tun_erspan_hwid": decode_mask8,
-            "tun_gtpu_flags": decode_mask8,
-            "tun_gtpu_msgtype": decode_mask8,
-            "metadata": decode_mask64,
-            "pkt_mark": decode_mask32,
-            "ct_mark": decode_mask32,
-            "ct_label": decode_mask128,
-            "ct_tcp_src": decode_mask16,
-            "vlan_tci": decode_mask16,
-            "vlan_vid": decode_mask8,
-            "ipv6_label": decode_mask32,
-            "udp_src": decode_mask16,
-            "udp_dst": decode_mask16,
-            "sctp_src": decode_mask16,
-            "sctp_dst": decode_mask16,
-            "nsh_flags": decode_mask8,
-        }
-
-        return {
-            **ip,
-            **eth,
-            **tun_meta,
-            **regs,
-            **xregs,
-            **nsh,
-            **nsh_,
-            **mask_fields,
-        }
+        return {**field_decoders, **{key: decode_flag for key in shorthands}}
 
     @classmethod
     def _output_actions_decoders(cls):
