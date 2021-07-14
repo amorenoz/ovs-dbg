@@ -225,7 +225,12 @@ class KVParser:
                 next_kpos = kpos + len(keyword)
                 vpos = -1
 
-            key, val = self._decoders.decode(keyword, value_str)
+            try:
+                key, val = self._decoders.decode(keyword, value_str)
+            except Exception as e:
+                raise ParseError(
+                    "Error parsing key-value ({}, {})".format(keyword, value_str)
+                ) from e
 
             meta = KeyMetadata(
                 kpos=kpos,
