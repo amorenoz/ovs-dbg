@@ -77,7 +77,7 @@ def decode_encap_ethernet(value):
     return "ethernet", int(value, 0)
 
 
-def _decode_field(value):
+def decode_field(value):
     """Decodes a field as defined in the 'Field Specification' of the actions
     man page: http://www.openvswitch.org/support/dist-docs/ovs-actions.7.txt
     """
@@ -104,7 +104,7 @@ def decode_load_field(value):
     if len(parts) != 2:
         raise ValueError("Malformed load action : %s" % value)
 
-    return {"value": int(parts[0], 0), "dst": _decode_field(parts[1])}
+    return {"value": int(parts[0], 0), "dst": decode_field(parts[1])}
 
 
 def decode_set_field(field_decoders, value):
@@ -125,7 +125,7 @@ def decode_set_field(field_decoders, value):
 
     return {
         "value": {val_result[0]: val_result[1]},
-        "dst": _decode_field(dst),
+        "dst": decode_field(dst),
     }
 
 
@@ -136,8 +136,8 @@ def decode_move_field(value):
         raise ValueError("Malformed move action : %s" % value)
 
     return {
-        "src": _decode_field(parts[0]),
-        "dst": _decode_field(parts[1]),
+        "src": decode_field(parts[0]),
+        "dst": decode_field(parts[1]),
     }
 
 
@@ -155,7 +155,7 @@ def decode_chk_pkt_larger(value):
         raise ValueError("Malformed check_pkt_larger action : %s" % value)
 
     pkt_len = int(parts[0].strip("()"))
-    dst = _decode_field(parts[1])
+    dst = decode_field(parts[1])
     return {"pkt_len": pkt_len, "dst": dst}
 
 
@@ -166,7 +166,7 @@ def decode_zone(value):
         return int(value, 0)
     except ValueError:
         pass
-    return _decode_field(value)
+    return decode_field(value)
 
 
 def decode_nat(value):
@@ -259,7 +259,7 @@ def decode_learn(action_decoders):
         "table": decode_int,
         "delete_learned": decode_flag,
         "limit": decode_int,
-        "result_dst": _decode_field,
+        "result_dst": decode_field,
     }
 
     return functools.partial(decode_exec, KVDecoders(learn_decoders))
