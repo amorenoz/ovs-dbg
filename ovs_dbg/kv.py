@@ -188,7 +188,7 @@ class KVParser:
             # If the delimiter is ':' or '=', the end of the value is the end
             # of the string or a ', '
             if delimiter in ("=", ":"):
-                value_parts = re.split(r"( |,)", rest, 1)
+                value_parts = re.split(r"( |,|\n|\r|\t)", rest, 1)
                 value_str = value_parts[0] if len(value_parts) == 3 else rest
                 next_kpos = vpos + len(value_str)
 
