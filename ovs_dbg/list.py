@@ -94,7 +94,6 @@ class ListParser:
                 vpos=kpos,
                 kstring=value_str,
                 vstring=value_str,
-                end_del=False,
             )
             self._keyval.append(KeyValue(key, value, meta))
 
