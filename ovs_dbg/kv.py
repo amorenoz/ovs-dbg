@@ -26,13 +26,14 @@ class KeyMetadata:
         end_del (bool): Whether the key has end delimiter.
     """
 
-    def __init__(self, kpos, vpos, kstring, vstring, end_del):
+    def __init__(self, kpos, vpos, kstring, vstring, delim="", end_delim=""):
         """Constructor"""
         self.kpos = kpos
         self.vpos = vpos
         self.kstring = kstring
         self.vstring = vstring
-        self.end_del = end_del
+        self.delim = delim
+        self.end_delim = end_delim
 
     def __str__(self):
         return "key: [{},{}), val:[{}, {})".format(
@@ -41,6 +42,9 @@ class KeyMetadata:
             self.vpos,
             self.vpos + len(self.vstring),
         )
+
+    def __repr__(self):
+        return "%s('%s')" % (self.__class__.__name__, self)
 
 
 @dataclass
@@ -61,6 +65,9 @@ class KeyValue:
 
     def __str__(self):
         return "{}: {} ({})".format(self.key, str(self.value), str(self.meta))
+
+    def __repr__(self):
+        return "%s('%s')" % (self.__class__.__name__, self)
 
 
 class KVDecoders:
@@ -175,13 +182,13 @@ class KVParser:
 
             value_str = ""
             vpos = kpos + len(keyword) + 1
-            end_delimiter = False
+            end_delimiter = ""
 
             # Figure out the end of the value
             # If the delimiter is ':' or '=', the end of the value is the end
             # of the string or a ', '
             if delimiter in ("=", ":"):
-                value_parts = re.split(r"( |,)", rest, 1)
+                value_parts = re.split(r"( |,|\n|\r|\t)", rest, 1)
                 value_str = value_parts[0] if len(value_parts) == 3 else rest
                 next_kpos = vpos + len(value_str)
 
@@ -207,7 +214,7 @@ class KVParser:
 
                 value_str = rest[: index - 1]
                 next_kpos = vpos + len(value_str) + 1
-                end_delimiter = True
+                end_delimiter = ")"
 
                 # Exceptionally, if after the () we find -> {}, do not treat
                 # the content of the parenthesis as the value, consider
@@ -218,7 +225,7 @@ class KVParser:
                     # remove the first "("
                     vpos -= 1
                     next_kpos = vpos + len(value_str)
-                    end_delimiter = False
+                    end_delimiter = ""
 
             elif delimiter in (",", "\n", "\t", "\r", ""):
                 # key with no value
@@ -237,7 +244,8 @@ class KVParser:
                 vpos=vpos,
                 kstring=keyword,
                 vstring=value_str,
-                end_del=end_delimiter,
+                delim=delimiter,
+                end_delim=end_delimiter,
             )
 
             self._keyval.append(KeyValue(key, val, meta))
