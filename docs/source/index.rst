@@ -3,9 +3,10 @@ Welcome to OVS Debug's documentation!
 This respository stores scripts and documentation to help debug OVS and OVN.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :maxdepth: 1
+   :caption: Tools:
 
+   ofparse
 
 
 Indices and tables
