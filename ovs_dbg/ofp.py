@@ -206,6 +206,7 @@ class OFPFlow:
         """Returns the decoders for the output actions"""
         return {
             "output": decode_output,
+            "drop": decode_flag,
             "controller": decode_controller,
             "enqueue": nested_list_decoder(
                 ListDecoders([("port", decode_default), ("queue", int)]),
