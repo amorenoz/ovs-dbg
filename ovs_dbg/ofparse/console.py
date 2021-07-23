@@ -31,6 +31,7 @@ class OFConsole:
         "flag": Style(color="slate_blue1"),
         "key.drop": Style(color="red"),
         "key.resubmit": Style(color="green3"),
+        "key.output": Style(color="green3"),
     }
 
     def __init__(self, console=None, max_value_length=-1, **kwargs):
