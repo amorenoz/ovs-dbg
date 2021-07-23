@@ -82,7 +82,7 @@ def logic(opts, show_flows):
     """
     console = OFConsole()
 
-    process_flows(callback, opts.get("filename"))
+    process_flows(callback, opts.get("filename"), opts.get("filter"))
 
     # Try to make it easy to spot same cookies by printing them in different
     # colors

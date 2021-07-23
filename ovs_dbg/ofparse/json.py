@@ -30,7 +30,7 @@ def tojson(opts):
     def callback(flow):
         flows.append(flow)
 
-    process_flows(callback, opts.get("filename"))
+    process_flows(callback, opts.get("filename"), opts.get("filter"))
 
     flow_json = json.dumps(
         [

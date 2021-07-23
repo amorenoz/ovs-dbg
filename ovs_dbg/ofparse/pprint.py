@@ -16,4 +16,4 @@ def pprint(opts):
         console.print_flow(flow)
 
     with print_context(console.console, opts["paged"], not opts["no_style"]):
-        process_flows(callback, opts.get("filename"))
+        process_flows(callback, opts.get("filename"), opts.get("filter"))
