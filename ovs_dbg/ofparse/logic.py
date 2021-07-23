@@ -1,3 +1,4 @@
+import sys
 import click
 import colorsys
 from rich.tree import Tree
@@ -7,7 +8,9 @@ from rich.style import Style
 from rich.color import Color
 
 from .main import maincli, process_flows
-from .console import OFConsole
+from .console import OFConsole, print_context
+
+tables = dict()
 
 
 class LFlow:
@@ -40,6 +43,21 @@ class LFlow:
         ).__hash__()
 
 
+def callback(flow):
+    """Parse the flows and sort them by table and logical flow"""
+    table = flow.info.get("table") or 0
+    if not tables.get(table):
+        tables[table] = dict()
+
+    # Group flows by logical hash
+    lflow = LFlow(flow)
+
+    if not tables[table].get(lflow):
+        tables[table][lflow] = list()
+
+    tables[table][lflow].append(flow)
+
+
 @maincli.command()
 @click.option(
     "-s",
@@ -64,30 +82,14 @@ def logic(opts, show_flows):
     """
     console = OFConsole()
 
-    tables = dict()
-
-    # Generate a color pallete to display different cookies
-    N = 200
-    HSV_tuples = [(x * 1.0 / N, 0.5, 0.5) for x in range(N)]
-    RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
-    cookie_styles = [
-        Style(color=Color.from_rgb(r * 255, g * 255, b * 255)) for r, g, b in RGB_tuples
-    ]
-
-    def callback(flow):
-        table = flow.info.get("table") or 0
-        if not tables.get(table):
-            tables[table] = dict()
-
-        # Group flows by logical hash
-        lflow = LFlow(flow)
-
-        if not tables[table].get(lflow):
-            tables[table][lflow] = list()
-
-        tables[table][lflow].append(flow)
-
     process_flows(callback, opts.get("filename"))
+
+    # Try to make it easy to spot same cookies by printing them in different
+    # colors
+    cookie_styles = [
+        Style(color=Color.from_rgb(r * 255, g * 255, b * 255))
+        for r, g, b in create_color_pallete(200)
+    ]
 
     tree = Tree("Ofproto Flows (logical)")
     console = Console(color_system="256")
@@ -122,8 +124,13 @@ def logic(opts, show_flows):
                     OFConsole(console).format_flow(flow, text=text)
                     lflow_tree.add(text)
 
-    if opts.get("paged"):
-        with console.pager(styles=(not opts["no_style"])):
-            console.print(tree)
-    else:
+    with print_context(console, opts["paged"], not opts["no_style"]):
         console.print(tree)
+
+
+def create_color_pallete(size):
+    """Create a color pallete of size colors by modifying the Hue in the HSV
+    color space
+    """
+    HSV_tuples = [(x / size, 0.5, 0.5) for x in range(size)]
+    return map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)

@@ -1,6 +1,8 @@
 """ This module defines OFConsole class
 """
 
+import sys
+import contextlib
 from rich.console import Console
 from rich.text import Text
 from rich.style import Style
@@ -223,3 +225,26 @@ class OFConsole:
             ret += len(kv.meta.end_delim)
 
         return ret
+
+
+def print_context(console, paged=False, styles=True):
+    """
+    Returns a printing context
+
+    Args:
+        console: The console to print
+        paged (bool): Wheter to page the output
+        style (bool): Whether to force the use of styled pager
+    """
+    if paged:
+        # Internally pydoc's pager library is used which returns a
+        # plain pager if both stdin and stdout are not tty devices
+        #
+        # Workaround that limitation if only stdin is not a tty (e.g
+        # data is piped to us through stdin)
+        if not sys.stdin.isatty() and sys.stdout.isatty():
+            setattr(sys.stdin, "isatty", lambda: True)
+
+        return console.pager(styles=styles)
+
+    return contextlib.nullcontext()

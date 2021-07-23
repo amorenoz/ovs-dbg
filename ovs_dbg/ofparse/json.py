@@ -1,8 +1,10 @@
 import json
 import click
 import netaddr
+from rich.console import Console
 
 from .main import maincli, process_flows
+from .console import print_context
 from ovs_dbg.decoders import IPMask, EthMask
 
 
@@ -30,18 +32,23 @@ def tojson(opts):
 
     process_flows(callback, opts.get("filename"))
 
-    print(
-        json.dumps(
-            [
-                {
-                    "raw": flow.orig,
-                    "info": flow.info,
-                    "match": flow.match,
-                    "actions": flow.actions,
-                }
-                for flow in flows
-            ],
-            indent=4,
-            cls=FlowEncoder,
-        )
+    flow_json = json.dumps(
+        [
+            {
+                "raw": flow.orig,
+                "info": flow.info,
+                "match": flow.match,
+                "actions": flow.actions,
+            }
+            for flow in flows
+        ],
+        indent=4,
+        cls=FlowEncoder,
     )
+
+    if opts["paged"]:
+        console = Console()
+        with print_context(console, opts["paged"], not opts["no_style"]):
+            console.print(flow_json)
+    else:
+        print(flow_json)

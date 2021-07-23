@@ -1,7 +1,7 @@
 import click
 
 from .main import maincli, process_flows
-from .console import OFConsole
+from .console import OFConsole, print_context
 
 
 @maincli.command()
@@ -15,8 +15,5 @@ def pprint(opts):
     def callback(flow):
         console.print_flow(flow)
 
-    if opts["paged"]:
-        with console.console.pager(styles=(not opts["no_style"])):
-            process_flows(callback, opts.get("filename"))
-    else:
+    with print_context(console.console, opts["paged"], not opts["no_style"]):
         process_flows(callback, opts.get("filename"))

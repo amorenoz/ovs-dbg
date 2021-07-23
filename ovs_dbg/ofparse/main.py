@@ -5,10 +5,13 @@ from ovs_dbg.ofp import OFPFlow
 
 
 class Options(dict):
+    """Options dictionary"""
+
     pass
 
 
 def process_flows(callback, filename=""):
+    """Process flows from file or stdin"""
     if filename:
         with open(filename) as f:
             for line in f:
@@ -28,7 +31,8 @@ def process_flows(callback, filename=""):
     "-f",
     "-file",
     "filename",
-    help="Read flows from specified filepath",
+    help="Read flows from specified filepath. If not provided, flows will be"
+    " read from stdin",
     type=click.Path(),
 )
 @click.option(
@@ -53,7 +57,7 @@ def maincli(ctx, filename, paged, no_style):
     OpenFlow Parse utility.
 
     It parses openflow flows (such as the output of ovs-ofctl 'dump-flows') and
-    prints them in different formats
+    prints them in different formats.
     """
     ctx.obj = Options()
     ctx.obj["filename"] = filename or ""
