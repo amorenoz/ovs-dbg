@@ -76,7 +76,7 @@ def maincli(ctx, filename, paged, no_style, filter):
     Filter Syntax
     *************
 
-        [! | not ] {key}[[.subkey[.subkey]..] [= | > | < | ~=] {value})] [&& | || | | or | and | not ] ...
+        [! | not ] {key}[[.subkey[.subkey]..] [= | > | < | ~=] {value})] [&& | || | or | and | not ] ...
 
     \b
     Comparison operators are:
