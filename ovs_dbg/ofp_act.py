@@ -22,14 +22,6 @@ def decode_output(value):
         return {"port": value.strip('"')}
 
 
-def decode_free_output(value):
-    """Decodes the output value when found free (without the 'output' keyword)"""
-    try:
-        return "output", {"port": int(value)}
-    except ValueError:
-        return "output", {"port": value.strip('"')}
-
-
 def decode_controller(value):
     """Decodes the controller action"""
     if not value:

@@ -260,3 +260,11 @@ def decode_ip(value):
         nw_dst=2001:db8::0/24
     """
     return IPMask(value)
+
+
+def decode_free_output(value):
+    """Decodes the output value when found free (without the 'output' keyword)"""
+    try:
+        return "output", {"port": int(value)}
+    except ValueError:
+        return "output", {"port": value.strip('"')}

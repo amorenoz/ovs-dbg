@@ -21,9 +21,9 @@ from ovs_dbg.decoders import (
     decode_mask,
     decode_ip,
     decode_mac,
+    decode_free_output,
 )
 from ovs_dbg.ofp_act import (
-    decode_free_output,
     decode_output,
     decode_field,
     decode_controller,
