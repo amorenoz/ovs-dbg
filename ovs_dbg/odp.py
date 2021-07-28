@@ -32,7 +32,9 @@ from ovs_dbg.decoders import (
 class ODPFlowMeta:
     """ODPFlowMeta Metadata"""
 
-    def __init__(self, ipos, istring, mpos, mstring, apos, astring):
+    def __init__(self, upos, ustring, ipos, istring, mpos, mstring, apos, astring):
+        self.upos = upos
+        self.ustring = ustring
         self.ipos = ipos
         self.istring = istring
         self.mpos = mpos
@@ -44,13 +46,24 @@ class ODPFlowMeta:
 class ODPFlow:
     """OpenFlow Flow"""
 
-    def __init__(self, info, match, actions, meta=None, orig=""):
+    def __init__(self, ufid, info, match, actions, meta=None, orig=""):
         """Constructor"""
+        self._ufid = ufid
         self._info = info
         self._match = match
         self._actions = actions
         self._meta = meta
         self._orig = orig
+
+    @property
+    def ufid(self):
+        """Returns the UFID if preset"""
+        return self._ufid.value if self._ufid else ""
+
+    @property
+    def ufid_kv(self):
+        """Returns the UFID KeyValue if preset"""
+        return self._ufid
 
     @property
     def info(self):
@@ -97,7 +110,7 @@ class ODPFlow:
         """Parse a odp flow string
 
         The string is expected to have the follwoing format:
-             [match] [flow data] actions:[actions]
+             [ufid], [match] [flow data] actions:[actions]
 
         Args:
             odp_string (str): a datapath flow string
@@ -105,13 +118,34 @@ class ODPFlow:
         Returns:
             an ODPFlow instance
         """
-        parts = odp_string.split("actions:")
-        if len(parts) != 2:
+
+        # If UFID present, parse it and
+        ufid_pos = odp_string.find("ufid:")
+        if ufid_pos >= 0:
+            ufid_string = odp_string[ufid_pos : (odp_string[ufid_pos:].find(",") + 1)]
+            ufid_parser = KVParser(KVDecoders({"ufid": decode_default}))
+            ufid_parser.parse(ufid_string)
+            if len(ufid_parser.kv()) != 1:
+                raise ValueError("malformed odp flow: {}", odp_string)
+            ufid = ufid_parser.kv()[0]
+        else:
+            ufid = None
+            ufid_string = ""
+
+        action_pos = odp_string.find("actions:")
+        if action_pos < 0:
             raise ValueError("malformed odp flow: {}", odp_string)
 
-        actions = parts[1]
+        action_pos += 8  # len("actions:")
 
-        field_parts = parts[0].lstrip(" ").partition(" ")
+        actions = odp_string[action_pos:]
+
+        # rest of the string is between ufid and actions
+        rest = odp_string[
+            (ufid_pos + len(ufid_string) if ufid_pos >= 0 else 0) : action_pos
+        ]
+
+        field_parts = rest.lstrip(" ").partition(" ")
 
         if len(field_parts) != 3:
             raise ValueError("malformed odp flow: {}", odp_string)
@@ -120,7 +154,7 @@ class ODPFlow:
         info = field_parts[2]
 
         info_decoders = cls._info_decoders()
-        iparser = KVParser(info_decoders)
+        iparser = KVParser(KVDecoders(info_decoders))
         iparser.parse(info)
 
         mparser = cls._match_parser()
@@ -130,15 +164,17 @@ class ODPFlow:
         aparser.parse(actions)
 
         meta = ODPFlowMeta(
+            upos=ufid_pos,
+            ustring=ufid_string,
             ipos=odp_string.find(info),
             istring=info,
             mpos=odp_string.find(match),
             mstring=match,
-            apos=odp_string.find(actions),
+            apos=action_pos,
             astring=actions,
         )
 
-        return cls(iparser.kv(), mparser.kv(), aparser.kv(), meta, odp_string)
+        return cls(ufid, iparser.kv(), mparser.kv(), aparser.kv(), meta, odp_string)
 
     @classmethod
     def _action_parser(cls):
@@ -417,6 +453,7 @@ class ODPFlow:
             "bytes": decode_int,
             "used": decode_time,
             "flags": decode_default,
+            "dp": decode_default,
         }
 
     @classmethod
@@ -437,7 +474,7 @@ class ODPFlow:
             "skb_mark": decode_mask32,
             "recirc_id": decode_int,
             "dp_hash": decode_mask32,
-            "ct_state": decode_mask32,
+            "ct_state": decode_default,  # TODO: Parse flags
             "ct_zone": decode_mask16,
             "ct_mark": decode_mask32,
             "ct_label": decode_mask128,
