@@ -7,6 +7,7 @@ import re
 
 from ovs_dbg.kv import KVParser, KVDecoders, ParseError, nested_kv_decoder
 from ovs_dbg.fields import field_decoders
+from ovs_dbg.flow import Flow, Section
 from ovs_dbg.list import ListDecoders, nested_list_decoder
 from ovs_dbg.decoders import (
     decode_default,
@@ -42,69 +43,12 @@ from ovs_dbg.ofp_act import (
 )
 
 
-@dataclass
-class OFPFlowMeta:
-    """OFPFlow Metadata"""
-
-    def __init__(self, ipos, istring, mpos, mstring, apos, astring):
-        self.ipos = ipos
-        self.istring = istring
-        self.mpos = mpos
-        self.mstring = mstring
-        self.apos = apos
-        self.astring = astring
-
-
-class OFPFlow:
+class OFPFlow(Flow):
     """OpenFlow Flow"""
 
-    def __init__(self, info, match, actions, meta=None, orig=""):
+    def __init__(self, sections, orig=""):
         """Constructor"""
-        self._info = info
-        self._match = match
-        self._actions = actions
-        self._meta = meta
-        self._orig = orig
-
-    @property
-    def info(self):
-        """Returns a dictionary representing the flow information"""
-        return {item.key: item.value for item in self._info}
-
-    @property
-    def match(self):
-        """Returns a dictionary representing the match"""
-        return {item.key: item.value for item in self._match}
-
-    @property
-    def actions(self):
-        """Returns a list of dictionaries reprsenting the actions"""
-        return [{item.key: item.value} for item in self._actions]
-
-    @property
-    def info_kv(self):
-        """Returns the information KeyValue list"""
-        return self._info
-
-    @property
-    def match_kv(self):
-        """Returns the match KeyValue  list"""
-        return self._match
-
-    @property
-    def actions_kv(self):
-        """Returns the actions KeyValue list"""
-        return self._actions
-
-    @property
-    def meta(self):
-        """Returns the flow metadata"""
-        return self._meta
-
-    @property
-    def orig(self):
-        """Returns the original flow string"""
-        return self._orig
+        super(OFPFlow, self).__init__(sections, orig)
 
     @classmethod
     def from_string(cls, ofp_string):
@@ -119,6 +63,7 @@ class OFPFlow:
         :return: an OFPFlow with the content of the flow string
         :rtype: OFPFlow
         """
+        sections = list()
         parts = ofp_string.split("actions=")
         if len(parts) != 2:
             raise ValueError("malformed ofproto flow: {}", ofp_string)
@@ -135,27 +80,34 @@ class OFPFlow:
         info_decoders = cls._info_decoders()
         iparser = KVParser(info_decoders)
         iparser.parse(info)
+        isection = Section(
+            name="info", pos=ofp_string.find(info), string=info, data=iparser.kv()
+        )
+        sections.append(isection)
 
         match_decoders = KVDecoders(
             {**cls._field_decoders(), **cls._flow_match_decoders()}
         )
         mparser = KVParser(match_decoders)
         mparser.parse(match)
+        msection = Section(
+            name="match", pos=ofp_string.find(match), string=match, data=mparser.kv()
+        )
+        sections.append(msection)
 
         act_decoders = cls._act_decoders()
-        adecoder = KVParser(act_decoders)
-        adecoder.parse(actions)
-
-        meta = OFPFlowMeta(
-            ipos=ofp_string.find(info),
-            istring=info,
-            mpos=ofp_string.find(match),
-            mstring=match,
-            apos=ofp_string.find(actions),
-            astring=actions,
+        aparser = KVParser(act_decoders)
+        aparser.parse(actions)
+        asection = Section(
+            name="actions",
+            pos=ofp_string.find(actions),
+            string=actions,
+            data=aparser.kv(),
+            is_list=True,
         )
+        sections.append(asection)
 
-        return cls(iparser.kv(), mparser.kv(), adecoder.kv(), meta, ofp_string)
+        return cls(sections, ofp_string)
 
     @classmethod
     def _info_decoders(cls):

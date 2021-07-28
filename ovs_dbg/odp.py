@@ -3,6 +3,8 @@
 from functools import partial
 from dataclasses import dataclass
 
+from ovs_dbg.flow import Flow, Section
+
 from ovs_dbg.kv import (
     KVParser,
     KVDecoders,
@@ -28,82 +30,12 @@ from ovs_dbg.decoders import (
 )
 
 
-@dataclass
-class ODPFlowMeta:
-    """ODPFlowMeta Metadata"""
+class ODPFlow(Flow):
+    """Datapath Flow"""
 
-    def __init__(self, upos, ustring, ipos, istring, mpos, mstring, apos, astring):
-        self.upos = upos
-        self.ustring = ustring
-        self.ipos = ipos
-        self.istring = istring
-        self.mpos = mpos
-        self.mstring = mstring
-        self.apos = apos
-        self.astring = astring
-
-
-class ODPFlow:
-    """OpenFlow Flow"""
-
-    def __init__(self, ufid, info, match, actions, meta=None, orig=""):
+    def __init__(self, sections, raw=""):
         """Constructor"""
-        self._ufid = ufid
-        self._info = info
-        self._match = match
-        self._actions = actions
-        self._meta = meta
-        self._orig = orig
-
-    @property
-    def ufid(self):
-        """Returns the UFID if preset"""
-        return self._ufid.value if self._ufid else ""
-
-    @property
-    def ufid_kv(self):
-        """Returns the UFID KeyValue if preset"""
-        return self._ufid
-
-    @property
-    def info(self):
-        """Returns a dictionary representing the flow information"""
-        return {item.key: item.value for item in self._info}
-
-    @property
-    def match(self):
-        """Returns a dictionary representing the match"""
-        return {item.key: item.value for item in self._match}
-
-    @property
-    def actions(self):
-        """Returns a list of dictionaries reprsenting the actions"""
-        return [{item.key: item.value} for item in self._actions]
-
-    @property
-    def info_kv(self):
-        """Returns the information KeyValue list"""
-        return self._info
-
-    @property
-    def match_kv(self):
-        """Returns the match KeyValue  list"""
-        return self._match
-
-    @property
-    def actions_kv(self):
-        """Returns the actions KeyValue list"""
-        return self._actions
-
-    @property
-    def meta(self):
-        """Returns the flow metadata"""
-        return self._meta
-
-    @property
-    def orig(self):
-        """Returns the original flow string"""
-        return self._orig
+        super(ODPFlow, self).__init__(sections, raw)
 
     @classmethod
     def from_string(cls, odp_string):
@@ -119,6 +51,8 @@ class ODPFlow:
             an ODPFlow instance
         """
 
+        sections = []
+
         # If UFID present, parse it and
         ufid_pos = odp_string.find("ufid:")
         if ufid_pos >= 0:
@@ -127,23 +61,19 @@ class ODPFlow:
             ufid_parser.parse(ufid_string)
             if len(ufid_parser.kv()) != 1:
                 raise ValueError("malformed odp flow: {}", odp_string)
-            ufid = ufid_parser.kv()[0]
-        else:
-            ufid = None
-            ufid_string = ""
+            sections.append(Section("ufid", ufid_pos, ufid_string, ufid_parser.kv()))
 
         action_pos = odp_string.find("actions:")
         if action_pos < 0:
             raise ValueError("malformed odp flow: {}", odp_string)
 
-        action_pos += 8  # len("actions:")
-
-        actions = odp_string[action_pos:]
-
         # rest of the string is between ufid and actions
         rest = odp_string[
             (ufid_pos + len(ufid_string) if ufid_pos >= 0 else 0) : action_pos
         ]
+
+        action_pos += 8  # len("actions:")
+        actions = odp_string[action_pos:]
 
         field_parts = rest.lstrip(" ").partition(" ")
 
@@ -156,25 +86,30 @@ class ODPFlow:
         info_decoders = cls._info_decoders()
         iparser = KVParser(KVDecoders(info_decoders))
         iparser.parse(info)
+        isection = Section(
+            name="info", pos=odp_string.find(info), string=info, data=iparser.kv()
+        )
+        sections.append(isection)
 
         mparser = cls._match_parser()
         mparser.parse(match)
+        msection = Section(
+            name="match", pos=odp_string.find(match), string=match, data=mparser.kv()
+        )
+        sections.append(msection)
 
         aparser = cls._action_parser()
         aparser.parse(actions)
-
-        meta = ODPFlowMeta(
-            upos=ufid_pos,
-            ustring=ufid_string,
-            ipos=odp_string.find(info),
-            istring=info,
-            mpos=odp_string.find(match),
-            mstring=match,
-            apos=action_pos,
-            astring=actions,
+        asection = Section(
+            name="actions",
+            pos=action_pos,
+            string=actions,
+            data=aparser.kv(),
+            is_list=True,
         )
+        sections.append(asection)
 
-        return cls(ufid, iparser.kv(), mparser.kv(), aparser.kv(), meta, odp_string)
+        return cls(sections, odp_string)
 
     @classmethod
     def _action_parser(cls):
