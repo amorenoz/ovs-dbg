@@ -22,6 +22,7 @@ from ovs_dbg.decoders import (
     decode_ip,
     decode_mac,
     decode_free_output,
+    decode_nat,
 )
 from ovs_dbg.ofp_act import (
     decode_output,
@@ -36,7 +37,6 @@ from ovs_dbg.ofp_act import (
     decode_dec_ttl,
     decode_chk_pkt_larger,
     decode_zone,
-    decode_nat,
     decode_exec,
     decode_learn,
 )
