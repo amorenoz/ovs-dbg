@@ -46,6 +46,9 @@ def decode_time(value):
     Used for fields such as:
         duration=1234.123s
     """
+    if value == "never":
+        return value
+
     time_str = value.rstrip("s")
     return float(time_str)
 
