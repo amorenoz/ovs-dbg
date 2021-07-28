@@ -3,7 +3,6 @@
 
 import re
 import functools
-from dataclasses import dataclass
 
 from ovs_dbg.decoders import decode_default
 
@@ -14,7 +13,6 @@ class ParseError(RuntimeError):
     pass
 
 
-@dataclass
 class KeyMetadata:
     """Class for keeping key metadata.
 
@@ -47,7 +45,6 @@ class KeyMetadata:
         return "%s('%s')" % (self.__class__.__name__, self)
 
 
-@dataclass
 class KeyValue:
     """Class for keeping key-value data
 
