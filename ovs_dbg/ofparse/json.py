@@ -33,15 +33,7 @@ def tojson(opts):
     process_flows(callback, opts.get("filename"), opts.get("filter"))
 
     flow_json = json.dumps(
-        [
-            {
-                "raw": flow.orig,
-                "info": flow.info,
-                "match": flow.match,
-                "actions": flow.actions,
-            }
-            for flow in flows
-        ],
+        [flow.dict() for flow in flows],
         indent=4,
         cls=FlowEncoder,
     )

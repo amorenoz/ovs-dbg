@@ -26,6 +26,7 @@ class OFConsole:
         "value.type.IPMask": Style(color="green4"),
         "value.type.EthMask": Style(color="green4"),
         "value.ct": Style(color="bright_black"),
+        "value.ufid": Style(color="dark_red"),
         "value.clone": Style(color="bright_black"),
         "value.controller": Style(color="bright_black"),
         "flag": Style(color="slate_blue1"),
@@ -61,19 +62,15 @@ class OFConsole:
             text (rich.Text): Optional; the Text object to append to
         """
         text = text if text is not None else Text()
-        meta = flow.meta
-        self.format_info(flow, style, text)
-        # Print whatever's in between the info section and the match section
-        text.append(
-            flow.orig[meta.ipos + len(meta.istring) : meta.mpos], Style(color="white")
-        )
-        self.format_matches(flow, style, text)
-        # Print whatever's in between the match section and the actions section
-        # Typically "actions="
-        text.append(
-            flow.orig[meta.mpos + len(meta.mstring) : meta.apos], Style(color="yellow")
-        )
-        self.format_actions(flow, style, text)
+
+        last_printed_pos = 0
+        for section in sorted(flow.sections, key=lambda x: x.pos):
+            text.append(
+                flow.orig[last_printed_pos : section.pos],
+                Style(color="yellow" if section.name == "actions" else "white"),
+            )
+            self.format_kv_list(section.data, section.string, style, text)
+            last_printed_pos = section.pos + len(section.string)
 
     def format_info(self, flow, style=None, text=None):
         """
