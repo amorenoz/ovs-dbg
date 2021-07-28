@@ -261,6 +261,10 @@ def decode_nested_kv(decoders, value):
         decoders (KVDecoders): the KVDecoders to use.
         value (str): the value string to decode.
     """
+    if not value:
+        # Mark as flag
+        return True
+
     parser = KVParser(decoders)
     parser.parse(value)
     return {kv.key: kv.value for kv in parser.kv()}
