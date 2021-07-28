@@ -16,6 +16,9 @@ def decode_default(value):
     It tries to convert into an integer value and, if it fails, just
     returns the string.
     """
+    if not value:
+        return True
+
     try:
         ival = int(value, 0)
         return ival
