@@ -8,7 +8,7 @@ from setuptools import setup, find_packages
 with open("README.md") as readme_file:
     readme = readme_file.read()
 
-requirements = ["click"]
+requirements = ["click", "rich"]
 
 setup_requirements = [
     "pytest-runner",
@@ -48,6 +48,6 @@ setup(
     project_urls={
         "Source": "https://github.com/amorenoz/ovs-dbg",
     },
-    version="0.0.3",
+    version="0.0.3.dev1",
     zip_safe=False,
 )
