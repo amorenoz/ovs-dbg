@@ -7,8 +7,10 @@ from rich.console import Console
 from rich.style import Style
 from rich.color import Color
 
-from .main import maincli, process_flows
+from ovs_dbg.ofparse.main import maincli
+from ovs_dbg.ofparse.process import process_flows, tojson, pprint
 from .console import OFConsole, print_context
+from ovs_dbg.ofp import OFPFlow
 
 tables = dict()
 
@@ -58,7 +60,28 @@ def callback(flow):
     tables[table][lflow].append(flow)
 
 
-@maincli.command()
+@maincli.group(subcommand_metavar="FORMAT")
+@click.pass_obj
+def openflow(opts):
+    """Process OpenFlow Flows"""
+    pass
+
+
+@openflow.command()
+@click.pass_obj
+def json(opts):
+    """Print the flows in JSON format"""
+    return tojson(flow_factory=OFPFlow.from_string, opts=opts)
+
+
+@openflow.command()
+@click.pass_obj
+def pretty(opts):
+    """Print the flows with some style"""
+    return pprint(flow_factory=OFPFlow.from_string, opts=opts)
+
+
+@openflow.command()
 @click.option(
     "-s",
     "--show-flows",
@@ -82,7 +105,12 @@ def logic(opts, show_flows):
     """
     console = OFConsole()
 
-    process_flows(callback, opts.get("filename"), opts.get("filter"))
+    process_flows(
+        flow_factory=OFPFlow.from_string,
+        callback=callback,
+        filename=opts.get("filename"),
+        filter=opts.get("filter"),
+    )
 
     # Try to make it easy to spot same cookies by printing them in different
     # colors

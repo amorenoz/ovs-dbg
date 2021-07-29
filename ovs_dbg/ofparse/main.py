@@ -1,7 +1,6 @@
 import click
 import sys
 
-from ovs_dbg.ofp import OFPFlow
 from ovs_dbg.ofparse.filter import OFFilter
 
 
@@ -11,27 +10,9 @@ class Options(dict):
     pass
 
 
-def process_flows(callback, filename="", filter=None):
-    """Process flows from file or stdin"""
-    if filename:
-        with open(filename) as f:
-            for line in f:
-                flow = OFPFlow.from_string(line)
-                if filter and not filter.evaluate(flow):
-                    continue
-                callback(flow)
-    else:
-        data = sys.stdin.read()
-        for line in data.split("\n"):
-            line = line.strip()
-            if line:
-                flow = OFPFlow.from_string(line.strip())
-                if filter and not filter.evaluate(flow):
-                    continue
-                callback(flow)
-
-
-@click.group(context_settings=dict(help_option_names=["-h", "--help"]))
+@click.group(
+    subcommand_metavar="TYPE", context_settings=dict(help_option_names=["-h", "--help"])
+)
 @click.option(
     "-i",
     "-input",
@@ -59,8 +40,8 @@ def process_flows(callback, filename="", filter=None):
 @click.option(
     "-f",
     "--filter",
-    help="Filter flows that match the filter expression. See main help for a "
-    " detailed Filtering Syntax",
+    help="Filter flows that match the filter expression. Run 'ofparse filter'"
+    "for a detailed description of the filtering syntax",
     type=str,
     show_default=False,
 )
@@ -72,6 +53,22 @@ def maincli(ctx, filename, paged, no_style, filter):
     It parses openflow flows (such as the output of ovs-ofctl 'dump-flows') and
     prints them in different formats.
 
+    """
+    ctx.obj = Options()
+    ctx.obj["filename"] = filename or ""
+    ctx.obj["paged"] = paged
+    ctx.obj["no_style"] = no_style
+    if filter:
+        try:
+            ctx.obj["filter"] = OFFilter(filter)
+        except Exception as e:
+            raise click.BadParameter("Wrong filter syntax: {}".format(e))
+
+
+@maincli.command(hidden=True)
+@click.pass_context
+def filter(ctx):
+    """
     \b
     Filter Syntax
     *************
@@ -110,17 +107,8 @@ def maincli(ctx, filename, paged, no_style, filter):
     Examples of valid filters.
         nw_addr~=192.168.1.1 && (tcp_dst=80 || tcp_dst=443)
         arp=true && !arp_tsa=192.168.1.1
-        n_bytes>0 && drop=true
-    """
-    ctx.obj = Options()
-    ctx.obj["filename"] = filename or ""
-    ctx.obj["paged"] = paged
-    ctx.obj["no_style"] = no_style
-    if filter:
-        try:
-            ctx.obj["filter"] = OFFilter(filter)
-        except Exception as e:
-            raise click.BadParameter("Wrong filter syntax: {}".format(e))
+        n_bytes>0 && drop=true"""
+    click.echo(ctx.command.get_help(ctx))
 
 
 def main():
