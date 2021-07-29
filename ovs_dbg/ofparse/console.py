@@ -18,7 +18,7 @@ class OFConsole:
             rich.console.Console()
     """
 
-    default_kv_styles = {
+    default_style = {
         "key": Style(color="steel_blue"),
         "delim": Style(color="steel_blue"),
         "value": Style(color="medium_orchid"),
@@ -67,7 +67,7 @@ class OFConsole:
         for section in sorted(flow.sections, key=lambda x: x.pos):
             text.append(
                 flow.orig[last_printed_pos : section.pos],
-                Style(color="yellow" if section.name == "actions" else "white"),
+                Style(color="white"),
             )
             self.format_kv_list(section.data, section.string, style, text)
             last_printed_pos = section.pos + len(section.string)
@@ -164,7 +164,7 @@ class OFConsole:
         """
         ret = 0
         text = text if text is not None else Text()
-        styles = style or self.default_kv_styles
+        styles = style or self.default_style
         meta = kv.meta
         key = meta.kstring
 
