@@ -61,7 +61,7 @@ class Flow(object):
 
     def section(self, name):
         """Return the section by name"""
-        return next((sect for sect in self._sections if sect.name == name))
+        return next((sect for sect in self._sections if sect.name == name), None)
 
     @property
     def sections(self):
