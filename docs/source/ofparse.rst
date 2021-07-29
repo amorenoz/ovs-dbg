@@ -1,10 +1,11 @@
 =================================
-ofparse: Openflow Parsing Utility
+ofparse: Flow Parsing Utility
 =================================
 
-ofparse is a tool to display the OpenFlow Flows in different formats.
-It parses a list of OpenFlow commands (such as the ones that `ovs-ofproto dump-flows`
-would generate and prints them back in the following formats:
+ofparse is a tool to display the OpenFlow Flows and Datapath Flows in different formats.
+
+It parses a list of OpenFlow commands (such as the ones that `ovs-ofproto dump-flows` or
+`ovs-dpctl dump-flows` would generate) prints them back in the following formats
 
 
 -------------------
@@ -15,16 +16,16 @@ To print the json representation of a flow run:
 
 ::
 
-    ofparse json
+    ofparse {openflow | datapath } json
 
 
 The output is a json list of json objects each of one representing a individual flow. Each flow object contains the following keys:
 
-- *raw*: contains the original flow string
+- *orig*: contains the original flow string
 - *info*: contains an object with the flow information such as: *cookie*, *duration*, *table*, *n_packets*, *n_bytes*, etc
 - *match*: contains an object with the flow match. For each match, the object contains a key-value where the key is the name of the match as defined in ovs-fields_ and ovs-ofctl_ and the value represents the match value. The way each value is represented depends on its type. (See `Value representation`_ section)
 - *actions*: contains a list of action objects. Each action is represented by an json object that has one key and one value. The key corresponds to the action name. The value represents the arguments of such key. See `Action representation`_ section for more details
-
+- *ufid*: (datpath flows only) contains the ufid
 
 Value representation
 ********************
@@ -104,15 +105,17 @@ is represented as:
             }
 
 
-----------------------
-Logical representation
-----------------------
+----------------
+Openflow parsing
+----------------
 
-To print the logical representation of a flow run:
+The openflow flow parsing supports this extra formats:
+
+**Logic**: To print the logical representation of a flow run:
 
 ::
 
-    ofparse logic
+    ofparse openflow logic
 
 (run `ofparse --help` for more details)
 
@@ -122,6 +125,18 @@ When printing a logical representation of a flow list, flows are grouped into *l
 - have the same *cookie* and *priority*
 - match on the same fields (regardless of the match value)
 - execute the same actions (regardless of the actions' arguments)
+
+-----------------
+DPIF Flow parsing
+-----------------
+
+The openflow flow parsing supports this extra formats:
+
+**Logic**: To print the flows sorted by `recirc_id`
+
+::
+
+    ofparse datapath logic
 
 
 ---------

@@ -2,75 +2,93 @@
 import pyparsing as pp
 import netaddr
 
-from ovs_dbg.decoders import decode_default
+from ovs_dbg.decoders import decode_default, decode_int, decode_mac, decode_ip
 from ovs_dbg.fields import field_decoders
 
 
 class ClauseExpression:
-    operators = {}
-    decoders = {
-        "nw_src": netaddr.IPNetwork,
-        **field_decoders,
+    type_decoders = {
+        "int": decode_int,
+        "IPMask": decode_ip,
+        "IPAddress": decode_ip,
+        "EthMask": decode_mac,
+        "EUI": decode_mac,
+        "bool": bool,
     }
 
     def __init__(self, tokens):
         self.field = tokens[0]
-        if len(tokens) <= 1:
-            self.operator = "="
-            self.value_raw = True
-            self.value = True
-        else:
+        self.value = ""
+        self.operator = ""
+
+        if len(tokens) > 1:
             self.operator = tokens[1]
-            self.value_raw = tokens[2]
-            self.value = (
-                self.decoders.get(self.field)(self.value_raw)
-                if self.decoders.get(self.field)
-                else decode_default(self.value_raw)
-            )
-            if isinstance(self.value, str) and self.value == "true":
-                self.value = True
-            elif isinstance(self.value, str) and self.value == "false":
-                self.value = False
+            self.value = tokens[2]
 
     def __repr__(self):
         return "{}(field: {}, operator: {}, value: {})".format(
-            self.__class__.__name__, self.field, self.operator, self.value_raw
+            self.__class__.__name__, self.field, self.operator, self.value
         )
 
+    def _find_data_in_kv(self, kv_list):
+        """Find a value for evaluation in a list of KeyValue
+
+        Args:
+            kv_list (list[KeyValue]): list of KeyValue to look into
+        """
+        key_parts = self.field.split(".")
+        field = key_parts[0]
+        kvs = [kv for kv in kv_list if kv.key == field]
+        if not kvs:
+            return None
+
+        for kv in kvs:
+            if kv.key == self.field:
+                # exact match
+                return kv.value
+            elif len(key_parts) > 1:
+                data = kv.value
+                for subkey in key_parts[1:]:
+                    try:
+                        data = data.get(subkey)
+                    except Exception:
+                        data = None
+                        break
+                    if not data:
+                        break
+                if data:
+                    return data
+
+    def _find_data(self, flow):
+        """Finds the key-value to use for evaluation"""
+        for section in flow.sections:
+            data = self._find_data_in_kv(section.data)
+            if data:
+                return data
+        return None
+
     def evaluate(self, flow):
-        data = flow.info.get(self.field) or flow.match.get(self.field)
-
+        data = self._find_data(flow)
         if not data:
-            # search in actions
-            act_parts = self.field.split(".")
-            act_name = act_parts[0]
-            actions = [act for act in flow.actions_kv if act.key == act_name]
-            if not actions:
-                return False
+            return False
 
-            # Look into arguments
-            for action in actions:
-                if action.key == self.field:
-                    # exact match
-                    data = action.value
-                    break
-                elif len(act_parts) > 1:
-                    data = action.value
-                    for key in act_parts[1:]:
-                        data = data.get(key)
-                        if not data:
-                            break
-            if not data:
-                return False
+        if not self.value and not self.operator:
+            # just asserting the existance of the key
+            return True
+
+        # Decode the value based on the type of data
+        data_type = data.__class__.__name__
+        decoder = self.type_decoders.get(data_type) or decode_default
+        decoded_value = decoder(self.value)
 
         if self.operator == "=":
-            return self.value == data
+            return decoded_value == data
         elif self.operator == "<":
-            return data < self.value
+            return data < decoded_value
         elif self.operator == ">":
-            return data > self.value
+            return data > decoded_value
         elif self.operator == "~=":
-            return self.value in data
+            return decoded_value in data
 
 
 class BoolNot:

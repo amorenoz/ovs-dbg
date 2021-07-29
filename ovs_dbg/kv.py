@@ -3,7 +3,6 @@
 
 import re
 import functools
-from dataclasses import dataclass
 
 from ovs_dbg.decoders import decode_default
 
@@ -14,7 +13,6 @@ class ParseError(RuntimeError):
     pass
 
 
-@dataclass
 class KeyMetadata:
     """Class for keeping key metadata.
 
@@ -47,7 +45,6 @@ class KeyMetadata:
         return "%s('%s')" % (self.__class__.__name__, self)
 
 
-@dataclass
 class KeyValue:
     """Class for keeping key-value data
 
@@ -261,6 +258,10 @@ def decode_nested_kv(decoders, value):
         decoders (KVDecoders): the KVDecoders to use.
         value (str): the value string to decode.
     """
+    if not value:
+        # Mark as flag
+        return True
+
     parser = KVParser(decoders)
     parser.parse(value)
     return {kv.key: kv.value for kv in parser.kv()}
