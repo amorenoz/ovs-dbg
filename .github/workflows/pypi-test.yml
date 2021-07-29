@@ -1,6 +1,10 @@
-name: Publish to PyPI
+name: Publish to TestPyPI
 
-on: release
+on:
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
   build-n-publish:
@@ -22,8 +26,9 @@ jobs:
         run: |
           python -m build --sdist --wheel .
 
-      - name: Publish distribution to PyPI
+      - name: Publish distribution to Test PyPI
         uses: pypa/gh-action-pypi-publish@master
         with:
           user: __token__
-          password: ${{ secrets.PYPI_TOKEN }}
+          password: ${{ secrets.PYPI_TEST_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
