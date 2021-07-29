@@ -1,7 +1,7 @@
 import click
 import sys
 
-from ovs_dbg.ofparse.filter import OFFilter
+from ovs_dbg.filter import OFFilter
 
 
 class Options(dict):

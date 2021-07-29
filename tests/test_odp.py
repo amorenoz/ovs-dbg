@@ -143,8 +143,8 @@ def test_odp_fields(input_string, expected):
         assert expected[i].value == match[i].value
 
         # Assert positions relative to action string are OK
-        mpos = odp.meta.mpos
-        mstring = odp.meta.mstring
+        mpos = odp.section("match").pos
+        mstring = odp.section("match").string
 
         kpos = match[i].meta.kpos
         kstr = match[i].meta.kstring
@@ -526,8 +526,8 @@ def test_odp_actions(input_string, expected):
         assert expected[i].value == actions[i].value
 
         # Assert positions relative to action string are OK
-        apos = odp.meta.apos
-        astring = odp.meta.astring
+        apos = odp.section("actions").pos
+        astring= odp.section("actions").string
 
         kpos = actions[i].meta.kpos
         kstr = actions[i].meta.kstring

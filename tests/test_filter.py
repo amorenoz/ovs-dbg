@@ -1,6 +1,6 @@
 import pytest
 
-from ovs_dbg.ofparse.filter import OFFilter
+from ovs_dbg.filter import OFFilter
 from ovs_dbg.ofp import OFPFlow
 
 

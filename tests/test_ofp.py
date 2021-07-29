@@ -360,8 +360,8 @@ def test_act(input_string, expected):
         assert expected[i].value == actions[i].value
 
         # Assert positions relative to action string are OK
-        apos = ofp.meta.apos
-        astring = ofp.meta.astring
+        apos = ofp.section("actions").pos
+        astring = ofp.section("actions").string
 
         kpos = actions[i].meta.kpos
         kstr = actions[i].meta.kstring
