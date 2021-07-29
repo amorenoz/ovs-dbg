@@ -117,6 +117,11 @@ class EthMask:
         Returns:
             True if other falls into the masked address range
         """
+        if isinstance(other, EthMask):
+            if other._mask:
+                raise ValueError("EthMask mask comparison not supported")
+            return other._eth in self
+
         if self._mask:
             return (other.value & self._mask.value) == (
                 self._eth.value & self._mask.value
@@ -181,10 +186,17 @@ class IPMask:
 
     def __eq__(self, other):
         """Returns True if this IPMask is numerically the same as other"""
-        if self._ipnet:
-            return self._ipnet == other._ipnet
+        if isinstance(other, netaddr.IPNetwork):
+            return self._ipnet and self._ipnet == other
+        if isinstance(other, netaddr.IPAddress):
+            return self._ipnet and self._ipnet.ip == other
+        elif isinstance(other, IPMask):
+            if self._ipnet:
+                return self._ipnet == other._ipnet
 
-        return self._ip == other._ip and self._mask == other._mask
+            return self._ip == other._ip and self._mask == other._mask
+        else:
+            return False
 
     def __contains__(self, other):
         """
@@ -194,9 +206,19 @@ class IPMask:
         Returns:
             True if other falls into the masked ip range
         """
-        if self._ipnet:
-            return other in self._ipnet
-        return (other & self._mask) == (self._ip & self._mask)
+        if isinstance(other, IPMask):
+            if not other._ipnet:
+                raise ValueError("ip/mask comparisons not supported")
+
+            return (
+                netaddr.IPAddress(other._ipnet.first) in self
+                and netaddr.IPAddress(other._ipnet.last) in self
+            )
+
+        elif isinstance(other, netaddr.IPAddress):
+            if self._ipnet:
+                return other in self._ipnet
+            return (other & self._mask) == (self._ip & self._mask)
 
     def cidr(self):
         """

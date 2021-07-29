@@ -5,6 +5,8 @@ name = "pypi"
 
 [packages]
 netaddr = "*"
+click = "*"
+rich = "*"
 
 [dev-packages]
 sphinx = "*"
