@@ -30,15 +30,22 @@ class Section(object):
         return "%s('%s')" % (self.__class__.__name__, self)
 
     def dict(self):
+        return {self.name: self.format_data()}
+
+    def format_data(self):
         if self.is_list:
-            return {self.name: [{item.key: item.value} for item in self.data]}
+            return [{item.key: item.value} for item in self.data]
         else:
-            return {self.name: {item.key: item.value for item in self.data}}
+            return {item.key: item.value for item in self.data}
 
 
 class Flow(object):
     """The Flow class is a base class for other types of concrete flows
     (such as OFproto Flows or DPIF Flows)
+
+    For each section provided, the object will have the following attributes
+    {section} will return the sections data in a formatted way
+    {section}_kv will return the sections data as a list of KeyValues
 
     Args:
         sections (list[Section]): list of sections that comprise the flow
@@ -48,6 +55,9 @@ class Flow(object):
     def __init__(self, sections, orig=""):
         self._sections = sections
         self._orig = orig
+        for section in sections:
+            setattr( self, section.name, self.section(section.name).format_data())
+            setattr(self, "{}_kv".format(section.name), self.section(section.name).data)
 
     def section(self, name):
         """Return the section by name"""
