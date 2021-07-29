@@ -12,53 +12,6 @@ from ovs_dbg.ofparse.process import process_flows, tojson, pprint
 from .console import OFConsole, print_context
 from ovs_dbg.ofp import OFPFlow
 
-tables = dict()
-
-
-class LFlow:
-    """A Logical Flow represents the scheleton of a flow
-
-    Attributes:
-        cookie (int): The flow cookie
-        priority (int): The flow priority
-        action_keys (tuple): The action keys
-        match_keys (tuple): The match keys
-    """
-
-    def __init__(self, flow):
-        self.priority = flow.match.get("priority") or 0
-        self.cookie = flow.info.get("cookie") or 0
-        self.action_keys = tuple([kv.key for kv in flow.actions_kv])
-        self.match_keys = tuple([kv.key for kv in flow.match_kv])
-
-    def __eq__(self, other):
-        return (
-            self.cookie == other.cookie
-            and self.priority == other.priority
-            and self.action_keys == other.action_keys
-            and self.match_keys == other.match_keys
-        )
-
-    def __hash__(self):
-        return tuple(
-            [self.cookie, self.priority, self.action_keys, self.match_keys]
-        ).__hash__()
-
-
-def callback(flow):
-    """Parse the flows and sort them by table and logical flow"""
-    table = flow.info.get("table") or 0
-    if not tables.get(table):
-        tables[table] = dict()
-
-    # Group flows by logical hash
-    lflow = LFlow(flow)
-
-    if not tables[table].get(lflow):
-        tables[table][lflow] = list()
-
-    tables[table][lflow].append(flow)
-
 
 @maincli.group(subcommand_metavar="FORMAT")
 @click.pass_obj
@@ -103,6 +56,51 @@ def logic(opts, show_flows):
     Frisorting the flows based on tables and priority, deduplicates flows
     based on
     """
+    tables = dict()
+
+    class LFlow:
+        """A Logical Flow represents the scheleton of a flow
+
+        Attributes:
+            cookie (int): The flow cookie
+            priority (int): The flow priority
+            action_keys (tuple): The action keys
+            match_keys (tuple): The match keys
+        """
+
+        def __init__(self, flow):
+            self.priority = flow.match.get("priority") or 0
+            self.cookie = flow.info.get("cookie") or 0
+            self.action_keys = tuple([kv.key for kv in flow.actions_kv])
+            self.match_keys = tuple([kv.key for kv in flow.match_kv])
+
+        def __eq__(self, other):
+            return (
+                self.cookie == other.cookie
+                and self.priority == other.priority
+                and self.action_keys == other.action_keys
+                and self.match_keys == other.match_keys
+            )
+
+        def __hash__(self):
+            return tuple(
+                [self.cookie, self.priority, self.action_keys, self.match_keys]
+            ).__hash__()
+
+    def callback(flow):
+        """Parse the flows and sort them by table and logical flow"""
+        table = flow.info.get("table") or 0
+        if not tables.get(table):
+            tables[table] = dict()
+
+        # Group flows by logical hash
+        lflow = LFlow(flow)
+
+        if not tables[table].get(lflow):
+            tables[table][lflow] = list()
+
+        tables[table][lflow].append(flow)
+
     console = OFConsole()
 
     process_flows(
