@@ -8,6 +8,7 @@ object
 import re
 import functools
 import netaddr
+import json
 
 
 def decode_default(value):
@@ -355,3 +356,18 @@ def decode_nat(value):
             result[flag] = True
 
     return result
+
+
+class FlowEncoder(json.JSONEncoder):
+    """FlowEncoder is a json.JSONEncoder instance that can be used to
+    serialize flow fields
+    """
+
+    def default(self, obj):
+        if (
+            isinstance(obj, IPMask)
+            or isinstance(obj, EthMask)
+            or isinstance(obj, netaddr.IPAddress)
+        ):
+            return str(obj)
+        return json.JSONEncoder.default(self, obj)
