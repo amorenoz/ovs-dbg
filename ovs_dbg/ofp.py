@@ -49,7 +49,7 @@ class OFPFlow(Flow):
     def from_string(cls, ofp_string):
         """Parse a ofproto flow string
 
-        The string is expected to have the follwoing format:
+        The string is expected to have the following format:
             [flow data] [match] actions=[actions]
 
         :param ofp_string: a ofproto string as dumped by ovs-ofctl tool
