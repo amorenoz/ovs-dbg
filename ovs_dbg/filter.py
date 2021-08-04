@@ -109,7 +109,6 @@ class BoolNot:
 class BoolAnd:
     def __init__(self, pattern):
         self.args = pattern[0][0::2]
-        # print(pattern)
 
     def __repr__(self):
         return "AND({})".format(self.args)
@@ -121,7 +120,6 @@ class BoolAnd:
 class BoolOr:
     def __init__(self, pattern):
         self.args = pattern[0][0::2]
-        # print(pattern)
 
     def evaluate(self, flow):
         return any([arg.evaluate(flow) for arg in self.args])
@@ -157,7 +155,6 @@ class OFFilter:
 
     def __init__(self, expr):
         self._filter = self.statement.parseString(expr)
-        print(self._filter)
 
     def evaluate(self, flow):
         return self._filter[0].evaluate(flow)

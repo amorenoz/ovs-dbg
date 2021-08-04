@@ -42,9 +42,6 @@ def logic(opts):
     flow_list = []
 
     def callback(flow):
-        print(flow.match.get("recirc_id"))
-        for f in flow_list:
-            print(f.match.get("recirc_id"))
         flow_list.append(flow)
 
     process_flows(
@@ -85,11 +82,6 @@ def logic(opts):
             style["value.recirc_id"] = recirc_styles[
                 (flow.match.get("recirc_id")) % len(recirc_styles)
             ]
-            print(
-                "re {} styl {}".format(
-                    flow.match.get("recirc_id"), style["value.recirc_id"]
-                )
-            )
             ofconsole.format_flow(flow=flow, style=style, text=text)
             tree_elem = parent.add(text)
 
