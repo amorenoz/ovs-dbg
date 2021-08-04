@@ -17,12 +17,12 @@ from ovs_dbg.decoders import (
     decode_time,
     decode_int,
     decode_mask,
-    decode_mask8,
-    decode_mask16,
-    decode_mask32,
-    decode_mask128,
-    decode_ip,
-    decode_mac,
+    Mask8,
+    Mask16,
+    Mask32,
+    Mask128,
+    IPMask,
+    EthMask,
     decode_free_output,
     decode_flag,
     decode_ip_port_range,
@@ -171,8 +171,8 @@ class ODPFlow(Flow):
                         "push_eth": nested_kv_decoder(
                             KVDecoders(
                                 {
-                                    "src": decode_mac,
-                                    "dst": decode_mac,
+                                    "src": EthMask,
+                                    "dst": EthMask,
                                     "type": decode_int,
                                 }
                             )
@@ -219,8 +219,8 @@ class ODPFlow(Flow):
                         "commit": decode_flag,
                         "force_commit": decode_flag,
                         "zone": decode_int,
-                        "mark": decode_mask32,
-                        "label": decode_mask128,
+                        "mark": Mask32,
+                        "label": Mask128,
                         "helper": decode_default,
                         "timeout": decode_default,
                         "nat": decode_nat,
@@ -291,8 +291,8 @@ class ODPFlow(Flow):
                                     "eth": nested_kv_decoder(
                                         KVDecoders(
                                             {
-                                                "src": decode_mac,
-                                                "dst": decode_mac,
+                                                "src": EthMask,
+                                                "dst": EthMask,
                                                 "dl_type": decode_int,
                                             }
                                         )
@@ -300,8 +300,8 @@ class ODPFlow(Flow):
                                     "ipv4": nested_kv_decoder(
                                         KVDecoders(
                                             {
-                                                "src": decode_ip,
-                                                "dst": decode_ip,
+                                                "src": IPMask,
+                                                "dst": IPMask,
                                                 "proto": decode_int,
                                                 "tos": decode_int,
                                                 "ttl": decode_int,
@@ -312,8 +312,8 @@ class ODPFlow(Flow):
                                     "ipv6": nested_kv_decoder(
                                         KVDecoders(
                                             {
-                                                "src": decode_ip,
-                                                "dst": decode_ip,
+                                                "src": IPMask,
+                                                "dst": IPMask,
                                                 "label": decode_int,
                                                 "proto": decode_int,
                                                 "tclass": decode_int,
@@ -326,7 +326,7 @@ class ODPFlow(Flow):
                                             {
                                                 "src": decode_int,
                                                 "dst": decode_int,
-                                                "dsum": decode_mask16,
+                                                "dsum": Mask16,
                                             }
                                         )
                                     ),
@@ -405,33 +405,33 @@ class ODPFlow(Flow):
     @classmethod
     def _field_decoders(cls):
         return {
-            "skb_priority": decode_mask32,
-            "skb_mark": decode_mask32,
+            "skb_priority": Mask32,
+            "skb_mark": Mask32,
             "recirc_id": decode_int,
-            "dp_hash": decode_mask32,
+            "dp_hash": Mask32,
             "ct_state": decode_default,  # TODO: Parse flags
-            "ct_zone": decode_mask16,
-            "ct_mark": decode_mask32,
-            "ct_label": decode_mask128,
+            "ct_zone": Mask16,
+            "ct_mark": Mask32,
+            "ct_label": Mask128,
             "ct_tuple4": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "src": decode_ip,
-                        "dst": decode_ip,
-                        "proto": decode_mask8,
-                        "tcp_src": decode_mask16,
-                        "tcp_dst": decode_mask16,
+                        "src": IPMask,
+                        "dst": IPMask,
+                        "proto": Mask8,
+                        "tcp_src": Mask16,
+                        "tcp_dst": Mask16,
                     }
                 )
             ),
             "ct_tuple6": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "src": decode_ip,
-                        "dst": decode_ip,
-                        "proto": decode_mask8,
-                        "tcp_src": decode_mask16,
-                        "tcp_dst": decode_mask16,
+                        "src": IPMask,
+                        "dst": IPMask,
+                        "proto": Mask8,
+                        "tcp_src": Mask16,
+                        "tcp_dst": Mask16,
                     }
                 )
             ),
@@ -439,10 +439,10 @@ class ODPFlow(Flow):
                 KVDecoders(
                     {
                         "tun_id": decode_int,
-                        "src": decode_ip,
-                        "dst": decode_ip,
-                        "ipv6_src": decode_ip,
-                        "ipv6_dst": decode_ip,
+                        "src": IPMask,
+                        "dst": IPMask,
+                        "ipv6_src": IPMask,
+                        "ipv6_dst": IPMask,
                         "tos": decode_int,
                         "ttl": decode_int,
                         "tp_src": decode_int,
@@ -476,8 +476,8 @@ class ODPFlow(Flow):
                         "gtpu": nested_kv_decoder(
                             KVDecoders(
                                 {
-                                    "flags": decode_mask8,
-                                    "msgtype": decode_mask8,
+                                    "flags": Mask8,
+                                    "msgtype": Mask8,
                                 }
                             )
                         ),
@@ -489,39 +489,39 @@ class ODPFlow(Flow):
             "eth": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "src": decode_mac,
-                        "dst": decode_mac,
+                        "src": EthMask,
+                        "dst": EthMask,
                     }
                 )
             ),
             "vlan": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "vid": decode_mask16,
-                        "pcp": decode_mask16,
-                        "cfi": decode_mask16,
+                        "vid": Mask16,
+                        "pcp": Mask16,
+                        "cfi": Mask16,
                     }
                 )
             ),
-            "eth_type": decode_mask16,
+            "eth_type": Mask16,
             "mpls": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "label": decode_mask32,
-                        "tc": decode_mask32,
-                        "ttl": decode_mask32,
-                        "bos": decode_mask32,
+                        "label": Mask32,
+                        "tc": Mask32,
+                        "ttl": Mask32,
+                        "bos": Mask32,
                     }
                 )
             ),
             "ipv4": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "src": decode_ip,
-                        "dst": decode_ip,
-                        "proto": decode_mask8,
-                        "tos": decode_mask8,
-                        "ttl": decode_mask8,
+                        "src": IPMask,
+                        "dst": IPMask,
+                        "proto": Mask8,
+                        "tos": Mask8,
+                        "ttl": Mask8,
                         "frag": decode_default,
                     }
                 )
@@ -529,12 +529,12 @@ class ODPFlow(Flow):
             "ipv6": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "src": decode_ip,
-                        "dst": decode_ip,
+                        "src": IPMask,
+                        "dst": IPMask,
                         "label": partial(decode_mask, 20),
-                        "proto": decode_mask8,
-                        "tclass": decode_mask8,
-                        "hlimit": decode_mask8,
+                        "proto": Mask8,
+                        "tclass": Mask8,
+                        "hlimit": Mask8,
                         "frag": decode_default,
                     }
                 )
@@ -542,8 +542,8 @@ class ODPFlow(Flow):
             "tcp": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "src": decode_mask16,
-                        "dst": decode_mask16,
+                        "src": Mask16,
+                        "dst": Mask16,
                     }
                 )
             ),
@@ -551,83 +551,83 @@ class ODPFlow(Flow):
             "udp": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "src": decode_mask16,
-                        "dst": decode_mask16,
+                        "src": Mask16,
+                        "dst": Mask16,
                     }
                 )
             ),
             "sctp": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "src": decode_mask16,
-                        "dst": decode_mask16,
+                        "src": Mask16,
+                        "dst": Mask16,
                     }
                 )
             ),
             "icmp": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "type": decode_mask8,
-                        "code": decode_mask8,
+                        "type": Mask8,
+                        "code": Mask8,
                     }
                 )
             ),
             "icmpv6": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "type": decode_mask8,
-                        "code": decode_mask8,
+                        "type": Mask8,
+                        "code": Mask8,
                     }
                 )
             ),
             "arp": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "sip": decode_ip,
-                        "tip": decode_ip,
-                        "op": decode_mask16,
-                        "sha": decode_mac,
-                        "tha": decode_mac,
+                        "sip": IPMask,
+                        "tip": IPMask,
+                        "op": Mask16,
+                        "sha": EthMask,
+                        "tha": EthMask,
                     }
                 )
             ),
             "nd": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "target": decode_ip,
-                        "sll": decode_mac,
-                        "tll": decode_mac,
+                        "target": IPMask,
+                        "sll": EthMask,
+                        "tll": EthMask,
                     }
                 )
             ),
             "nd_ext": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "nd_reserved": decode_mask32,
-                        "nd_options_type": decode_mask8,
+                        "nd_reserved": Mask32,
+                        "nd_options_type": Mask8,
                     }
                 )
             ),
             "packet_type": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "ns": decode_mask16,
-                        "id": decode_mask16,
+                        "ns": Mask16,
+                        "id": Mask16,
                     }
                 )
             ),
             "nsh": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "flags": decode_mask8,
-                        "mdtype": decode_mask8,
-                        "np": decode_mask8,
-                        "spi": decode_mask32,
-                        "si": decode_mask8,
-                        "c1": decode_mask32,
-                        "c2": decode_mask32,
-                        "c3": decode_mask32,
-                        "c4": decode_mask32,
+                        "flags": Mask8,
+                        "mdtype": Mask8,
+                        "np": Mask8,
+                        "spi": Mask32,
+                        "si": Mask8,
+                        "c1": Mask32,
+                        "c2": Mask32,
+                        "c3": Mask32,
+                        "c4": Mask32,
                     }
                 )
             ),
@@ -649,13 +649,13 @@ def decode_geneve(mask, value):
     """
     if mask:
         decoders = {
-            "class": decode_mask16,
-            "type": decode_mask8,
-            "len": decode_mask8,
+            "class": Mask16,
+            "type": Mask8,
+            "len": Mask8,
         }
 
         def free_decoder(value):
-            return "data", decode_mask128(value)
+            return "data", Mask128(value)
 
     else:
         decoders = {

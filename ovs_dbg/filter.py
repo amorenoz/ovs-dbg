@@ -3,19 +3,18 @@
 import pyparsing as pp
 import netaddr
 
-from ovs_dbg.decoders import decode_default, decode_int, decode_mac, decode_ip
+from ovs_dbg.decoders import decode_default, decode_int, Decoder, IPMask, EthMask
+
 from ovs_dbg.fields import field_decoders
 
 
 class ClauseExpression:
     operators = {}
     type_decoders = {
-        "int": decode_int,
-        "IPMask": decode_ip,
-        "IPAddress": decode_ip,
-        "EthMask": decode_mac,
-        "EUI": decode_mac,
-        "bool": bool,
+        int: decode_int,
+        netaddr.IPAddress: IPMask,
+        netaddr.EUI: EthMask,
+        bool: bool,
     }
 
     def __init__(self, tokens):
@@ -79,11 +78,11 @@ class ClauseExpression:
             return True
 
         # Decode the value based on the type of data
-        data_type = data.__class__.__name__
-        if data_type == "Mask":
+        if isinstance(data, Decoder):
             decoder = data.__class__
         else:
-            decoder = self.type_decoders.get(data_type) or decode_default
+            decoder = self.type_decoders.get(data.__class__) or decode_default
+
         decoded_value = decoder(self.value)
 
         if self.operator == "=":

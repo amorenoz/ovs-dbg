@@ -57,9 +57,9 @@ def get_decoder(field):
                 field.get("n_bits")
             )
     elif formatting in ["IPv4", "IPv6"]:
-        return "decoders.decode_ip"
+        return "decoders.IPMask"
     elif formatting == "Ethernet":
-        return "decoders.decode_mac"
+        return "decoders.EthMask"
     else:
         return "decoders.decode_default"
 

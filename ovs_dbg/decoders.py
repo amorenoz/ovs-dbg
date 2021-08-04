@@ -5,10 +5,17 @@ A decoder is generally a callable that accepts a string and returns the value
 object
 """
 
-import re
 import functools
-import netaddr
 import json
+import netaddr
+import re
+
+
+class Decoder:
+    """Base class for all decoder classes"""
+
+    def to_json(self):
+        assert "function must be implemented by derived class"
 
 
 def decode_default(value):
@@ -54,7 +61,13 @@ def decode_time(value):
     return float(time_str)
 
 
-class IntMask:
+class IntMask(Decoder):
+    """Base class for Integer Mask decoder classes
+
+    It supports decoding a value/mask pair. It has to be derived and size
+    has to be set to a specific value
+    """
+
     size = None  # size in bits
 
     def __init__(self, string):
@@ -110,9 +123,6 @@ class IntMask:
     def __repr__(self):
         return "%s('%s')" % (self.__class__.__name__, self)
 
-    def dict(self):
-        return {"value": self._value, "mask": self._mask}
-
     def __eq__(self, other):
         return self.value == other.value and self.mask == other.mask
 
@@ -123,6 +133,12 @@ class IntMask:
             return other.min() in self and other.max() in self
         else:
             return other & self._mask == self._value & self._mask
+
+    def dict(self):
+        return {"value": self._value, "mask": self._mask}
+
+    def to_json(self):
+        return self.dict()
 
 
 class Mask8(IntMask):
@@ -144,8 +160,10 @@ class Mask64(IntMask):
 class Mask128(IntMask):
     size = 128
 
+
 class Mask992(IntMask):
     size = 992
+
 
 def decode_mask(mask_size):
     """value/mask decoder for values of specific size (bits)
@@ -161,14 +179,8 @@ def decode_mask(mask_size):
     return Mask
 
 
-decode_mask8 = Mask8
-decode_mask16 = Mask16
-decode_mask32 = Mask32
-decode_mask64 = Mask64
-decode_mask128 = Mask128
 
-
-class EthMask:
+class EthMask(Decoder):
     """EthMask represents an Ethernet address with optional mask
 
     It uses netaddr.EUI
@@ -238,13 +250,11 @@ class EthMask:
     def __repr__(self):
         return "%s('%s')" % (self.__class__.__name__, self)
 
-
-def decode_mac(value):
-    """MAC address decoder"""
-    return EthMask(value)
+    def to_json(self):
+        return str(self)
 
 
-class IPMask:
+class IPMask(Decoder):
     """IPMask stores an IPv6 or IPv4 and a mask
 
     It uses netaddr.IPAddress. The IPMask can be represented by a
@@ -343,18 +353,8 @@ class IPMask:
     def __repr__(self):
         return "%s('%s')" % (self.__class__.__name__, self)
 
-
-def decode_ip(value):
-    """IP address decoder. Supports both IPv4 and IPv6 addresses
-
-    Used for fields such as:
-        nw_src=192.168.1.1
-        nw_src=192.168.1.0/24
-        nw_src=192.168.1.0/255.255.255.0
-        nw_dst=2001:db8::1000
-        nw_dst=2001:db8::0/24
-    """
-    return IPMask(value)
+    def to_json(self):
+        return str(self)
 
 
 def decode_free_output(value):
@@ -451,10 +451,9 @@ class FlowEncoder(json.JSONEncoder):
     """
 
     def default(self, obj):
-        if (
-            isinstance(obj, IPMask)
-            or isinstance(obj, EthMask)
-            or isinstance(obj, netaddr.IPAddress)
-        ):
+        if isinstance(obj, Decoder):
+            return obj.to_json()
+        elif isinstance(obj, netaddr.IPAddress):
             return str(obj)
+
         return json.JSONEncoder.default(self, obj)
