@@ -531,7 +531,7 @@ class ODPFlow(Flow):
                     {
                         "src": IPMask,
                         "dst": IPMask,
-                        "label": partial(decode_mask, 20),
+                        "label": decode_mask(20),
                         "proto": Mask8,
                         "tclass": Mask8,
                         "hlimit": Mask8,
