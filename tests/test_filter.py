@@ -129,6 +129,20 @@ from ovs_dbg.ofp import OFPFlow
             ),
             True,
         ),
+        (
+            "dl_src~=00:11:22:33:44:66 && tp_dst=1000",
+            OFPFlow.from_string(
+                "n_bytes=100 priority=100,dl_src=00:11:22:33:44:55/ff:ff:ff:ff:ff:00,nw_src=192.168.1.0/24,tp_dst=0x03e8/0xfff8 actions=2"
+            ),
+            False,
+        ),
+        (
+            "dl_src~=00:11:22:33:44:66 && tp_dst~=1000",
+            OFPFlow.from_string(
+                "n_bytes=100 priority=100,dl_src=00:11:22:33:44:55/ff:ff:ff:ff:ff:00,nw_src=192.168.1.0/24,tp_dst=0x03e8/0xfff8 actions=2"
+            ),
+            True,
+        ),
     ],
 )
 def test_filter(expr, flow, expected):

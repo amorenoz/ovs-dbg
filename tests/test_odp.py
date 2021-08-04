@@ -3,7 +3,7 @@ import pytest
 
 from ovs_dbg.odp import ODPFlow
 from ovs_dbg.kv import KeyValue
-from ovs_dbg.decoders import EthMask, IPMask
+from ovs_dbg.decoders import EthMask, IPMask, Mask32, Mask16, Mask8, Mask128
 
 
 @pytest.mark.parametrize(
@@ -12,35 +12,11 @@ from ovs_dbg.decoders import EthMask, IPMask
         (
             "skb_priority(0x123),skb_mark(0x123),recirc_id(0x123),dp_hash(0x123),ct_zone(0x123), actions:",
             [
-                KeyValue(
-                    "skb_priority",
-                    {
-                        "value": 0x123,
-                        "mask": 0xFFFFFFFF,
-                    },
-                ),
-                KeyValue(
-                    "skb_mark",
-                    {
-                        "value": 0x123,
-                        "mask": 0xFFFFFFFF,
-                    },
-                ),
+                KeyValue("skb_priority", Mask32("0x123")),
+                KeyValue("skb_mark", Mask32("0x123")),
                 KeyValue("recirc_id", 0x123),
-                KeyValue(
-                    "dp_hash",
-                    {
-                        "value": 0x123,
-                        "mask": 0xFFFFFFFF,
-                    },
-                ),
-                KeyValue(
-                    "ct_zone",
-                    {
-                        "value": 0x123,
-                        "mask": 0xFFFF,
-                    },
-                ),
+                KeyValue("dp_hash", Mask32("0x123")),
+                KeyValue("ct_zone", Mask16("0x123")),
             ],
         ),
         (
@@ -65,10 +41,10 @@ from ovs_dbg.decoders import EthMask, IPMask
                     "tunnel",
                     {
                         "geneve": {
-                            "class": {"value": 0, "mask": 0xFFFF},
-                            "type": {"value": 0, "mask": 0xFF},
-                            "len": {"value": 4, "mask": 0xFF},
-                            "data": {"value": 0xA, "mask": 0xFF},
+                            "class": Mask16("0"),
+                            "type": Mask8("0"),
+                            "len": Mask8("4"),
+                            "data": Mask128("0xa/0xff"),
                         },
                         "vxlan": {"flags": 0x800000, "vni": 0x1C7},
                         "erspan": {"ver": 2, "dir": 1, "hwid": 0x1},
@@ -92,20 +68,14 @@ from ovs_dbg.decoders import EthMask, IPMask
         (
             "eth_type(0x800/0x006),ipv4(src=192.168.1.1/24,dst=192.168.0.0/16,proto=0x1,tos=0x2/0xf0) actions:",
             [
-                KeyValue("eth_type", {"value": 0x800, "mask": 0x006}),
+                KeyValue("eth_type", Mask16("0x800/0x006")),
                 KeyValue(
                     "ipv4",
                     {
                         "src": IPMask("192.168.1.1/24"),
                         "dst": IPMask("192.168.0.0/16"),
-                        "proto": {
-                            "value": 0x1,
-                            "mask": 0xFF,
-                        },
-                        "tos": {
-                            "value": 0x2,
-                            "mask": 0xF0,
-                        },
+                        "proto": Mask8("0x1/0xFF"),
+                        "tos": Mask8("0x2/0xF0"),
                     },
                 ),
             ],
@@ -116,18 +86,12 @@ from ovs_dbg.decoders import EthMask, IPMask
                 KeyValue(
                     "encap",
                     {
-                        "eth_type": {"value": 0x800, "mask": 0x006},
+                        "eth_type": Mask16("0x800/0x006"),
                         "ipv4": {
                             "src": IPMask("192.168.1.1/24"),
                             "dst": IPMask("192.168.0.0/16"),
-                            "proto": {
-                                "value": 0x1,
-                                "mask": 0xFF,
-                            },
-                            "tos": {
-                                "value": 0x2,
-                                "mask": 0xF0,
-                            },
+                            "proto": Mask8("0x1/0xff"),
+                            "tos": Mask8("0x2/0xf0"),
                         },
                     },
                 ),
@@ -177,16 +141,15 @@ def test_odp_fields(input_string, expected):
                 KeyValue("ct", {"commit": True, "zone": 5}),
                 KeyValue(
                     "ct",
-                    {"commit": True, "mark": {"value": 0xA0A0A0A0, "mask": 0xFEFEFEFE}},
+                    {"commit": True, "mark": Mask32("0xA0A0A0A0/0xFEFEFEFE")},
                 ),
                 KeyValue(
                     "ct",
                     {
                         "commit": True,
-                        "label": {
-                            "value": 0x1234567890ABCDEF1234567890ABCDEF,
-                            "mask": 0xF1F2F3F4F5F6F7F8F9F0FAFBFCFDFEFF,
-                        },
+                        "label": Mask128(
+                           "0x1234567890ABCDEF1234567890ABCDEF/0xF1F2F3F4F5F6F7F8F9F0FAFBFCFDFEFF"
+                        ),
                     },
                 ),
                 KeyValue("ct", {"commit": True, "helper": "ftp"}),
@@ -527,7 +490,7 @@ def test_odp_actions(input_string, expected):
 
         # Assert positions relative to action string are OK
         apos = odp.section("actions").pos
-        astring= odp.section("actions").string
+        astring = odp.section("actions").string
 
         kpos = actions[i].meta.kpos
         kstr = actions[i].meta.kstring

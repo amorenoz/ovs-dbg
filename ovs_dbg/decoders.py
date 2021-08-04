@@ -54,28 +54,118 @@ def decode_time(value):
     return float(time_str)
 
 
-def decode_mask(size, value):
+class IntMask:
+    size = None  # size in bits
+
+    def __init__(self, string):
+        if not self.size:
+            assert "IntMask should be derived and size should be fixed"
+
+        parts = string.split("/")
+        if len(parts) > 1:
+            self._value = int(parts[0], 0)
+            self._mask = int(parts[1], 0)
+            if self._mask.bit_length() > self.size:
+                raise ValueError(
+                    "Integer mask {} is bigger than size {}".format(
+                        self._mask, self.size
+                    )
+                )
+        else:
+            self._value = int(parts[0], 0)
+            self._mask = 2 ** self.size - 1
+
+        if self._value.bit_length() > self.size:
+            raise ValueError(
+                "Integer value {} is bigger than size {}".format(self._value, self.size)
+            )
+
+    @property
+    def value(self):
+        return self._value
+
+    @property
+    def mask(self):
+        return self._mask
+
+    def max_mask(self):
+        return 2 ** self.size - 1
+
+    def fully(self):
+        """Returns if it's fully masked"""
+        return self._mask == self.max_mask()
+
+    def min(self):
+        return self._value & self._mask
+
+    def max(self):
+        return (self.max_mask() & ~self._mask) | (self._value & self._mask)
+
+    def __str__(self):
+        if self.fully:
+            return str(self._value)
+        else:
+            return "{}/{}".format(hex(self._value), hex(self._mask))
+
+    def __repr__(self):
+        return "%s('%s')" % (self.__class__.__name__, self)
+
+    def dict(self):
+        return {"value": self._value, "mask": self._mask}
+
+    def __eq__(self, other):
+        return self.value == other.value and self.mask == other.mask
+
+    def __contains__(self, other):
+        if isinstance(other, IntMask):
+            if other.fully():
+                return other.value in self
+            return other.min() in self and other.max() in self
+        else:
+            return other & self._mask == self._value & self._mask
+
+
+class Mask8(IntMask):
+    size = 8
+
+
+class Mask16(IntMask):
+    size = 16
+
+
+class Mask32(IntMask):
+    size = 32
+
+
+class Mask64(IntMask):
+    size = 64
+
+
+class Mask128(IntMask):
+    size = 128
+
+class Mask992(IntMask):
+    size = 992
+
+def decode_mask(mask_size):
     """value/mask decoder for values of specific size (bits)
 
     Used for fields such as:
         reg0=0x248/0xff
     """
-    parts = value.split("/")
-    if len(parts) > 1:
-        value = int(parts[0], 0)
-        mask = int(parts[1], 0)
-    else:
-        value = int(parts[0], 0)
-        mask = 2 ** size - 1
 
-    return {"value": value, "mask": mask}
+    class Mask(IntMask):
+        size = mask_size
+        __name__ = "Mask{}".format(size)
+
+    return Mask
 
 
-decode_mask8 = functools.partial(decode_mask, 8)
-decode_mask16 = functools.partial(decode_mask, 16)
-decode_mask32 = functools.partial(decode_mask, 32)
-decode_mask64 = functools.partial(decode_mask, 64)
-decode_mask128 = functools.partial(decode_mask, 128)
+decode_mask8 = Mask8
+decode_mask16 = Mask16
+decode_mask32 = Mask32
+decode_mask64 = Mask64
+decode_mask128 = Mask128
 
 
 class EthMask:
