@@ -6,13 +6,13 @@ formatted to be additionally parsed by the other tools in ovs_dbg.
 
 To Do
 - Edge cases
-- Refactor ofp class functions to allow for integration
-- Combine with ofproto parser to output json (maybe inside process_match() / process(action)
-- resubmit nested table?
+- Refactor ofp class functions to allow for tighter integration?
+- Address resubmit nested table / extra text output
 
 '''
+import sys
 from ovs_dbg.ofparse.process import process_flows, tojson, pprint
-from ovs_dbg.ofp import OFPFlow, Flow
+from ovs_dbg.ofptp import string_to_dict
 
 class Ofpt_Output:
     """
@@ -28,11 +28,11 @@ class Ofpt_Output:
     """
     def __init__(self, ofpt_flow, bridge, final_flow, megaflow, dpactions):
         # Constructor
-        self._ofpt_flow = ofpt_flow
+        self._ofpt_flow = string_to_dict(ofpt_flow, "match")
         self._bridge = bridge
-        self._final_flow = final_flow
-        self._megaflow = megaflow
-        self._dpactions = dpactions
+        self._final_flow = string_to_dict(final_flow, "match")
+        self._megaflow = string_to_dict(megaflow, "match")
+        self._dpactions = string_to_dict(dpactions, "actions")
 
 class Ofpt_Bridge:
     """
@@ -66,12 +66,19 @@ class Ofpt_Bridge:
             try:
                 parts = string.split(". ", 1)
                 num = parts[0].strip()
-                match = parts[1].split("\n", 1)[0]
+                match_info = parts[1].split("\n", 1)[0]
                 actions = parts[1].split("\n", 1)[1].strip()
             except:
-                print("encountered edge case within bridge entry: ",string)
+                print("encountered edge case within bridge entry: ",string, file = sys.stderr)
+                #strings.remove(string)
                 continue
-            bridge_entry_list.append(Ofpt_Bridge_Entry(num,match,actions))
+            match_info_list = parse_match_info(match_info)
+            bridge_entry_list.append(Ofpt_Bridge_Entry(
+                    num,
+                    match_info_list[0],
+                    match_info_list[1],
+                    actions
+                    ))
 
         return bridge_entry_list
         # for each string in list
@@ -80,24 +87,33 @@ class Ofpt_Bridge:
             # extract and process actions
             # init entry w/ tabnum, match, action
 
-    
+
 class Ofpt_Bridge_Entry:
     """
-    Struct containing table Numbers, Match, and Action strings in 
+    Struct containing table Numbers, Info, Match, and Action strings in 
     KVparsable formatting. Each entry corresponds to a single flow through a 
     table in ofProto/Trace output
     """
-    def __init__(self, table_num, match_string, action_string):
+    def __init__(self, table_num, match_string, info_string, action_string):
         self.table_num = table_num
+        self.info = self.process_info(info_string)
         self.match_string = self.process_match(match_string)
         self.action_string = self.process_action(action_string)
 
+    def process_info(self, info_string):
+        if info_string:
+            return string_to_dict(info_string, "info")
+        else:
+            return None
+
     def process_match(self, match_string):
-        return match_string.replace(", ",",").replace(" ","=")
+        return string_to_dict(match_string.replace(", ",",").replace(" ","="), "match")
     
     def process_action(self, action_string):
         # need to handle nested table due to resubmit
-        return action_string.replace("\n",",").replace(" ","")
+        # need to handle "->"" informational messages
+        return string_to_dict(action_string.replace("\n",",").replace(" ",""), "actions")
+        
 
 class OFPTTrace:
     """ovs/appctl ofproto/trace trace result"""
@@ -128,15 +144,15 @@ class OFPTTrace:
 
         parts = input_string.split("Datapath actions: ")
         if len(parts) != 2:
-            raise ValueError("malformed ofprototrace output1")
+            raise ValueError("malformed ofprototrace output - Dp actions")
         dpactions = parts[1].strip()
         parts = parts[0].split("Megaflow: ")
         if len(parts) != 2:
-            raise ValueError("malformed ofprototrace output2")
+            raise ValueError("malformed ofprototrace output - Megaflow")
         megaflow = parts[1].strip()
         parts = parts[0].split("Final flow: ")
         if len(parts) != 2:
-            raise ValueError("malformed ofprototrace output3")
+            raise ValueError("malformed ofprototrace output - Final flow")
         final_flow = parts[1].strip()
         # determine length of next delimiter
         for line in parts[0].split("\n"):
@@ -144,15 +160,15 @@ class OFPTTrace:
                 line_len = len(line)
         parts = parts[0].split("-" * line_len)
         if len(parts) != 2:
-            raise ValueError("malformed ofprototrace output4")
+            raise ValueError("malformed ofprototrace output - tables")
         bridge_entries = parts[1].strip()
         parts = parts[0].split("bridge(\"")
         if len(parts) != 2:
-            raise ValueError("malformed ofprototrace output5")
+            raise ValueError("malformed ofprototrace output - bridge name")
         bridge_name = parts[1].strip()[:-2]
         parts = parts[0].split("Flow: ")
         if len(parts) != 2:
-            raise ValueError("malformed ofprototrace output6")
+            raise ValueError("malformed ofprototrace output - flow")
         flow = parts[1].strip()
 
         # Current assumptions:
@@ -191,3 +207,13 @@ def parse_for_recirc(input_string):
     ofptTrace_list.append(input_string)
 
     return ofptTrace_list
+
+def parse_match_info(match_info):
+    # Currently only expects "cookie" as potential info
+    parts = match_info.split(", cookie ")
+    if len(parts) == 1:
+        return (match_info, None)
+    if len(parts) > 2:
+        raise ValueError("malformed ofprototrace output - Cookie")
+
+    return (parts[0], "cookie=" + parts[1])
