@@ -1,9 +1,7 @@
 #!/bin/env python
 """
 To Do:
-
-Take input pipes from ofproto/trace directly
-Accept flags for help / raw / output to file / other formats than json (ovn detrace option?)
+    other formats than json (ovn detrace option?)
 
 """
 import sys
@@ -21,11 +19,10 @@ except Exception:
     sys.exit(1)
 
 
-def extract_ofpt_output(fn):
-    input_string = open(fn)
-    # check for recirc, if so process as multiple strings
-    traces = parse_for_recirc(input_string.read())
-    # parse for each string
+def extract_ofpt_output(FILE):
+    # Check for recirc. If so, process each trace individually
+    traces = parse_for_recirc(FILE.read())
+    # Convert strings to a list of OFPTTrace objects
     OFPTobj_list = list ()
     for trace in traces:
         OFPTobj_list.append(OFPTTrace(trace))
@@ -34,29 +31,31 @@ def extract_ofpt_output(fn):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-f",
-        "--file",
-        action="store",
-        required=True,
-        help="Read meta-flow info from file",
-    )
-    parser.add_argument("-o", "--output", help="Output result to a file.", action="store_true")
+
+    parser.add_argument("-o", "--output", help="Output result to a file.")
+    parser.add_argument("-i", "--input", help=
+        "Read flows from specified filepath."
+        "If not provided, flows will be read from stdin")
+    parser.add_argument("-r", "--raw", action='store_true', help="Include raw ofprototrace as a KV pair in output")
+
     args = parser.parse_args()
 
-    OFPTobj_list = extract_ofpt_output(args.file)
-    if len(OFPTobj_list) > 1:
-        json_object = list ()
-        for trace in OFPTobj_list:
-        # process into requested format (default json)
-            json_object.append(process_ofpt(trace, "json"))
-    else:
-        json_object = process_ofpt(OFPTobj_list[0], "json")
+    if args.input:
+        FILE = open(args.input)
+    else: 
+        FILE = sys.stdin
 
-    # if args.output:
-    #     f = open("ofproto_trace_output.txt", "a")
-    #     f.write(str(traces)+'\n')
-    print(json.dumps(json_object, indent = 4))
+    OFPTobj_list = extract_ofpt_output(FILE)
+    ofpt_out = process_ofpt(OFPTobj_list, 'json', args.raw)
+
+    if args.output:
+        f = open(args.output, "a")
+        f.write(ofpt_out)
+        f.close()
+    else:
+        print(ofpt_out, file = sys.stdout)
+
+        
 
 
 if __name__ == "__main__":
