@@ -8,6 +8,7 @@ This respository stores scripts and documentation to help debug OVS and OVN.
 
    ofparse
 
+   ofofproto
 
 Indices and tables
 ==================
