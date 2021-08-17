@@ -57,6 +57,9 @@ do_start() {
     # get the DB backup
     mkdir -p $VAR_RUN
     kubectl exec -i -n $OVN_NAMESPACE $ovnkube_node ovsdb-client backup > /tmp/db.conf
+
+    # Ensure ovs-dbg image is present
+    docker inspect ovs-dbg 2>&1 >/dev/null || (docker pull quay.io/amorenoz/ovs-dbg && docker tag quay.io/amorenoz/ovs-dbg ovs-dbg)
     
     # run ovsdb-server
     docker kill ovsdb-server || true

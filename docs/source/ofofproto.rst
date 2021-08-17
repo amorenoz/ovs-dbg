@@ -9,16 +9,10 @@ and the Openflow flows from a remote Kubernetes / Openshift node running ovn-kub
 Usage
 ------
 
-Build the ovs-dbg container:
+(Optional) Build the ovs-dbg container:
 
 ::
-    cd containers/ovs-dbg && docker build -t ovs-dbg .
-
-
-or download it from the registry:
-
-::
-    docker pull quay.io/amorenoz/ovs-dbg
+    cd containers/ovs-dbg && docker build --build-arg OVS_VERSION=<TAG/HASH/BRANCH> -t ovs-dbg .
 
 
 Make sure you can access the remote k8s/oc node:
