@@ -1,19 +1,86 @@
 #!/bin/bash
 
-set -eux
+set -eu
 
 OVN_NAMESPACE=ovn-kubernetes
 VAR_RUN=/tmp/offline-dbg/var-run
 
 usage() {
-    echo "Usage: $0 [OPTIONS] NODE"
+    echo "Start:"
+    echo "$0 [OPTIONS] start [-o] NODE"
+    echo "  NODE: The name of the k8s node to debug offline"
+    echo "  Start options:"
+    echo "  -o:     Openshift environment"
     echo ""
-    echo "NODE: The name of the k8s node to debug offline"
+    echo "Stop:"
+    echo "$0 [OPTIONS] stop "
     echo ""
     echo "OPTIONS:"
     echo "  -h:     Print help"
-    echo "  -o:     Openshift environment"
     echo ""
+}
+
+do_stop() {
+    docker kill ovsdb-server || true
+    docker kill ovs-vswitchd || true
+    rm -rf $VAR_RUN
+    echo "Offline OVS Debugging stopped"
+    echo "*****************************"
+}
+
+do_start() {
+    if [ -z $1 ]; then
+        usage
+        exit 1
+    fi
+    NODE=$1
+    kubectl get node $NODE
+    res=$?
+    
+    if [ res -ne 0 ]; then
+        echo "Node not found"
+        exit 1
+    fi
+    
+    ovnkube_node=$(kubectl get pods -n $OVN_NAMESPACE --field-selector spec.nodeName=$NODE -o name | head -1 | sed "s/^.\{4\}//")
+    
+    bridges=$(kubectl exec -n $OVN_NAMESPACE $ovnkube_node -- ovs-vsctl -- --real list-br)
+    kubectl exec -it -n $OVN_NAMESPACE $ovnkube_node -- sh -c "/usr/share/openvswitch/scripts/ovs-save save-flows $(echo $bridges | xargs) > /tmp/restore.sh"
+    kubectl cp -n $OVN_NAMESPACE $ovnkube_node:/tmp/restore.sh /tmp/restore.sh
+    
+    # find where the logs have been saved and copy it locally
+    save_dir=$(cat /tmp/restore.sh | awk '/replace/{print $6; exit}' | xargs dirname)
+    
+    kubectl cp -n $OVN_NAMESPACE $ovnkube_node:$save_dir $save_dir
+    mv /tmp/restore.sh $save_dir
+    
+    # get the DB backup
+    mkdir -p $VAR_RUN
+    kubectl exec -i -n $OVN_NAMESPACE $ovnkube_node ovsdb-client backup > /tmp/db.conf
+    
+    # run ovsdb-server
+    docker kill ovsdb-server || true
+    docker run -d -p 127.0.0.1:6640:6640/tcp -v /tmp/db.conf:/usr/local/var/run/openvswitch/db.backup -v ${VAR_RUN}:/usr/local/var/run/openvswitch/  --name ovsdb-server --rm ovs-dbg ovsdb
+    
+    # run ovs-vswitchd
+    docker kill ovs-vswitchd || true
+    docker run -d -p 127.0.0.1:16640:6640/tcp -e RESTORE_DIR=$save_dir -v $save_dir:$save_dir -v ${VAR_RUN}:/usr/local/var/run/openvswitch/ --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
+
+    sleep 3
+    
+    vswitchd_ctl=$(ls -x $VAR_RUN/ovs-vswitchd.*.ctl)
+    ovsdb_sock=$(ls -x $VAR_RUN/db.sock)
+    
+    echo ""
+    echo ""
+    echo "Offline OVS Debugging started"
+    echo "******************************"
+    echo "You can now execute the follwing ovs tools:"
+    echo "   ovs-appctl --target=${vswitchd_ctl}"
+    echo "   ovs-vsctl --db unix:${ovsdb_sock}"
+    for mgt in $(ls -x $VAR_RUN/*.mgmt); do
+        echo "   ovs-ofctl COMMAND ${mgt}"
+    done
 }
 
 while getopts ":ho" opt; do
@@ -29,41 +96,22 @@ while getopts ":ho" opt; do
 done
 
 shift $(((OPTIND -1)))
-if [ -z $1 ]; then
+if [ $# -lt 1 ]; then  
     usage
     exit 1
 fi
-NODE=$1
+CMD=$1
+shift
 
-if [ !kubectl get node $NODE ]; then
-    echo "Node not found"
-    exit 1
-fi
-
-ovnkube_node=$(kubectl get pods -n $OVN_NAMESPACE --field-selector spec.nodeName=$NODE -o name | head -1 | sed "s/^.\{4\}//")
-
-bridges=$(kubectl exec -n $OVN_NAMESPACE $ovnkube_node -- ovs-vsctl -- --real list-br)
-kubectl exec -it -n $OVN_NAMESPACE $ovnkube_node -- sh -c "/usr/share/openvswitch/scripts/ovs-save save-flows $(echo $bridges | xargs) > /tmp/restore.sh"
-kubectl cp -n $OVN_NAMESPACE $ovnkube_node:/tmp/restore.sh /tmp/restore.sh
-
-# find where the logs have been saved and copy it locally
-save_dir=$(cat /tmp/restore.sh | awk '/replace/{print $6; exit}' | xargs dirname)
-
-kubectl cp -n $OVN_NAMESPACE $ovnkube_node:$save_dir $save_dir
-mv /tmp/restore.sh $save_dir
-
-# get the DB backup
-mkdir -p $VAR_RUN
-kubectl exec -i -n $OVN_NAMESPACE $ovnkube_node ovsdb-client backup > /tmp/db.conf
-
-# run ovsdb-server
-docker kill ovsdb-server || true
-docker run -d -p 127.0.0.1:6640:6640/tcp -v /tmp/db.conf:/usr/local/var/run/openvswitch/db.backup -v ${VAR_RUN}:/usr/local/var/run/openvswitch/  --name ovsdb-server --rm ovsdb-server
-
-# run ovs-vswitchd
-docker kill ovs-vswitchd || true
-docker run -d -p 127.0.0.1:16640:6640/tcp -e RESTORE_DIR=$save_dir -v $save_dir:$save_dir -v ${VAR_RUN}:/usr/local/var/run/openvswitch/ --name ovs-vswitchd --rm ovs-vswitchd
-
-vswitchd_ctl=$(ls -x $VAR_RUN/ovs-vswitchd.*.ctl)
-
-echo "Execute offline ofproto traces with the following --target=$vswitchd_ctl "
+case $CMD in
+    start)
+        do_start $@
+        ;;
+    stop)
+        do_stop $@
+        ;;
+    *)
+        echo "Invalid command $CMD" 1>&2
+        exit 1
+        ;;
+esac
