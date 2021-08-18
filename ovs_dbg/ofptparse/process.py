@@ -1,6 +1,5 @@
 import sys
 
-
 try:
     from ovs_dbg.trace import OFPTTrace
     import json
@@ -36,7 +35,7 @@ def process_ofpt(OFPTobj_list, output_type, print_raw):
     if output_type == 'json':
         return json.dumps(dict_object, indent = 4,  cls=FlowEncoder)
     else:
-        return 'error'
+        return dict_object
 
 
 def to_dict(OFPTTrace, print_raw):
@@ -49,7 +48,7 @@ def to_dict(OFPTTrace, print_raw):
         if table.info:
             table_entry_dict["info"] = table.info
         table_entry_dict["match"] = table.match_string
-        table_entry_dict["action"] = table.action_string
+        table_entry_dict["actions"] = table.action_string
         bridge_entry_list.append(table_entry_dict)
 
     if print_raw:

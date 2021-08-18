@@ -1,9 +1,4 @@
-from inspect import BoundArguments
 from ovs_dbg.ofp import OFPFlow
-import json
-from ovs_dbg.flow import Section, Flow
-from ovs_dbg.kv import KVDecoders, KVParser, KeyValue
-
 
 def string_to_dict(string, section_type):
     """Parse a section of ofproto flow string

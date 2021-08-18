@@ -67,7 +67,7 @@ class Ofpt_Bridge:
                 parts = string.split(". ", 1)
                 num = parts[0].strip()
                 match_info = parts[1].split("\n", 1)[0]
-                actions = parts[1].split("\n", 1)[1].strip()
+                actions = parts[1].split("\n", 1)[1]
             except:
                 print("encountered edge case within bridge entry: ",string, file = sys.stderr)
                 #strings.remove(string)
@@ -96,25 +96,10 @@ class Ofpt_Bridge_Entry:
     """
     def __init__(self, table_num, match_string, info_string, action_string):
         self.table_num = table_num
-        self.info = self.process_info(info_string)
-        self.match_string = self.process_match(match_string)
-        self.action_string = self.process_action(action_string)
-
-    def process_info(self, info_string):
-        if info_string:
-            return string_to_dict(info_string, "info")
-        else:
-            return None
-
-    def process_match(self, match_string):
-        return string_to_dict(match_string.replace(", ",",").replace(" ","="), "match")
-    
-    def process_action(self, action_string):
-        # need to handle nested table due to resubmit
-        # need to handle "->"" informational messages
-        return string_to_dict(action_string.replace("\n",",").replace(" ",""), "actions")
-        
-
+        self.info = process_info(info_string)
+        self.match_string = process_match(match_string)
+        self.action_string = process_actions(action_string)
+  
 class OFPTTrace:
     """ovs/appctl ofproto/trace trace result"""
     def __init__(self, input_string):
@@ -217,3 +202,70 @@ def parse_match_info(match_info):
         raise ValueError("malformed ofprototrace output - Cookie")
 
     return (parts[0], "cookie=" + parts[1])
+
+def process_nested_action(table_info_match_str, nested_actions, level):
+    nested_table_entry = {}
+    try:
+        parts = table_info_match_str.split(". ", 1)
+        nested_table_entry["table"] = parts[0].strip()
+        match_info = parts[1].split("\n", 1)[0]
+    except:
+        print("encountered edge case within nested table entry: ",table_info_match_str)
+
+    match_info_list = parse_match_info(match_info)
+    nested_table_entry["info"] = process_info(match_info_list[1])
+    if match_info_list[0] == 'No match.':
+        nested_table_entry["match"] = "No Match"
+    else:
+        nested_table_entry["match"] = process_match(match_info_list[0])
+    
+    nested_table_entry["actions"] = process_actions(nested_actions, level)
+    return nested_table_entry
+
+def process_info(info_string):
+    if info_string:
+        return string_to_dict(info_string, "info")
+    else:
+        return None
+
+def process_match(match_string):
+    return string_to_dict(match_string.replace(", ",",").replace(" ","="), "match")
+
+def process_actions(action_string, level=4):
+    # formatting printed by oftrace_node_print_details() prior to a
+    # non-parsable message
+    pre_msg = (
+        ' ' * level + " ->",
+        ' ' * level + " >>",
+        ' ' * level + " >>>>"
+    )
+    # oftrace_node_print_details() prints an additional 8 spaces before
+    # printing each ovstrace_node child
+    space_offset = ' ' * (level + 8)
+
+    action_list = list()
+    strings = action_string.split('\n')
+
+    # I know this is a bit 'c' like, any clue how to make this 'better'?
+    i = 0
+    while i < len(strings):
+        # Check for invalid strings (ie. OFT_DETAIL, OFT_WARN, OFT_ERROR)
+        if not (strings[i].startswith(pre_msg[0]) or strings[i].startswith(pre_msg[1]) or strings[i].startswith(pre_msg[2])):
+            # Check for a nested table entry
+            if i < len(strings) - 1 and strings[i + 1].startswith(space_offset):
+                table_info_match_str = strings[i]
+                nested_actions = list()
+                i+=1
+                while i < len(strings) and strings[i].startswith(space_offset):
+                    nested_actions.append(strings[i])
+                    i+=1
+                act_str = '\n'.join(nested_actions)
+                temp_dict = {}
+                temp_dict["next"] = process_nested_action(table_info_match_str, act_str, level + 8)
+                action_list.append(temp_dict)
+                continue
+            else:
+                action_list.append(string_to_dict(strings[i].replace("\n",",").replace(" ",""), "actions")[0])
+        i+= 1
+
+    return action_list
