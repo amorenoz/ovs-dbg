@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+
+import click
+import re
+import datetime
+
+from ovs_dbg.logs import OVSLog
+
+
+@click.command(context_settings=dict(help_option_names=["-h", "--help"]))
+@click.option(
+    "-r",
+    "-regex",
+    "expression",
+    help="Match regular expression "
+    "(Python format: see https://docs.python.org/3/library/re.html)",
+)
+@click.option(
+    "-s",
+    "--start",
+    help="Start timestamp."
+    "Format (same as OVS logs): '%Y-%m-%dT%H:%M:%S.%fZ'"
+    ", e.g: '2021-07-15T15:04:05.793Z'",
+)
+@click.option(
+    "-e",
+    "--end",
+    help="End timestamp"
+    "Format (same as OVS logs): '%Y-%m-%dT%H:%M:%S.%fZ'"
+    ", e.g: '2021-07-15T15:04:05.793Z'",
+)
+@click.option(
+    "-A",
+    "--after",
+    help="Time after 'start' time to include. Incompatible with --end option"
+    "Format: [%Hh][%Mm][%Ss], e.g: '3h', '2h14m', '3h14m16s'",
+)
+@click.option(
+    "-B",
+    "--before",
+    help="Time before 'start' time to include. Incompatible with --end option"
+    "Format: [%Hh][%Mm][%Ss], e.g: '3h', '2h14m', '3h14m16s'",
+)
+@click.argument(
+    "filename",
+    nargs=-1,
+    required=True,
+    type=click.Path(exists=True),
+)
+def lgrep(expression, start, end, after, before, filename):
+    all_logs = {}
+    for logfile in filename:
+        logs = find_logs(logfile, expression, start, end, after, before)
+        if logs:
+            all_logs[logfile] = logs
+
+    current_logfile = None
+    while all_logs:
+        next_logfile = sorted(
+            all_logs.keys(), key=lambda x: all_logs.get(x)[0].timestamp
+        )[0]
+        if next_logfile != current_logfile:
+            print("--- File: %s ---" % next_logfile)
+            current_logfile = next_logfile
+
+        flow = all_logs[next_logfile].pop(0)
+        print(flow.raw_string, end="")
+
+        if len(all_logs[next_logfile]) == 0:
+            del all_logs[next_logfile]
+
+
+def find_logs(filename, expression, start, end, after, before):
+    """
+    Returns a list of OVSLog objects that match the input criteria
+    """
+    expr = None
+    if expression:
+        try:
+            expr = re.compile(expression)
+        except Exception as e:
+            raise Exception("Failed to compile regexp from %s" % expression) from e
+
+    start_time = None
+    if start:
+        try:
+            start_time = datetime.datetime.strptime(start, OVSLog.time_format)
+        except Exception as e:
+            raise Exception("Failed build time from %s" % start) from e
+
+    end_time = None
+    if end:
+        try:
+            end_time = datetime.datetime.strptime(end, OVSLog.time_format)
+        except Exception as e:
+            raise Exception("Failed build time from %s" % end) from e
+
+    if after:
+        if not start:
+            raise click.BadArgumentUsage("--after requires the use of --start")
+        if end:
+            raise click.BadArgumentUsage(
+                "--after is incompatible with the use of --end"
+            )
+        try:
+            end_time = start_time + build_timedelta(after)
+        except Exception as e:
+            raise Exception("Failed build time from %s" % end) from e
+
+    if before:
+        if not start:
+            raise click.BadArgumentUsage("--before requires the use of --start")
+        if end:
+            raise click.BadArgumentUsage(
+                "--before is incompatible with the use of --end"
+            )
+        try:
+            start_time = start_time - build_timedelta(before)
+        except Exception as e:
+            raise Exception("Failed build time from %s" % end) from e
+
+    logs = []
+    with open(filename) as f:
+        for line in f.readlines():
+            if expr and not expr.search(line):
+                continue
+            log = OVSLog(line)
+            if start_time and log.timestamp < start_time:
+                continue
+            if end_time and log.timestamp > end_time:
+                break
+            logs.append(log)
+    return logs
+
+
+td_re = re.compile(r"((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?")
+
+
+def build_timedelta(string):
+    td_match = td_re.match(string)
+    if not td_match:
+        raise Exception("Failed build duration from %s" % string)
+    return datetime.timedelta(
+        hours=int(td_match.group("hours")) if td_match.group("hours") else 0,
+        minutes=int(td_match.group("minutes")) if td_match.group("minutes") else 0,
+        seconds=int(td_match.group("seconds")) if td_match.group("seconds") else 0,
+    )
+
+
+if __name__ == "__main__":
+    lgrep()
