@@ -59,7 +59,7 @@ def tojson(flow_factory, opts):
 
     if opts["paged"]:
         console = rich.Console()
-        with print_context(console, opts["paged"], not opts["no_style"]):
+        with print_context(console, opts["paged"], not opts["no_color"]):
             console.print(flow_json)
     else:
         print(flow_json)
@@ -74,10 +74,10 @@ def pprint(flow_factory, opts, style=None):
         opts (dict): Options
         style (dict): Optional, Style dictionary
     """
-    console = OFConsole(no_color=opts["no_style"])
+    console = OFConsole(no_color=opts["no_color"])
 
     def callback(flow):
         console.print_flow(flow, style=style)
 
-    with print_context(console.console, opts["paged"], not opts["no_style"]):
+    with print_context(console.console, opts["paged"], not opts["no_color"]):
         process_flows(flow_factory, callback, opts.get("filename"), opts.get("filter"))

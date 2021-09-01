@@ -24,15 +24,15 @@ class Options(dict):
 @click.option(
     "-p",
     "--paged",
-    help="Page the result (uses $PAGER). If styling is not disabled you might "
-    'need to enable colors on your $PAGER, eg: export PAGER="less -r".',
+    help="Page the result (uses $PAGER). If colors are not disabled you might "
+    'need to enable colors on your PAGER, eg: export PAGER="less -r".',
     is_flag=True,
     default=False,
     show_default=True,
 )
 @click.option(
-    "--no-style",
-    help="Do not styles (colors)",
+    "--no-color",
+    help="Do not use colors. Alternatively, set the environment variable NO_COLOR",
     is_flag=True,
     default=False,
     show_default=True,
@@ -46,7 +46,7 @@ class Options(dict):
     show_default=False,
 )
 @click.pass_context
-def maincli(ctx, filename, paged, no_style, filter):
+def maincli(ctx, filename, paged, no_color, filter):
     """
     OpenFlow Parse utility.
 
@@ -57,7 +57,7 @@ def maincli(ctx, filename, paged, no_style, filter):
     ctx.obj = Options()
     ctx.obj["filename"] = filename or ""
     ctx.obj["paged"] = paged
-    ctx.obj["no_style"] = no_style
+    ctx.obj["no_color"] = no_color
     if filter:
         try:
             ctx.obj["filter"] = OFFilter(filter)
