@@ -52,7 +52,7 @@ def logic(opts):
     )
 
     tree = Tree("Datapath Flows (logical)")
-    console = Console(color_system="256")
+    console = Console(color_system=None if opts["no_color"] else "256")
     ofconsole = OFConsole(console)
 
     recirc_styles = [

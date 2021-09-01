@@ -24,14 +24,14 @@ def openflow(opts):
 @click.pass_obj
 def json(opts):
     """Print the flows in JSON format"""
-    return tojson(flow_factory=OFPFlow.from_string, opts=opts)
+    return tojson(flow_factory=create_ofp_flow, opts=opts)
 
 
 @openflow.command()
 @click.pass_obj
 def pretty(opts):
     """Print the flows with some style"""
-    return pprint(flow_factory=OFPFlow.from_string, opts=opts)
+    return pprint(flow_factory=create_ofp_flow, opts=opts)
 
 
 @openflow.command()
@@ -101,10 +101,8 @@ def logic(opts, show_flows):
 
         tables[table][lflow].append(flow)
 
-    console = OFConsole()
-
     process_flows(
-        flow_factory=OFPFlow.from_string,
+        flow_factory=create_ofp_flow,
         callback=callback,
         filename=opts.get("filename"),
         filter=opts.get("filter"),
@@ -118,7 +116,7 @@ def logic(opts, show_flows):
     ]
 
     tree = Tree("Ofproto Flows (logical)")
-    console = Console(color_system="256")
+    console = Console(color_system=None if opts["no_color"] else "256")
 
     for table_num in sorted(tables.keys()):
         table = tables[table_num]
@@ -150,7 +148,7 @@ def logic(opts, show_flows):
                     OFConsole(console).format_flow(flow, text=text)
                     lflow_tree.add(text)
 
-    with print_context(console, opts["paged"], not opts["no_style"]):
+    with print_context(console, opts["paged"], not opts["no_color"]):
         console.print(tree)
 
 
