@@ -10,6 +10,8 @@ This respository stores scripts and documentation to help debug OVS and OVN.
 
    ofofproto
 
+   lgrep
+
 Indices and tables
 ==================
 
