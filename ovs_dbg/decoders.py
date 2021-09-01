@@ -115,7 +115,7 @@ class IntMask(Decoder):
         return (self.max_mask() & ~self._mask) | (self._value & self._mask)
 
     def __str__(self):
-        if self.fully:
+        if self.fully():
             return str(self._value)
         else:
             return "{}/{}".format(hex(self._value), hex(self._mask))
