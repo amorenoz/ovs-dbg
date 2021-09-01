@@ -22,7 +22,7 @@ def process_flows(flow_factory, callback, filename="", filter=None):
         with open(filename) as f:
             for line in f:
                 flow = flow_factory(line)
-                if filter and not filter.evaluate(flow):
+                if not flow or (filter and not filter.evaluate(flow)):
                     continue
                 callback(flow)
     else:
@@ -31,7 +31,7 @@ def process_flows(flow_factory, callback, filename="", filter=None):
             line = line.strip()
             if line:
                 flow = flow_factory(line)
-                if filter and not filter.evaluate(flow):
+                if not flow or (filter and not filter.evaluate(flow)):
                     continue
                 callback(flow)
 

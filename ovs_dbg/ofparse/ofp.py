@@ -160,3 +160,10 @@ def create_color_pallete(size):
     """
     HSV_tuples = [(x / size, 0.5, 0.5) for x in range(size)]
     return map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
+
+
+def create_ofp_flow(string):
+    """Create a OFPFlow"""
+    if " reply " in string:
+        return None
+    return OFPFlow.from_string(string)
