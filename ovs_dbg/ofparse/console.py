@@ -1,11 +1,15 @@
 """ This module defines OFConsole class
 """
 
-import sys
+import colorsys
 import contextlib
+import itertools
+import sys
+import zlib
 from rich.console import Console
 from rich.text import Text
 from rich.style import Style
+from rich.color import Color
 
 
 class FlowStyle:
@@ -93,10 +97,14 @@ class FlowStyle:
             ["key.highlighted.%s" % key, "key.highlighted"] if highlighted else []
         )
         key_style_lookup.extend(["key.%s" % key, "key"])
-        return next(
+
+        style = next(
             (self._styles.get(s) for s in key_style_lookup if self._styles.get(s)),
             None,
         )
+        if callable(style):
+            return style(kv.meta.kstring)
+        return style
 
     def get_value_style(self, kv, highlighted=False):
         key = kv.meta.kstring
@@ -117,10 +125,14 @@ class FlowStyle:
                 "value",
             ]
         )
-        return next(
+
+        style = next(
             (self._styles.get(s) for s in value_style_lookup if self._styles.get(s)),
             None,
         )
+        if callable(style):
+            return style(kv.meta.vstring)
+        return style
 
 
 class FlowFormatter:
@@ -397,6 +409,27 @@ class ConsoleFormatter(FlowFormatter):
                 buf, section.data, section.string, style_obj, self.default_style
             )
             last_printed_pos = section.pos + len(section.string)
+
+
+def hash_pallete(hue, saturation, value):
+    """Generates a color pallete with the cartesian product
+    of the hsv values provided and returns a callable that assigns a color for
+    each value hash
+    """
+    HSV_tuples = itertools.product(hue, saturation, value)
+    RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
+    styles = [
+        Style(color=Color.from_rgb(r * 255, g * 255, b * 255)) for r, g, b in RGB_tuples
+    ]
+
+    def get_style(string):
+        hash_val = zlib.crc32(bytes(str(string), "utf-8"))
+        print(hash_val)
+        print(hash_val % len(styles))
+        print(len(styles))
+        return styles[hash_val % len(styles)]
+
+    return get_style
 
 
 def print_context(console, paged=False, styles=True):
