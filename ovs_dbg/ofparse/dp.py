@@ -9,7 +9,7 @@ from rich.color import Color
 
 from ovs_dbg.ofparse.main import maincli
 from ovs_dbg.ofparse.process import process_flows, tojson, pprint
-from .console import ConsoleFormatter, ConsoleBuffer, print_context
+from .console import ConsoleFormatter, ConsoleBuffer, print_context, hash_pallete
 from ovs_dbg.odp import ODPFlow
 
 
@@ -55,10 +55,10 @@ def logic(opts):
     console = Console(color_system=None if opts["no_color"] else "256")
     ofconsole = ConsoleFormatter(console)
 
-    recirc_styles = [
-        Style(color=Color.from_rgb(r * 255, g * 255, b * 255))
-        for r, g, b in create_color_pallete(50)
-    ]
+    # HSV_tuples = [(x / size, 0.7, 0.8) for x in range(size)]
+    recirc_style_gen = hash_pallete(
+        hue=[x / 50 for x in range(0, 50)], saturation=[0.7], value=[0.8]
+    )
 
     def process_flow_tree(parent, recirc_id):
         sorted_flows = sorted(
@@ -71,20 +71,14 @@ def logic(opts):
         style.set_default_value_style(Style(color="bright_black"))
         style.set_key_style("output", Style(color="green"))
         style.set_value_style("output", Style(color="green"))
+        style.set_value_style("recirc", recirc_style_gen)
+        style.set_value_style("recirc_id", recirc_style_gen)
 
         for flow in sorted_flows:
             next_recirc = next(
                 (kv.value for kv in flow.actions_kv if kv.key == "recirc"), None
             )
-            if next_recirc:
-                style.set_value_style(
-                    "recirc", recirc_styles[next_recirc % len(recirc_styles)]
-                )
 
-            style.set_value_style(
-                "recirc_id",
-                recirc_styles[(flow.match.get("recirc_id")) % len(recirc_styles)],
-            )
             buf = ConsoleBuffer(Text())
             ofconsole.format_flow(buf=buf, flow=flow, style=style)
             tree_elem = parent.add(buf.text)
@@ -97,10 +91,3 @@ def logic(opts):
     with print_context(console, opts["paged"], not opts["no_color"]):
         console.print(tree)
 
-
-def create_color_pallete(size):
-    """Create a color pallete of size colors by modifying the Hue in the HSV
-    color space
-    """
-    HSV_tuples = [(x / size, 0.7, 0.8) for x in range(size)]
-    return map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
