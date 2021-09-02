@@ -9,7 +9,7 @@ from rich.color import Color
 
 from ovs_dbg.ofparse.main import maincli
 from ovs_dbg.ofparse.process import process_flows, tojson, pprint
-from .console import ConsoleBuffer, ConsoleFormatter, print_context
+from .console import ConsoleBuffer, ConsoleFormatter, hash_pallete, print_context
 from ovs_dbg.ofp import OFPFlow
 
 
@@ -110,10 +110,11 @@ def logic(opts, show_flows):
 
     # Try to make it easy to spot same cookies by printing them in different
     # colors
-    cookie_styles = [
-        Style(color=Color.from_rgb(r * 255, g * 255, b * 255))
-        for r, g, b in create_color_pallete(200)
-    ]
+    cookie_style_gen = hash_pallete(
+        hue=[x / 10 for x in range(0, 10)],
+        saturation=[0.5],
+        value=[0.5 + x / 10 * (0.85 - 0.5) for x in range(0, 10)],
+    )
 
     tree = Tree("Ofproto Flows (logical)")
     console = Console(color_system=None if opts["no_color"] else "256")
@@ -133,7 +134,7 @@ def logic(opts, show_flows):
 
             text.append(
                 "cookie={} ".format(hex(lflow.cookie)).ljust(18),
-                style=cookie_styles[(lflow.cookie * 0x27D4EB2D) % len(cookie_styles)],
+                style=cookie_style_gen(str(lflow.cookie)),
             )
             text.append("priority={} ".format(lflow.priority), style="steel_blue")
             text.append(",".join(lflow.match_keys), style="steel_blue")
@@ -152,14 +153,6 @@ def logic(opts, show_flows):
 
     with print_context(console, opts["paged"], not opts["no_color"]):
         console.print(tree)
-
-
-def create_color_pallete(size):
-    """Create a color pallete of size colors by modifying the Hue in the HSV
-    color space
-    """
-    HSV_tuples = [(x / size, 0.5, 0.5) for x in range(size)]
-    return map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
 
 
 def create_ofp_flow(string):
