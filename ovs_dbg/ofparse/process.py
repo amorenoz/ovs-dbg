@@ -6,7 +6,7 @@ import rich
 
 from ovs_dbg.ofp import OFPFlow
 from ovs_dbg.decoders import FlowEncoder
-from ovs_dbg.ofparse.console import OFConsole, print_context
+from ovs_dbg.ofparse.console import ConsoleFormatter, print_context
 
 
 def process_flows(flow_factory, callback, filename="", filter=None):
@@ -74,7 +74,7 @@ def pprint(flow_factory, opts, style=None):
         opts (dict): Options
         style (dict): Optional, Style dictionary
     """
-    console = OFConsole(no_color=opts["no_color"])
+    console = ConsoleFormatter(no_color=opts["no_color"])
 
     def callback(flow):
         console.print_flow(flow, style=style)
