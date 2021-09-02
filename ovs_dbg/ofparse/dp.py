@@ -9,7 +9,7 @@ from rich.color import Color
 
 from ovs_dbg.ofparse.main import maincli
 from ovs_dbg.ofparse.process import process_flows, tojson, pprint
-from .console import OFConsole, print_context
+from .console import ConsoleFormatter, ConsoleBuffer, print_context
 from ovs_dbg.odp import ODPFlow
 
 
@@ -53,7 +53,7 @@ def logic(opts):
 
     tree = Tree("Datapath Flows (logical)")
     console = Console(color_system=None if opts["no_color"] else "256")
-    ofconsole = OFConsole(console)
+    ofconsole = ConsoleFormatter(console)
 
     recirc_styles = [
         Style(color=Color.from_rgb(r * 255, g * 255, b * 255))
@@ -67,30 +67,34 @@ def logic(opts):
             reverse=True,
         )
 
-        style = OFConsole.default_style
-        style["value"] = Style(color="bright_black")
-        style["key.output"] = Style(color="green")
-        style["value.output"] = Style(color="green")
+        style = ConsoleFormatter.default_style_obj
+        style.set_default_value_style(Style(color="bright_black"))
+        style.set_key_style("output", Style(color="green"))
+        style.set_value_style("output", Style(color="green"))
+
         for flow in sorted_flows:
             next_recirc = next(
                 (kv.value for kv in flow.actions_kv if kv.key == "recirc"), None
             )
             if next_recirc:
-                style["value.recirc"] = recirc_styles[next_recirc % len(recirc_styles)]
+                style.set_value_style(
+                    "recirc", recirc_styles[next_recirc % len(recirc_styles)]
+                )
 
-            text = Text()
-            style["value.recirc_id"] = recirc_styles[
-                (flow.match.get("recirc_id")) % len(recirc_styles)
-            ]
-            ofconsole.format_flow(flow=flow, style=style, text=text)
-            tree_elem = parent.add(text)
+            style.set_value_style(
+                "recirc_id",
+                recirc_styles[(flow.match.get("recirc_id")) % len(recirc_styles)],
+            )
+            buf = ConsoleBuffer(Text())
+            ofconsole.format_flow(buf=buf, flow=flow, style=style)
+            tree_elem = parent.add(buf.text)
 
             if next_recirc:
                 process_flow_tree(tree_elem, next_recirc)
 
     process_flow_tree(tree, 0)
 
-    with print_context(console, opts["paged"], not opts["no_style"]):
+    with print_context(console, opts["paged"], not opts["no_color"]):
         console.print(tree)
 
 

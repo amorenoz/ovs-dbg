@@ -9,7 +9,7 @@ from rich.color import Color
 
 from ovs_dbg.ofparse.main import maincli
 from ovs_dbg.ofparse.process import process_flows, tojson, pprint
-from .console import OFConsole, print_context
+from .console import ConsoleBuffer, ConsoleFormatter, print_context
 from ovs_dbg.ofp import OFPFlow
 
 
@@ -144,9 +144,11 @@ def logic(opts, show_flows):
 
             if show_flows:
                 for flow in flows:
-                    text = Text()
-                    OFConsole(console).format_flow(flow, text=text)
-                    lflow_tree.add(text)
+                    buf = ConsoleBuffer(Text())
+                    ConsoleFormatter(console).format_flow(
+                        buf, flow, ConsoleFormatter.default_style_obj
+                    )
+                    lflow_tree.add(buf.text)
 
     with print_context(console, opts["paged"], not opts["no_color"]):
         console.print(tree)
