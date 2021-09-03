@@ -8,7 +8,7 @@ from setuptools import setup, find_packages
 with open("README.md") as readme_file:
     readme = readme_file.read()
 
-requirements = ["click", "rich", "pyparsing", "netaddr"]
+requirements = ["click", "rich", "pyparsing", "netaddr", "graphviz"]
 
 setup_requirements = [
     "pytest-runner",
