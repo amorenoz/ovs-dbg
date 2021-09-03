@@ -138,13 +138,27 @@ class FlowFormatter:
         """
         self._highlighted = keys
 
-    def format_flow(self, flow):
-        """Format a flow. Must be implemented by child
+    def format_flow(self, buf, flow, style_obj=None, default_style=None):
+        """
+        Formats the flow into the provided buffer
 
         Args:
-            flow: The flow to be formatted
+            buf (FlowBuffer): the flow buffer to append to
+            flow (ovs_dbg.OFPFlow): the flow to format
+            style_obj (FlowStyle): Optional; style to use
+            default_style (Any): Optional; default style to use
         """
-        raise Exception("Not implemented")
+        last_printed_pos = 0
+
+        for section in sorted(flow.sections, key=lambda x: x.pos):
+            buf.append_extra(
+                flow.orig[last_printed_pos : section.pos],
+                style=style_obj.get("extra") or default_style,
+            )
+            self.format_kv_list(
+                buf, section.data, section.string, style_obj, default_style
+            )
+            last_printed_pos = section.pos + len(section.string)
 
     def format_kv_list(self, buf, kv_list, full_str, style_obj, default_style=None):
         """

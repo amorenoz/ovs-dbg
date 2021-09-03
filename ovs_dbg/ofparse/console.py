@@ -128,25 +128,17 @@ class ConsoleFormatter(FlowFormatter):
 
     def format_flow(self, buf, flow, style=None):
         """
-        Formats the flow into the rich.Text
+        Formats the flow into the provided buffer as a rich.Text
 
         Args:
+            buf (FlowBuffer): the flow buffer to append to
             flow (ovs_dbg.OFPFlow): the flow to format
-            style (dict): Optional; style dictionary to use
-            text (rich.Text): Optional; the Text object to append to
+            style (FlowStyle): Optional; style object to use
         """
-        last_printed_pos = 0
         style_obj = style or self.default_style_obj
-
-        for section in sorted(flow.sections, key=lambda x: x.pos):
-            buf.append_extra(
-                flow.orig[last_printed_pos : section.pos],
-                style=style_obj.get("extra") or self.default_style,
-            )
-            self.format_kv_list(
-                buf, section.data, section.string, style_obj, self.default_style
-            )
-            last_printed_pos = section.pos + len(section.string)
+        return super(ConsoleFormatter, self).format_flow(
+            buf, flow, style_obj, self.default_style
+        )
 
 
 def hash_pallete(hue, saturation, value):
