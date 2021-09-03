@@ -1,0 +1,168 @@
+#!/bin/bash
+
+# Information I haven't yet found /  inferred from the sos report
+    # TLV report
+    # ovs-sav dump groups
+    # db backup (work backwards from client)
+
+# ToDo
+    # current assumes ovsdb-backup and sosreport.tar.xz in same directory,
+    #       add way to hand as arguements
+    # investigate missing info, see if it can be recreated
+
+set -eu
+
+# establish global variables
+VAR_RUN=/tmp/offline-dbg/var-run
+save_dir=/tmp/ovs-save_dir
+
+
+usage() {
+    echo "Start:"
+    #echo "$0 [OPTIONS] start SOS_REPORT DB-BACKUP"
+    #echo "  SOS_REPORT: The SOS_REPORT .tar to extract from"
+    #echo "  DB-BACKUP:  The ovsdb-backup file"
+    echo ""
+    echo "Stop:"
+    #echo "$0 [OPTIONS] stop "
+    echo ""
+    echo "OPTIONS:"
+    echo "  -h:     Print help"
+    echo ""
+}
+
+do_stop() {
+    docker kill ovsdb-server || true
+    docker kill ovs-vswitchd || true
+    rm -rf $VAR_RUN
+    echo "Offline OVS Debugging stopped"
+    echo "*****************************"
+}
+
+get_highest_ofp_version() {
+    # if no protocol listed, default to OpenFlow14
+    protocols=$(cat sos_report/sos_commands/openvswitch/ovsdb-client_-f_list_dump | sed -n '/^Bridge table/,/^CT_Timeout_Policy table/p' | grep -E 'name|protocols')
+    version=$(echo $protocols | grep -oP "$br\s+protocols\s*:\s*\[\K[^][]*")
+    if [ -z "$version" ]; then
+        echo "OpenFlow14"
+    else
+        echo $version
+    fi
+}
+
+do_start() {
+    # get sos report (eventually accept specific arguement to sos report here)
+    sudo rm -r sos_report || true
+    mkdir sos_report
+    for f in *tar.xz
+    do
+        echo "Extracting sos report from '$f'..."
+        tar -xf $f -C sos_report --strip-components 1
+    done
+
+
+    # establish global variables
+    VAR_RUN=/tmp/offline-dbg/var-run
+    save_dir=/tmp/ovs-save_dir
+
+    # get bridge list
+    bridges=$(cat sos_report/sos_commands/openvswitch/ovs-vsctl_list-br)
+
+
+    rm -rf $save_dir || true
+    mkdir $save_dir
+
+    # get flow dumps
+    cp sos_report/sos_commands/openvswitch/ovs-ofctl_dump-flows_br-* $save_dir
+
+    # apply ovs-save workarounds to current flows to allow for restoration
+    for dump in $save_dir/ovs-ofctl_dump-flows_br-*; do
+    # will it matter that these flows were not dumped with --no-names --no-stats?
+    # no " -O $ofp_version " flag
+            sed -i -e '/NXST_FLOW/d' \
+                -e '/OFPST_FLOW/d' \
+                -e 's/\(idle\|hard\)_age=[^,]*,//g' \
+                -e 's/igmp/ip,nw_proto=2/g' \
+                "$dump"
+    done
+
+
+    # create restore.sh scrip
+    for br in $bridges; do
+        # add the tlv map here / parse dumps if the dumps were available
+        echo "ovs-ofctl add-tlv-map ${br} '' " >> $save_dir/restore.sh
+        ofp_version=$(get_highest_ofp_version "$br")
+        # If possible use OpenFlow 1.4 atomic bundle txn for flows and groups
+        [ ${ofp_version#OpenFlow} -ge 14 ] && bundle=" --bundle" || bundle=""
+        # add the groups here if group.dumps were available
+            #echo "ovs-ofctl -O $ofp_version add-groups ${bridge} \
+            #          \"$workdir/$bridge.groups.dump\" ${bundle}"
+        echo "ovs-ofctl -O $ofp_version replace-flows ${br} \
+                \"$save_dir/$br.flows.dump\" ${bundle}" >> $save_dir/restore.sh
+        
+    done
+
+    # get the DB backup
+    mkdir -p $VAR_RUN
+    rm /tmp/db.conf || true
+    # still assumes db is in same directory / exists
+    cp *ovsdb-backup /tmp/db.conf
+
+    # Ensure ovs-dbg image is present
+    docker inspect ovs-dbg 2>&1 >/dev/null || (docker pull quay.io/amorenoz/ovs-dbg && docker tag quay.io/amorenoz/ovs-dbg ovs-dbg)
+
+    # run ovsdb-server
+    docker kill ovsdb-server || true
+    docker run -d -p 127.0.0.1:6640:6640/tcp -v /tmp/db.conf:/usr/local/var/run/openvswitch/db.backup -v ${VAR_RUN}:/usr/local/var/run/openvswitch/  --name ovsdb-server --rm ovs-dbg ovsdb
+
+    # run ovs-vswitchd
+    docker kill ovs-vswitchd || true
+    docker run -d -p 127.0.0.1:16640:6640/tcp -e RESTORE_DIR=$save_dir -v $save_dir:$save_dir -v ${VAR_RUN}:/usr/local/var/run/openvswitch/ --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
+
+    sleep 3
+
+    vswitchd_ctl=$(ls -x $VAR_RUN/ovs-vswitchd.*.ctl)
+    ovsdb_sock=$(ls -x $VAR_RUN/db.sock)
+
+    echo ""
+    echo ""
+    echo "Offline OVS Debugging started"
+    echo "******************************"
+    echo "You can now execute the follwing ovs tools:"
+    echo "   ovs-appctl --target=${vswitchd_ctl}"
+    echo "   ovs-vsctl --db unix:${ovsdb_sock}"
+    for mgt in $(ls -x $VAR_RUN/*.mgmt); do
+        echo "   ovs-ofctl COMMAND ${mgt}"
+    done
+}
+
+while getopts ":h" opt; do
+    case ${opt} in
+        h)
+            usage
+            exit 0
+            ;;
+    esac
+done
+
+shift $(((OPTIND -1)))
+if [ $# -lt 1 ]; then  
+    usage
+    exit 1
+fi
+
+CMD=$1
+shift
+
+case $CMD in
+    start)
+        do_start $@
+        ;;
+    stop)
+        do_stop $@
+        ;;
+    *)
+        echo "Invalid command $CMD" 1>&2
+        exit 1
+        ;;
+esac
