@@ -1,6 +1,8 @@
 import sys
 import click
 import colorsys
+import graphviz
+
 from rich.tree import Tree
 from rich.text import Text
 from rich.console import Console
@@ -17,6 +19,7 @@ from ovs_dbg.ofparse.console import (
 )
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
 from ovs_dbg.odp import ODPFlow
+from ovs_dbg.filter import OFFilter
 
 
 @maincli.group(subcommand_metavar="FORMAT")
@@ -144,6 +147,98 @@ def html(opts):
     html_obj += "</div>"
 
     print(html_obj)
+
+
+@datapath.command()
+@click.pass_obj
+def graph(opts):
+    """Print the flows in an graphviz format showing the relationship of recirc_ids"""
+
+    recirc_flows = {}
+
+    def callback(flow):
+        """Parse the flows and sort them by table"""
+        rid = flow.match.get("recirc_id") or 0
+        if not recirc_flows.get(rid):
+            recirc_flows[rid] = list()
+        recirc_flows[rid].append(flow)
+
+    process_flows(
+        flow_factory=ODPFlow.from_string,
+        callback=callback,
+        filename=opts.get("filename"),
+        filter=opts.get("filter"),
+    )
+
+    node_styles = {
+        OFFilter("ct and (ct_state or ct_label or ct_mark)"): {"color": "#ff00ff"},
+        OFFilter("ct_state or ct_label or ct_mark"): {"color": "#0000ff"},
+        OFFilter("ct"): {"color": "#ff0000"},
+    }
+
+    g = graphviz.Digraph("DP flows", node_attr={"shape": "rectangle"})
+    g.attr(compound="true")
+    g.attr(rankdir="TB")
+
+    for recirc, flows in recirc_flows.items():
+        with g.subgraph(
+            name="cluster_{}".format(recirc), comment="recirc {}".format(recirc)
+        ) as sg:
+
+            sg.attr(rankdir="TB")
+            sg.attr(ranksep="0.02")
+            sg.attr(label="recirc_id {}".format(recirc))
+
+            invis = "f{}".format(recirc)
+            sg.node(invis, color="white", len="0", shape="point", width="0", height="0")
+
+            previous = None
+            for flow in flows:
+                name = "Flow_{}".format(flow.id)
+                summary = "Line: {} \n".format(flow.id)
+                summary += "\n".join(
+                    [
+                        flow.ufid.get("ufid") if hasattr(flow, "ufid") else "",
+                        flow.section("info").string,
+                        ",".join(flow.match.keys()),
+                        "actions: " + ",".join(list(a.keys())[0] for a in flow.actions),
+                    ]
+                )
+                attr = (
+                    node_styles.get(
+                        next(filter(lambda f: f.evaluate(flow), node_styles), None)
+                    )
+                    or {}
+                )
+
+                sg.node(
+                    name=name,
+                    label=summary,
+                    _attributes=attr,
+                    fontsize="8",
+                    nojustify="true",
+                    URL="#flow_{}".format(flow.id),
+                )
+
+                if previous:
+                    sg.edge(previous, name, color="white")
+                else:
+                    sg.edge(invis, name, color="white", length="0")
+                previous = name
+
+                next_recirc = next(
+                    (kv.value for kv in flow.actions_kv if kv.key == "recirc"), None
+                )
+                if next_recirc:
+                    cname = "cluster_{}".format(next_recirc)
+                    g.edge(name, "f{}".format(next_recirc), lhead=cname)
+                else:
+                    g.edge(name, "end")
+
+    g.edge("start", "f0", lhead="cluster_0")
+    g.node("start", shape="Mdiamond")
+    g.node("end", shape="Msquare")
+    print(g.source)
 
 
 def process_flow_tree(flow_list, parent, recirc_id, callback):
