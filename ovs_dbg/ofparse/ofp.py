@@ -7,10 +7,16 @@ from rich.console import Console
 from rich.style import Style
 from rich.color import Color
 
+from ovs_dbg.ofp import OFPFlow
 from ovs_dbg.ofparse.main import maincli
 from ovs_dbg.ofparse.process import process_flows, tojson, pprint
-from .console import ConsoleBuffer, ConsoleFormatter, hash_pallete, print_context
-from ovs_dbg.ofp import OFPFlow
+from ovs_dbg.ofparse.console import (
+    ConsoleBuffer,
+    ConsoleFormatter,
+    hash_pallete,
+    print_context,
+)
+from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
 
 
 @maincli.group(subcommand_metavar="FORMAT")
@@ -153,6 +159,41 @@ def logic(opts, show_flows):
 
     with print_context(console, opts["paged"], not opts["no_color"]):
         console.print(tree)
+
+
+@openflow.command()
+@click.pass_obj
+def html(opts):
+    """Print the flows in an HTML list"""
+    tables = dict()
+
+    def callback(flow):
+        """Parse the flows and sort them by table"""
+        table = flow.info.get("table") or 0
+        if not tables.get(table):
+            tables[table] = list()
+        tables[table].append(flow)
+
+    process_flows(
+        flow_factory=create_ofp_flow,
+        callback=callback,
+        filename=opts.get("filename"),
+        filter=opts.get("filter"),
+    )
+
+    html_obj = "<div id=flow_list>"
+    for table, flows in tables.items():
+        html_obj += "<h2 id=table_{table}> Table {table}</h2>".format(table=table)
+        html_obj += "<ul id=table_{}_flow_list>".format(table)
+        for flow in flows:
+            html_obj += "<li>"
+            buf = HTMLBuffer()
+            HTMLFormatter().format_flow(buf, flow)
+            html_obj += buf.text
+            html_obj += "</li>"
+        html_obj += "</ul>"
+    html_obj += "</div>"
+    print(html_obj)
 
 
 def create_ofp_flow(string):
