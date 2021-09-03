@@ -114,7 +114,7 @@ def html(opts):
         def render(self):
             html_obj = "<div>"
             if self._flow:
-                html_obj += "<div>"
+                html_obj += "<div id=flow_{}>".format(self._flow.id)
                 buf = HTMLBuffer()
                 HTMLFormatter().format_flow(buf, self._flow, self._style)
                 html_obj += buf.text
