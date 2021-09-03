@@ -50,18 +50,25 @@ class Flow(object):
     Args:
         sections (list[Section]): list of sections that comprise the flow
         orig (str): Original flow string
+        id (Any): Identifier
     """
 
-    def __init__(self, sections, orig=""):
+    def __init__(self, sections, orig="", id=None):
         self._sections = sections
         self._orig = orig
+        self._id = id
         for section in sections:
-            setattr( self, section.name, self.section(section.name).format_data())
+            setattr(self, section.name, self.section(section.name).format_data())
             setattr(self, "{}_kv".format(section.name), self.section(section.name).data)
 
     def section(self, name):
         """Return the section by name"""
         return next((sect for sect in self._sections if sect.name == name), None)
+
+    @property
+    def id(self):
+        """Return the Flow ID"""
+        return self._id
 
     @property
     def sections(self):
