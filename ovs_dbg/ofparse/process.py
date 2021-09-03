@@ -18,10 +18,12 @@ def process_flows(flow_factory, callback, filename="", filter=None):
         filename (str): Optional; filename to read frows from
         filter (OFFilter): Optional; filter to use to filter flows
     """
+    idx = 0
     if filename:
         with open(filename) as f:
             for line in f:
-                flow = flow_factory(line)
+                flow = flow_factory(line, idx)
+                idx += 1
                 if not flow or (filter and not filter.evaluate(flow)):
                     continue
                 callback(flow)
@@ -30,7 +32,8 @@ def process_flows(flow_factory, callback, filename="", filter=None):
         for line in data.split("\n"):
             line = line.strip()
             if line:
-                flow = flow_factory(line)
+                flow = flow_factory(line, idx)
+                idx += 1
                 if not flow or (filter and not filter.evaluate(flow)):
                     continue
                 callback(flow)

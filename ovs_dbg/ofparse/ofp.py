@@ -186,7 +186,7 @@ def html(opts):
         html_obj += "<h2 id=table_{table}> Table {table}</h2>".format(table=table)
         html_obj += "<ul id=table_{}_flow_list>".format(table)
         for flow in flows:
-            html_obj += "<li>"
+            html_obj += "<li id=flow_{}>".format(flow.id)
             buf = HTMLBuffer()
             HTMLFormatter().format_flow(buf, flow)
             html_obj += buf.text
@@ -196,8 +196,8 @@ def html(opts):
     print(html_obj)
 
 
-def create_ofp_flow(string):
+def create_ofp_flow(string, idx):
     """Create a OFPFlow"""
     if " reply " in string:
         return None
-    return OFPFlow.from_string(string)
+    return OFPFlow.from_string(string, idx)
