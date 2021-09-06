@@ -2,6 +2,7 @@ import sys
 import click
 import colorsys
 import graphviz
+import itertools
 
 from rich.tree import Tree
 from rich.text import Text
@@ -105,54 +106,23 @@ def html(opts):
         filter=opts.get("filter"),
     )
 
-    class HTMLFlowTree:
-        def __init__(self, flow=None, style=None):
-            self._flow = flow
-            self._style = style
-            self._subflows = list()
-
-        def append(self, flow):
-            self._subflows.append(flow)
-
-        def render(self):
-            html_obj = "<div>"
-            if self._flow:
-                html_obj += "<div id=flow_{}>".format(self._flow.id)
-                buf = HTMLBuffer()
-                HTMLFormatter().format_flow(buf, self._flow, self._style)
-                html_obj += buf.text
-                html_obj += "</div>"
-            if len(self._subflows) > 1:
-                html_obj += "<div>"
-                html_obj += "<ul>"
-                for sf in self._subflows:
-                    html_obj += "<li>"
-                    html_obj += sf.render()
-                    html_obj += "</li>"
-                html_obj += "</ul>"
-                html_obj += "</div>"
-            html_obj += "</div>"
-            return html_obj
-
-    def append_to_html(parent, flow):
-        html_flow = HTMLFlowTree(flow)
-        parent.append(html_flow)
-        return html_flow
-
-    root = HTMLFlowTree()
-    process_flow_tree(flow_list, root, 0, append_to_html)
-
-    html_obj = "<div id=flow_list>"
-    html_obj += root.render()
-    html_obj += "</div>"
+    html_obj = get_html_obj(flow_list)
 
     print(html_obj)
 
 
 @datapath.command()
+@click.option(
+    "-h",
+    "--html",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Output an html file containing the graph",
+)
 @click.pass_obj
-def graph(opts):
-    """Print the flows in an graphviz format showing the relationship of recirc_ids"""
+def graph(opts, html):
+    """Print the flows in an graphviz (.dot) format showing the relationship of recirc_ids"""
 
     recirc_flows = {}
 
@@ -238,7 +208,98 @@ def graph(opts):
     g.edge("start", "f0", lhead="cluster_0")
     g.node("start", shape="Mdiamond")
     g.node("end", shape="Msquare")
-    print(g.source)
+
+    if not html:
+        print(g.source)
+        return
+
+    html_obj = ""
+    html_obj += "<h1> Flow Graph </h1>"
+    html_obj += "<div width=500px>"
+    svg = g.pipe(format="svg")
+    html_obj += svg.decode("utf-8")
+    html_obj += "</div>"
+
+    html_obj += get_html_obj(list(itertools.chain(*recirc_flows.values())))
+    print(html_obj)
+
+
+class HTMLFlowTree:
+    def __init__(self, flow=None, style=None):
+        self._flow = flow
+        self._style = style
+        self._subflows = list()
+
+    def append(self, flow):
+        self._subflows.append(flow)
+
+    def render(self):
+        html_obj = "<div>"
+        if self._flow:
+            html_obj += '<div class="flow" id="flow_{id}" onfocus="onFlowClick(this)" onclick="onFlowClick(this)" >'.format(
+                id=self._flow.id
+            )
+            buf = HTMLBuffer()
+            HTMLFormatter().format_flow(buf, self._flow, self._style)
+            html_obj += buf.text
+            html_obj += "</div>"
+        if self._subflows:
+            html_obj += "<div>"
+            html_obj += "<ul>"
+            for sf in self._subflows:
+                html_obj += "<li>"
+                html_obj += sf.render()
+                html_obj += "</li>"
+            html_obj += "</ul>"
+            html_obj += "</div>"
+        html_obj += "</div>"
+        return html_obj
+
+
+def get_html_obj(flow_list, flow_attrs=None):
+    def append_to_html(parent, flow):
+        html_flow = HTMLFlowTree(flow)
+        parent.append(html_flow)
+        return html_flow
+
+    root = HTMLFlowTree()
+    process_flow_tree(flow_list, root, 0, append_to_html)
+
+    html_obj = """
+    <style>
+    .flow{
+          background-color:white;
+    }
+    .active{
+          border: 5px solid black;
+    }
+    </style>
+
+    <script>
+      function onFlowClick(elem) {
+          var flows = document.getElementsByClassName("flow");
+          for (i = 0; i < flows.length; i++) {
+              flows[i].classList.remove('active')
+          }
+          elem.classList.add("active")
+      }
+      function locationHashChanged() {
+          var elem = document.getElementById(location.hash.substring(1));
+          console.log(elem)
+          if (elem) {
+            if (elem.classList.contains("flow")) {
+                onFlowClick(elem);
+            }
+          }
+      }
+      window.onhashchange = locationHashChanged;
+
+    </script>
+    """
+    html_obj += "<div id=flow_list>"
+    html_obj += root.render()
+    html_obj += "</div>"
+    return html_obj
 
 
 def process_flow_tree(flow_list, parent, recirc_id, callback):
