@@ -128,7 +128,7 @@ def graph(opts, html):
 
     def callback(flow):
         """Parse the flows and sort them by table"""
-        rid = flow.match.get("recirc_id") or 0
+        rid = hex(flow.match.get("recirc_id") or 0)
         if not recirc_flows.get(rid):
             recirc_flows[rid] = list()
         recirc_flows[rid].append(flow)
@@ -168,7 +168,6 @@ def graph(opts, html):
                 summary = "Line: {} \n".format(flow.id)
                 summary += "\n".join(
                     [
-                        flow.ufid.get("ufid") if hasattr(flow, "ufid") else "",
                         flow.section("info").string,
                         ",".join(flow.match.keys()),
                         "actions: " + ",".join(list(a.keys())[0] for a in flow.actions),
@@ -200,12 +199,12 @@ def graph(opts, html):
                     (kv.value for kv in flow.actions_kv if kv.key == "recirc"), None
                 )
                 if next_recirc:
-                    cname = "cluster_{}".format(next_recirc)
-                    g.edge(name, "f{}".format(next_recirc), lhead=cname)
+                    cname = "cluster_{}".format(hex(next_recirc))
+                    g.edge(name, "f{}".format(hex(next_recirc)), lhead=cname)
                 else:
                     g.edge(name, "end")
 
-    g.edge("start", "f0", lhead="cluster_0")
+    g.edge("start", "f0x0", lhead="cluster_0x0")
     g.node("start", shape="Mdiamond")
     g.node("end", shape="Msquare")
 
@@ -215,7 +214,7 @@ def graph(opts, html):
 
     html_obj = ""
     html_obj += "<h1> Flow Graph </h1>"
-    html_obj += "<div width=500px>"
+    html_obj += "<div width=400px height=300px>"
     svg = g.pipe(format="svg")
     html_obj += svg.decode("utf-8")
     html_obj += "</div>"
@@ -233,10 +232,16 @@ class HTMLFlowTree:
     def append(self, flow):
         self._subflows.append(flow)
 
-    def render(self):
+    def render(self, item=0):
         html_obj = "<div>"
         if self._flow:
-            html_obj += '<div class="flow" id="flow_{id}" onfocus="onFlowClick(this)" onclick="onFlowClick(this)" >'.format(
+            html_obj += """
+        <input id="collapsible_{item}" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
+        <label for="collapsible_{item}" class="lbl-toggle lbl-toggle-flow">Flow {id}</label>
+        """.format(
+                item=item, id=self._flow.id
+            )
+            html_obj += '<div class="flow collapsible-content" id="flow_{id}" onfocus="onFlowClick(this)" onclick="onFlowClick(this)" >'.format(
                 id=self._flow.id
             )
             buf = HTMLBuffer()
@@ -245,15 +250,18 @@ class HTMLFlowTree:
             html_obj += "</div>"
         if self._subflows:
             html_obj += "<div>"
-            html_obj += "<ul>"
+            html_obj += "<ul  style='list-style-type:none;'>"
             for sf in self._subflows:
+                item += 1
                 html_obj += "<li>"
-                html_obj += sf.render()
+                (html_elem, items) = sf.render(item)
+                html_obj += html_elem
+                item += items
                 html_obj += "</li>"
             html_obj += "</ul>"
             html_obj += "</div>"
         html_obj += "</div>"
-        return html_obj
+        return html_obj, item
 
 
 def get_html_obj(flow_list, flow_attrs=None):
@@ -268,10 +276,77 @@ def get_html_obj(flow_list, flow_attrs=None):
     html_obj = """
     <style>
     .flow{
-          background-color:white;
+        background-color:white;
+        display: inline-block;
+        text-align: left;
+        font-family: monospace;
     }
     .active{
-          border: 5px solid black;
+        border: 2px solid #0008ff;
+    }
+    input[type='checkbox'] { display: none; }
+    .wrap-collabsible {
+        margin: 1.2rem 0;
+    }
+    .lbl-toggle-main {
+        font-weight: bold;
+        font-family: monospace;
+        font-size: 1.5rem;
+        text-transform: uppercase;
+        text-align: center;
+        padding: 1rem;
+        #cursor: pointer;
+        border-radius: 7px;
+        transition: all 0.25s ease-out;
+    }
+    .lbl-toggle-flow {
+        font-family: monospace;
+        font-size: 1.0rem;
+        text-transform: uppercase;
+        text-align: center;
+        padding: 1rem;
+        #cursor: pointer;
+        border-radius: 7px;
+        transition: all 0.25s ease-out;
+    }
+    .lbl-toggle:hover {
+        color: #0008ff;
+    }
+    .lbl-toggle::before {
+        content: ' ';
+        display: inline-block;
+        border-top: 5px solid transparent;
+        border-bottom: 5px solid transparent;
+        border-left: 5px solid currentColor;
+        vertical-align: middle;
+        margin-right: .7rem;
+        transform: translateY(-2px);
+        transition: transform .2s ease-out;
+    }
+    .toggle:checked+.lbl-toggle::before {
+        transform: rotate(90deg) translateX(-3px);
+    }
+    .collapsible-content {
+        max-height: 0px;
+        overflow: hidden;
+        transition: max-height .25s ease-in-out;
+    }
+    .toggle:checked + .lbl-toggle + .collapsible-content {
+        max-height: 350px;
+    }
+    .toggle:checked+.lbl-toggle {
+        border-bottom-right-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+    .collapsible-content .content-inner {
+        background: rgba(0, 105, 255, .2);
+        border-bottom: 1px solid rgba(0, 105, 255, .45);
+        border-bottom-left-radius: 7px;
+        border-bottom-right-radius: 7px;
+        padding: .5rem 1rem;
+    }
+    .collapsible-content p {
+        margin-bottom: 0;
     }
     </style>
 
@@ -281,7 +356,9 @@ def get_html_obj(flow_list, flow_attrs=None):
           for (i = 0; i < flows.length; i++) {
               flows[i].classList.remove('active')
           }
-          elem.classList.add("active")
+          elem.classList.add("active");
+          var my_toggle = document.getElementsByClassName("flow");
+          toggleAll(elem, true);
       }
       function locationHashChanged() {
           var elem = document.getElementById(location.hash.substring(1));
@@ -292,12 +369,31 @@ def get_html_obj(flow_list, flow_attrs=None):
             }
           }
       }
+      function toggle_checkbox(elem) {
+         if (elem.checked == true) {
+            toggleAll(elem, true)
+         } else {
+            toggleAll(elem, false)
+         }
+      }
+      function toggleAll(elem, value) {
+          var subs = elem.parentElement.querySelectorAll(".toggle:not([id=" + CSS.escape(elem.id) + "])");
+          console.log(subs);
+          console.log(value);
+          for (i = 0; i < subs.length; ++i) {
+              subs[i].checked = value;
+          }
+      }
       window.onhashchange = locationHashChanged;
-
     </script>
     """
+    html_obj += """
+        <input id="collapsible_main" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
+        <label for="collapsible_main" class="lbl-toggle lbl-toggle-main">Flow Table</label>
+        """
     html_obj += "<div id=flow_list>"
-    html_obj += root.render()
+    (html_elem, items) = root.render()
+    html_obj += html_elem
     html_obj += "</div>"
     return html_obj
 
