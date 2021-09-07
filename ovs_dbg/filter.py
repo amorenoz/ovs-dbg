@@ -2,10 +2,44 @@
 """
 import pyparsing as pp
 import netaddr
+from functools import reduce
+from operator import and_, or_
 
 from ovs_dbg.decoders import decode_default, decode_int, Decoder, IPMask, EthMask
 
 from ovs_dbg.fields import field_decoders
+
+
+class EvaluationResult:
+    """An EvaluationResult is the result of an evaluation. It contains the
+    boolean result and the list of key-values that were evaluated
+
+    Note that since boolean operations (and, not, or) are based only on __bool__
+    we use bitwise alternatives (&, ||, ~)
+    """
+
+    def __init__(self, result, *kv):
+        self.result = result
+        self.kv = kv if kv else list()
+
+    def __and__(self, other):
+        """Logical and operation"""
+        return EvaluationResult(self.result and other.result, *self.kv, *other.kv)
+
+    def __or__(self, other):
+        """Logical or operation"""
+        return EvaluationResult(self.result or other.result, *self.kv, *other.kv)
+
+    def __invert__(self):
+        """Logical not operation"""
+        return EvaluationResult(not self.result, *self.kv)
+
+    def __bool__(self):
+        """Boolean operation"""
+        return self.result
+
+    def __repr__(self):
+        return "{} [{}]".format(self.result, self.kv)
 
 
 class ClauseExpression:
@@ -32,7 +66,7 @@ class ClauseExpression:
         )
 
     def _find_data_in_kv(self, kv_list):
-        """Find a value for evaluation in a list of KeyValue
+        """Find a KeyValue for evaluation in a list of KeyValue
 
         Args:
             kv_list (list[KeyValue]): list of KeyValue to look into
@@ -46,8 +80,8 @@ class ClauseExpression:
         for kv in kvs:
             if kv.key == self.field:
                 # exact match
-                return kv.value
-            elif len(key_parts) > 1:
+                return kv
+            if len(key_parts) > 1:
                 data = kv.value
                 for subkey in key_parts[1:]:
                     try:
@@ -58,9 +92,10 @@ class ClauseExpression:
                     if not data:
                         break
                 if data:
-                    return data
+                    return kv
+        return None
 
-    def _find_data(self, flow):
+    def _find_keyval_to_evaluate(self, flow):
         """Finds the key-value to use for evaluation"""
         for section in flow.sections:
             data = self._find_data_in_kv(section.data)
@@ -69,13 +104,22 @@ class ClauseExpression:
         return None
 
     def evaluate(self, flow):
-        data = self._find_data(flow)
-        if not data:
-            return False
+        """
+        Return whether the clause is satisfied by the flow
+
+        Args:
+            flow (Flow): the flow to evaluate
+        """
+        keyval = self._find_keyval_to_evaluate(flow)
+
+        if not keyval:
+            return EvaluationResult(False)
+
+        data = keyval.value
 
         if not self.value and not self.operator:
             # just asserting the existance of the key
-            return True
+            return EvaluationResult(True, keyval)
 
         # Decode the value based on the type of data
         if isinstance(data, Decoder):
@@ -86,13 +130,13 @@ class ClauseExpression:
         decoded_value = decoder(self.value)
 
         if self.operator == "=":
-            return decoded_value == data
+            return EvaluationResult(decoded_value == data, keyval)
         elif self.operator == "<":
-            return data < decoded_value
+            return EvaluationResult(data < decoded_value, keyval)
         elif self.operator == ">":
-            return data > decoded_value
+            return EvaluationResult(data > decoded_value, keyval)
         elif self.operator == "~=":
-            return decoded_value in data
+            return EvaluationResult(decoded_value in data, keyval)
 
 
 class BoolNot:
@@ -103,7 +147,7 @@ class BoolNot:
         return "NOT({})".format(self.args)
 
     def evaluate(self, flow):
-        return not self.args.evaluate(flow)
+        return ~self.args.evaluate(flow)
 
 
 class BoolAnd:
@@ -114,7 +158,7 @@ class BoolAnd:
         return "AND({})".format(self.args)
 
     def evaluate(self, flow):
-        return all([arg.evaluate(flow) for arg in self.args])
+        return reduce(and_, [arg.evaluate(flow) for arg in self.args])
 
 
 class BoolOr:
@@ -122,7 +166,7 @@ class BoolOr:
         self.args = pattern[0][0::2]
 
     def evaluate(self, flow):
-        return any([arg.evaluate(flow) for arg in self.args])
+        return reduce(or_, [arg.evaluate(flow) for arg in self.args])
 
     def __repr__(self):
         return "OR({})".format(self.args)

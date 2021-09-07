@@ -79,7 +79,12 @@ def pprint(flow_factory, opts):
     console = ConsoleFormatter(opts)
 
     def callback(flow):
-        console.print_flow(flow)
+        high = None
+        if opts.get("highlight"):
+            result = opts.get("highlight").evaluate(flow)
+            if result:
+                high = result.kv
+        console.print_flow(flow, high)
 
     with print_context(console.console, opts):
         process_flows(flow_factory, callback, opts.get("filename"), opts.get("filter"))

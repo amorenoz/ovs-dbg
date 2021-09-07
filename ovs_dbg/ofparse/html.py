@@ -110,5 +110,15 @@ class HTMLFormatter(FlowFormatter):
             ),
         )
 
-    def format_flow(self, buf, flow, style=None):
-        return super(HTMLFormatter, self).format_flow(buf, flow, self.style)
+    def format_flow(self, buf, flow, highlighted=None):
+        """
+        Formats the flow into the provided buffer as a html object
+
+        Args:
+            buf (FlowBuffer): the flow buffer to append to
+            flow (ovs_dbg.OFPFlow): the flow to format
+            highlighted (list): Optional; list of KeyValues to highlight
+        """
+        return super(HTMLFormatter, self).format_flow(
+            buf, flow, self.style, highlighted
+        )

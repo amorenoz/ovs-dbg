@@ -55,8 +55,16 @@ class Options(dict):
     type=str,
     show_default=False,
 )
+@click.option(
+    "-l",
+    "--highlight",
+    help="Highlight flows that match the filter expression. Run 'ofparse filter'"
+    "for a detailed description of the filtering syntax",
+    type=str,
+    show_default=False,
+)
 @click.pass_context
-def maincli(ctx, config, style, filename, paged, filter):
+def maincli(ctx, config, style, filename, paged, filter, highlight):
     """
     OpenFlow Parse utility.
 
@@ -70,6 +78,12 @@ def maincli(ctx, config, style, filename, paged, filter):
     if filter:
         try:
             ctx.obj["filter"] = OFFilter(filter)
+        except Exception as e:
+            raise click.BadParameter("Wrong filter syntax: {}".format(e))
+
+    if highlight:
+        try:
+            ctx.obj["highlight"] = OFFilter(highlight)
         except Exception as e:
             raise click.BadParameter("Wrong filter syntax: {}".format(e))
 

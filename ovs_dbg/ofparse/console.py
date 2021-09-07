@@ -94,20 +94,21 @@ class ConsoleFormatter(FlowFormatter):
     def style_from_opts(self, opts):
         return self._style_from_opts(opts, "console", Style)
 
-    def print_flow(self, flow):
+    def print_flow(self, flow, highlighted=None):
         """
         Prints a flow to the console
 
         Args:
             flow (ovs_dbg.OFPFlow): the flow to print
             style (dict): Optional; style dictionary to use
+            highlighted (list): Optional; list of KeyValues to highlight
         """
 
         buf = ConsoleBuffer(Text())
-        self.format_flow(buf, flow)
+        self.format_flow(buf, flow, highlighted)
         self.console.print(buf.text)
 
-    def format_flow(self, buf, flow):
+    def format_flow(self, buf, flow, highlighted=None):
         """
         Formats the flow into the provided buffer as a rich.Text
 
@@ -115,8 +116,11 @@ class ConsoleFormatter(FlowFormatter):
             buf (FlowBuffer): the flow buffer to append to
             flow (ovs_dbg.OFPFlow): the flow to format
             style (FlowStyle): Optional; style object to use
+            highlighted (list): Optional; list of KeyValues to highlight
         """
-        return super(ConsoleFormatter, self).format_flow(buf, flow, self.style)
+        return super(ConsoleFormatter, self).format_flow(
+            buf, flow, self.style, highlighted
+        )
 
 
 def hash_pallete(hue, saturation, value):
