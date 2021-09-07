@@ -152,7 +152,12 @@ def logic(opts, show_flows):
             if show_flows:
                 for flow in flows:
                     buf = ConsoleBuffer(Text())
-                    ConsoleFormatter(console, opts).format_flow(buf, flow)
+                    highlighted = None
+                    if opts.get("highlight"):
+                        result = opts.get("highlight").evaluate(flow)
+                        if result:
+                            highlighted = result.kv
+                    ConsoleFormatter(console, opts).format_flow(buf, flow, highlighted)
                     lflow_tree.add(buf.text)
 
     with print_context(console, opts):
@@ -185,8 +190,13 @@ def html(opts):
         html_obj += "<ul id=table_{}_flow_list>".format(table)
         for flow in flows:
             html_obj += "<li id=flow_{}>".format(flow.id)
+            highlighted = None
+            if opts.get("highlight"):
+                result = opts.get("highlight").evaluate(flow)
+                if result:
+                    highlighted = result.kv
             buf = HTMLBuffer()
-            HTMLFormatter(opts).format_flow(buf, flow)
+            HTMLFormatter(opts).format_flow(buf, flow, highlighted)
             html_obj += buf.text
             html_obj += "</li>"
         html_obj += "</ul>"
