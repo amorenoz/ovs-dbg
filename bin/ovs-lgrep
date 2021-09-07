@@ -18,14 +18,14 @@ from ovs_dbg.logs import OVSLog
 @click.option(
     "-s",
     "--start",
-    help="Start timestamp."
+    help="Start timestamp. "
     "Format (same as OVS logs): '%Y-%m-%dT%H:%M:%S.%fZ'"
     ", e.g: '2021-07-15T15:04:05.793Z'",
 )
 @click.option(
     "-e",
     "--end",
-    help="End timestamp"
+    help="End timestamp. "
     "Format (same as OVS logs): '%Y-%m-%dT%H:%M:%S.%fZ'"
     ", e.g: '2021-07-15T15:04:05.793Z'",
 )

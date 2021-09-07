@@ -1,7 +1,12 @@
 import click
 import sys
+import configparser
 
 from ovs_dbg.filter import OFFilter
+from pkg_resources import resource_filename
+
+_default_config_file = "ofparse.conf"
+_default_config_path = resource_filename(__name__, _default_config_file)
 
 
 class Options(dict):
@@ -14,6 +19,18 @@ class Options(dict):
     subcommand_metavar="TYPE", context_settings=dict(help_option_names=["-h", "--help"])
 )
 @click.option(
+    "-c",
+    "--config",
+    help="Use non-default config file",
+    type=click.Path(),
+)
+@click.option(
+    "--style",
+    help="Select style (defined in config file)",
+    default=None,
+    show_default=True,
+)
+@click.option(
     "-i",
     "-input",
     "filename",
@@ -24,15 +41,8 @@ class Options(dict):
 @click.option(
     "-p",
     "--paged",
-    help="Page the result (uses $PAGER). If styling is not disabled you might "
-    'need to enable colors on your $PAGER, eg: export PAGER="less -r".',
-    is_flag=True,
-    default=False,
-    show_default=True,
-)
-@click.option(
-    "--no-style",
-    help="Do not styles (colors)",
+    help="Page the result (uses $PAGER). If colors are not disabled you might "
+    'need to enable colors on your PAGER, eg: export PAGER="less -r".',
     is_flag=True,
     default=False,
     show_default=True,
@@ -46,7 +56,7 @@ class Options(dict):
     show_default=False,
 )
 @click.pass_context
-def maincli(ctx, filename, paged, no_style, filter):
+def maincli(ctx, config, style, filename, paged, filter):
     """
     OpenFlow Parse utility.
 
@@ -57,12 +67,18 @@ def maincli(ctx, filename, paged, no_style, filter):
     ctx.obj = Options()
     ctx.obj["filename"] = filename or ""
     ctx.obj["paged"] = paged
-    ctx.obj["no_style"] = no_style
     if filter:
         try:
             ctx.obj["filter"] = OFFilter(filter)
         except Exception as e:
             raise click.BadParameter("Wrong filter syntax: {}".format(e))
+
+    config_file = config or _default_config_path
+    parser = configparser.ConfigParser()
+    parser.read(config_file)
+
+    ctx.obj["config"] = parser
+    ctx.obj["style"] = style
 
 
 @maincli.command(hidden=True)

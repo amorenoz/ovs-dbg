@@ -7,10 +7,16 @@ from rich.console import Console
 from rich.style import Style
 from rich.color import Color
 
+from ovs_dbg.ofp import OFPFlow
 from ovs_dbg.ofparse.main import maincli
 from ovs_dbg.ofparse.process import process_flows, tojson, pprint
-from .console import OFConsole, print_context
-from ovs_dbg.ofp import OFPFlow
+from ovs_dbg.ofparse.console import (
+    ConsoleBuffer,
+    ConsoleFormatter,
+    hash_pallete,
+    print_context,
+)
+from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
 
 
 @maincli.group(subcommand_metavar="FORMAT")
@@ -24,14 +30,14 @@ def openflow(opts):
 @click.pass_obj
 def json(opts):
     """Print the flows in JSON format"""
-    return tojson(flow_factory=OFPFlow.from_string, opts=opts)
+    return tojson(flow_factory=create_ofp_flow, opts=opts)
 
 
 @openflow.command()
 @click.pass_obj
 def pretty(opts):
     """Print the flows with some style"""
-    return pprint(flow_factory=OFPFlow.from_string, opts=opts)
+    return pprint(flow_factory=create_ofp_flow, opts=opts)
 
 
 @openflow.command()
@@ -101,10 +107,8 @@ def logic(opts, show_flows):
 
         tables[table][lflow].append(flow)
 
-    console = OFConsole()
-
     process_flows(
-        flow_factory=OFPFlow.from_string,
+        flow_factory=create_ofp_flow,
         callback=callback,
         filename=opts.get("filename"),
         filter=opts.get("filter"),
@@ -112,13 +116,14 @@ def logic(opts, show_flows):
 
     # Try to make it easy to spot same cookies by printing them in different
     # colors
-    cookie_styles = [
-        Style(color=Color.from_rgb(r * 255, g * 255, b * 255))
-        for r, g, b in create_color_pallete(200)
-    ]
+    cookie_style_gen = hash_pallete(
+        hue=[x / 10 for x in range(0, 10)],
+        saturation=[0.5],
+        value=[0.5 + x / 10 * (0.85 - 0.5) for x in range(0, 10)],
+    )
 
     tree = Tree("Ofproto Flows (logical)")
-    console = Console(color_system="256")
+    console = Console(color_system=None if opts["style"] is None else "256")
 
     for table_num in sorted(tables.keys()):
         table = tables[table_num]
@@ -131,32 +136,66 @@ def logic(opts, show_flows):
         ):
             flows = table[lflow]
 
-            text = Text()
+            buf = ConsoleBuffer(Text())
 
-            text.append(
+            buf.append_extra(
                 "cookie={} ".format(hex(lflow.cookie)).ljust(18),
-                style=cookie_styles[(lflow.cookie * 0x27D4EB2D) % len(cookie_styles)],
+                style=cookie_style_gen(str(lflow.cookie)),
             )
-            text.append("priority={} ".format(lflow.priority), style="steel_blue")
-            text.append(",".join(lflow.match_keys), style="steel_blue")
-            text.append("  --->  ", style="bold magenta")
-            text.append(",".join(lflow.action_keys), style="steel_blue")
-            text.append(" ( x {} )".format(len(flows)), style="dark_olive_green3")
-            lflow_tree = table_tree.add(text)
+            buf.append_extra("priority={} ".format(lflow.priority), style="steel_blue")
+            buf.append_extra(",".join(lflow.match_keys), style="steel_blue")
+            buf.append_extra("  --->  ", style="bold magenta")
+            buf.append_extra(",".join(lflow.action_keys), style="steel_blue")
+            buf.append_extra(" ( x {} )".format(len(flows)), style="dark_olive_green3")
+            lflow_tree = table_tree.add(buf.text)
 
             if show_flows:
                 for flow in flows:
-                    text = Text()
-                    OFConsole(console).format_flow(flow, text=text)
-                    lflow_tree.add(text)
+                    buf = ConsoleBuffer(Text())
+                    ConsoleFormatter(console, opts).format_flow(buf, flow)
+                    lflow_tree.add(buf.text)
 
-    with print_context(console, opts["paged"], not opts["no_style"]):
+    with print_context(console, opts):
         console.print(tree)
 
 
-def create_color_pallete(size):
-    """Create a color pallete of size colors by modifying the Hue in the HSV
-    color space
-    """
-    HSV_tuples = [(x / size, 0.5, 0.5) for x in range(size)]
-    return map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
+@openflow.command()
+@click.pass_obj
+def html(opts):
+    """Print the flows in an HTML list"""
+    tables = dict()
+
+    def callback(flow):
+        """Parse the flows and sort them by table"""
+        table = flow.info.get("table") or 0
+        if not tables.get(table):
+            tables[table] = list()
+        tables[table].append(flow)
+
+    process_flows(
+        flow_factory=create_ofp_flow,
+        callback=callback,
+        filename=opts.get("filename"),
+        filter=opts.get("filter"),
+    )
+
+    html_obj = "<div id=flow_list>"
+    for table, flows in tables.items():
+        html_obj += "<h2 id=table_{table}> Table {table}</h2>".format(table=table)
+        html_obj += "<ul id=table_{}_flow_list>".format(table)
+        for flow in flows:
+            html_obj += "<li id=flow_{}>".format(flow.id)
+            buf = HTMLBuffer()
+            HTMLFormatter(opts).format_flow(buf, flow)
+            html_obj += buf.text
+            html_obj += "</li>"
+        html_obj += "</ul>"
+    html_obj += "</div>"
+    print(html_obj)
+
+
+def create_ofp_flow(string, idx):
+    """Create a OFPFlow"""
+    if " reply " in string:
+        return None
+    return OFPFlow.from_string(string, idx)

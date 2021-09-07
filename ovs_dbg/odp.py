@@ -33,12 +33,12 @@ from ovs_dbg.decoders import (
 class ODPFlow(Flow):
     """Datapath Flow"""
 
-    def __init__(self, sections, raw=""):
+    def __init__(self, sections, raw="", id=None):
         """Constructor"""
-        super(ODPFlow, self).__init__(sections, raw)
+        super(ODPFlow, self).__init__(sections, raw, id)
 
     @classmethod
-    def from_string(cls, odp_string):
+    def from_string(cls, odp_string, id=None):
         """Parse a odp flow string
 
         The string is expected to have the follwoing format:
@@ -109,7 +109,7 @@ class ODPFlow(Flow):
         )
         sections.append(asection)
 
-        return cls(sections, odp_string)
+        return cls(sections, odp_string, id)
 
     @classmethod
     def _action_parser(cls):
