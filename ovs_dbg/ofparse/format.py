@@ -133,13 +133,6 @@ class FlowFormatter:
     def __init__(self):
         self._highlighted = list()
 
-    def highlight(self, keys):
-        """Set the highlighted keys
-        Args:
-            keys (list[str]): list of keys to highlight
-        """
-        self._highlighted = keys
-
     def _style_from_opts(self, opts, opts_key, style_constructor):
         """Create style object from options
 
@@ -172,7 +165,7 @@ class FlowFormatter:
 
         return FlowStyle({k: style_constructor(**v) for k, v in style.items()})
 
-    def format_flow(self, buf, flow, style_obj=None):
+    def format_flow(self, buf, flow, style_obj=None, highlighted=None):
         """
         Formats the flow into the provided buffer
 
@@ -180,6 +173,7 @@ class FlowFormatter:
             buf (FlowBuffer): the flow buffer to append to
             flow (ovs_dbg.OFPFlow): the flow to format
             style_obj (FlowStyle): Optional; style to use
+            highlighted (list): Optional; list of KeyValues to highlight
         """
         last_printed_pos = 0
         style_obj = style_obj or FlowStyle()
@@ -189,10 +183,12 @@ class FlowFormatter:
                 flow.orig[last_printed_pos : section.pos],
                 style=style_obj.get("default"),
             )
-            self.format_kv_list(buf, section.data, section.string, style_obj)
+            self.format_kv_list(
+                buf, section.data, section.string, style_obj, highlighted
+            )
             last_printed_pos = section.pos + len(section.string)
 
-    def format_kv_list(self, buf, kv_list, full_str, style_obj):
+    def format_kv_list(self, buf, kv_list, full_str, style_obj, highlighted):
         """
         Format a KeyValue List
 
@@ -201,10 +197,13 @@ class FlowFormatter:
             kv_list (list[KeyValue]: the KeyValue list to format
             full_str (str): the full string containing all k-v
             style_obj (FlowStyle): a FlowStyle object to use
+            highlighted (list): Optional; list of KeyValues to highlight
         """
         for i in range(len(kv_list)):
             kv = kv_list[i]
-            written = self.format_kv(buf, kv, style_obj=style_obj)
+            written = self.format_kv(
+                buf, kv, style_obj=style_obj, highlighted=highlighted
+            )
 
             end = kv_list[i + 1].meta.kpos if i < (len(kv_list) - 1) else len(full_str)
 
@@ -213,7 +212,7 @@ class FlowFormatter:
                 style=style_obj.get("default"),
             )
 
-    def format_kv(self, buf, kv, style_obj):
+    def format_kv(self, buf, kv, style_obj, highlighted=None):
         """Format a KeyValue
 
         A formatted keyvalue has the following parts:
@@ -223,14 +222,15 @@ class FlowFormatter:
             buf (FlowBuffer): buffer to append the KeyValue to
             kv (KeyValue): The KeyValue to print
             style_obj (FlowStyle): The style object to use
+            highlighted (list): Optional; list of KeyValues to highlight
 
         Returns the number of printed characters
         """
         ret = 0
         key = kv.meta.kstring
-        highlighted = key in self._highlighted
+        is_highlighted = key in [k.key for k in highlighted] if highlighted else False
 
-        key_style = style_obj.get_key_style(kv, highlighted)
+        key_style = style_obj.get_key_style(kv, is_highlighted)
         buf.append_key(kv, key_style)  # format value
         ret += len(key)
 
@@ -238,16 +238,16 @@ class FlowFormatter:
             return ret
 
         if kv.meta.delim not in ("\n", "\t", "\r", ""):
-            buf.append_delim(kv, style_obj.get_delim_style(highlighted))
+            buf.append_delim(kv, style_obj.get_delim_style(is_highlighted))
             ret += len(kv.meta.delim)
 
-        value_style = style_obj.get_value_style(kv, highlighted)
+        value_style = style_obj.get_value_style(kv, is_highlighted)
 
         buf.append_value(kv, value_style)  # format value
         ret += len(kv.meta.vstring)
 
         if kv.meta.end_delim:
-            buf.append_end_delim(kv, style_obj.get_delim_style(highlighted))
+            buf.append_end_delim(kv, style_obj.get_delim_style(is_highlighted))
             ret += len(kv.meta.end_delim)
 
         return ret
