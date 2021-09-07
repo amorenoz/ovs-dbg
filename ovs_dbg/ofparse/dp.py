@@ -80,7 +80,12 @@ def logic(opts):
 
     def append_to_tree(parent, flow):
         buf = ConsoleBuffer(Text())
-        ofconsole.format_flow(buf, flow)
+        highlighted = None
+        if opts.get("highlight"):
+            result = opts.get("highlight").evaluate(flow)
+            if result:
+                highlighted = result.kv
+        ofconsole.format_flow(buf, flow, highlighted)
         tree_elem = parent.add(buf.text)
         return tree_elem
 
@@ -107,7 +112,7 @@ def html(opts):
         filter=opts.get("filter"),
     )
 
-    html_obj = get_html_obj(flow_list)
+    html_obj = get_html_obj(flow_list, opts)
 
     print(html_obj)
 
@@ -220,7 +225,7 @@ def graph(opts, html):
     html_obj += svg.decode("utf-8")
     html_obj += "</div>"
 
-    html_obj += get_html_obj(list(itertools.chain(*recirc_flows.values())))
+    html_obj += get_html_obj(list(itertools.chain(*recirc_flows.values())), opts)
     print(html_obj)
 
 
@@ -229,6 +234,7 @@ class HTMLFlowTree:
         self._flow = flow
         self._formatter = HTMLFormatter(opts)
         self._subflows = list()
+        self._opts = opts
 
     def append(self, flow):
         self._subflows.append(flow)
@@ -246,7 +252,12 @@ class HTMLFlowTree:
                 id=self._flow.id
             )
             buf = HTMLBuffer()
-            self._formatter.format_flow(buf, self._flow, self._style)
+            highlighted = None
+            if self._opts.get("highlight"):
+                result = self._opts.get("highlight").evaluate(self._flow)
+                if result:
+                    highlighted = result.kv
+            self._formatter.format_flow(buf, self._flow, highlighted)
             html_obj += buf.text
             html_obj += "</div>"
         if self._subflows:
@@ -265,13 +276,13 @@ class HTMLFlowTree:
         return html_obj, item
 
 
-def get_html_obj(flow_list, flow_attrs=None):
+def get_html_obj(flow_list, opts=None):
     def append_to_html(parent, flow):
-        html_flow = HTMLFlowTree(flow)
+        html_flow = HTMLFlowTree(flow, opts)
         parent.append(html_flow)
         return html_flow
 
-    root = HTMLFlowTree()
+    root = HTMLFlowTree(flow=None, opts=opts)
     process_flow_tree(flow_list, root, 0, append_to_html)
 
     html_obj = """
