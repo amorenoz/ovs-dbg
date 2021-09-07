@@ -42,12 +42,13 @@ setup(
     packages=find_packages(include=["ovs_dbg", "ovs_dbg.ofparse"]),
     setup_requires=setup_requirements,
     scripts=["bin/ofparse", "bin/ovs-lgrep"],
+    data_files=["ovs_dbg/ofparse/ofparse.conf"],
     test_suite="tests",
     tests_require=test_requirements,
     url="https://ovs-dbg.readthedocs.io/en/latest/",
     project_urls={
         "Source": "https://github.com/amorenoz/ovs-dbg",
     },
-    version="0.0.6",
+    version="0.0.7",
     zip_safe=False,
 )
