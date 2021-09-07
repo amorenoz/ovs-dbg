@@ -85,35 +85,16 @@ class ConsoleFormatter(FlowFormatter):
             rich.console.Console()
     """
 
-    default_style = Style(color="white")
-
-    default_style_obj = FlowStyle(
-        {
-            "key": Style(color="#B0C4DE"),
-            "value": Style(color="#B0C4DE"),
-            "delim": Style(color="#B0C4DE"),
-            "value.type.IPAddress": Style(color="#008700"),
-            "value.type.IPMask": Style(color="#008700"),
-            "value.type.EthMask": Style(color="#008700"),
-            "value.ct": Style(color="bright_black"),
-            "value.ufid": Style(color="#870000"),
-            "value.clone": Style(color="bright_black"),
-            "value.controller": Style(color="bright_black"),
-            "flag": Style(color="#875fff"),
-            "key.drop": Style(color="red"),
-            "key.resubmit": Style(color="#00d700"),
-            "key.output": Style(color="#00d700"),
-            "key.highlighted": Style(color="#f20905", underline=True),
-            "value.highlighted": Style(color="#f20905", underline=True),
-            "delim.highlighted": Style(color="#f20905", underline=True),
-        }
-    )
-
-    def __init__(self, console=None, style_obj=None, default_style=None, **kwargs):
+    def __init__(self, opts=None, console=None, **kwargs):
         super(ConsoleFormatter, self).__init__()
-        self.console = console or Console(**kwargs)
+        style = self.style_from_opts(opts)
+        self.console = console or Console(no_color=(style is None), **kwargs)
+        self.style = style or FlowStyle()
 
-    def print_flow(self, flow, style=None):
+    def style_from_opts(self, opts):
+        return self._style_from_opts(opts, "console", Style)
+
+    def print_flow(self, flow):
         """
         Prints a flow to the console
 
@@ -123,10 +104,10 @@ class ConsoleFormatter(FlowFormatter):
         """
 
         buf = ConsoleBuffer(Text())
-        self.format_flow(buf, flow, style)
+        self.format_flow(buf, flow)
         self.console.print(buf.text)
 
-    def format_flow(self, buf, flow, style=None):
+    def format_flow(self, buf, flow):
         """
         Formats the flow into the provided buffer as a rich.Text
 
@@ -135,10 +116,7 @@ class ConsoleFormatter(FlowFormatter):
             flow (ovs_dbg.OFPFlow): the flow to format
             style (FlowStyle): Optional; style object to use
         """
-        style_obj = style or self.default_style_obj
-        return super(ConsoleFormatter, self).format_flow(
-            buf, flow, style_obj, self.default_style
-        )
+        return super(ConsoleFormatter, self).format_flow(buf, flow, self.style)
 
 
 def hash_pallete(hue, saturation, value):
@@ -162,7 +140,7 @@ def hash_pallete(hue, saturation, value):
     return get_style
 
 
-def print_context(console, paged=False, styles=True):
+def print_context(console, opts):
     """
     Returns a printing context
 
@@ -171,7 +149,7 @@ def print_context(console, paged=False, styles=True):
         paged (bool): Wheter to page the output
         style (bool): Whether to force the use of styled pager
     """
-    if paged:
+    if opts.get("paged"):
         # Internally pydoc's pager library is used which returns a
         # plain pager if both stdin and stdout are not tty devices
         #
@@ -180,6 +158,8 @@ def print_context(console, paged=False, styles=True):
         if not sys.stdin.isatty() and sys.stdout.isatty():
             setattr(sys.stdin, "isatty", lambda: True)
 
-        return console.pager(styles=styles)
+        with_style = opts.get("style") is not None
+
+        return console.pager(styles=with_style)
 
     return contextlib.nullcontext()

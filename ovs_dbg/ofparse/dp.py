@@ -18,6 +18,7 @@ from ovs_dbg.ofparse.console import (
     print_context,
     hash_pallete,
 )
+from ovs_dbg.ofparse.format import FlowStyle
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
 from ovs_dbg.odp import ODPFlow
 from ovs_dbg.filter import OFFilter
@@ -62,15 +63,15 @@ def logic(opts):
     )
 
     tree = Tree("Datapath Flows (logical)")
-    console = Console(color_system=None if opts["no_color"] else "256")
-    ofconsole = ConsoleFormatter(console)
+    ofconsole = ConsoleFormatter(opts)
+    console = ofconsole.console
 
     # HSV_tuples = [(x / size, 0.7, 0.8) for x in range(size)]
     recirc_style_gen = hash_pallete(
         hue=[x / 50 for x in range(0, 50)], saturation=[0.7], value=[0.8]
     )
 
-    style = ConsoleFormatter.default_style_obj
+    style = ofconsole.style
     style.set_default_value_style(Style(color="bright_black"))
     style.set_key_style("output", Style(color="green"))
     style.set_value_style("output", Style(color="green"))
@@ -79,13 +80,13 @@ def logic(opts):
 
     def append_to_tree(parent, flow):
         buf = ConsoleBuffer(Text())
-        ofconsole.format_flow(buf=buf, flow=flow, style=style)
+        ofconsole.format_flow(buf, flow)
         tree_elem = parent.add(buf.text)
         return tree_elem
 
     process_flow_tree(flow_list, tree, 0, append_to_tree)
 
-    with print_context(console, opts["paged"], not opts["no_color"]):
+    with print_context(console, opts):
         console.print(tree)
 
 
@@ -224,9 +225,9 @@ def graph(opts, html):
 
 
 class HTMLFlowTree:
-    def __init__(self, flow=None, style=None):
+    def __init__(self, flow=None, opts=None):
         self._flow = flow
-        self._style = style
+        self._formatter = HTMLFormatter(opts)
         self._subflows = list()
 
     def append(self, flow):
@@ -245,7 +246,7 @@ class HTMLFlowTree:
                 id=self._flow.id
             )
             buf = HTMLBuffer()
-            HTMLFormatter().format_flow(buf, self._flow, self._style)
+            self._formatter.format_flow(buf, self._flow, self._style)
             html_obj += buf.text
             html_obj += "</div>"
         if self._subflows:

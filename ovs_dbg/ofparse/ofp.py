@@ -123,7 +123,7 @@ def logic(opts, show_flows):
     )
 
     tree = Tree("Ofproto Flows (logical)")
-    console = Console(color_system=None if opts["no_color"] else "256")
+    console = Console(color_system=None if opts["style"] is None else "256")
 
     for table_num in sorted(tables.keys()):
         table = tables[table_num]
@@ -136,28 +136,26 @@ def logic(opts, show_flows):
         ):
             flows = table[lflow]
 
-            text = Text()
+            buf = ConsoleBuffer(Text())
 
-            text.append(
+            buf.append_extra(
                 "cookie={} ".format(hex(lflow.cookie)).ljust(18),
                 style=cookie_style_gen(str(lflow.cookie)),
             )
-            text.append("priority={} ".format(lflow.priority), style="steel_blue")
-            text.append(",".join(lflow.match_keys), style="steel_blue")
-            text.append("  --->  ", style="bold magenta")
-            text.append(",".join(lflow.action_keys), style="steel_blue")
-            text.append(" ( x {} )".format(len(flows)), style="dark_olive_green3")
-            lflow_tree = table_tree.add(text)
+            buf.append_extra("priority={} ".format(lflow.priority), style="steel_blue")
+            buf.append_extra(",".join(lflow.match_keys), style="steel_blue")
+            buf.append_extra("  --->  ", style="bold magenta")
+            buf.append_extra(",".join(lflow.action_keys), style="steel_blue")
+            buf.append_extra(" ( x {} )".format(len(flows)), style="dark_olive_green3")
+            lflow_tree = table_tree.add(buf.text)
 
             if show_flows:
                 for flow in flows:
                     buf = ConsoleBuffer(Text())
-                    ConsoleFormatter(console).format_flow(
-                        buf, flow, ConsoleFormatter.default_style_obj
-                    )
+                    ConsoleFormatter(console, opts).format_flow(buf, flow)
                     lflow_tree.add(buf.text)
 
-    with print_context(console, opts["paged"], not opts["no_color"]):
+    with print_context(console, opts):
         console.print(tree)
 
 
@@ -188,7 +186,7 @@ def html(opts):
         for flow in flows:
             html_obj += "<li id=flow_{}>".format(flow.id)
             buf = HTMLBuffer()
-            HTMLFormatter().format_flow(buf, flow)
+            HTMLFormatter(opts).format_flow(buf, flow)
             html_obj += buf.text
             html_obj += "</li>"
         html_obj += "</ul>"

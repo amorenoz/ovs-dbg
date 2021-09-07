@@ -1,7 +1,12 @@
 import click
 import sys
+import configparser
 
 from ovs_dbg.filter import OFFilter
+from pkg_resources import resource_filename
+
+_default_config_file = "ofparse.conf"
+_default_config_path = resource_filename(__name__, _default_config_file)
 
 
 class Options(dict):
@@ -12,6 +17,18 @@ class Options(dict):
 
 @click.group(
     subcommand_metavar="TYPE", context_settings=dict(help_option_names=["-h", "--help"])
+)
+@click.option(
+    "-c",
+    "--config",
+    help="Use non-default config file",
+    type=click.Path(),
+)
+@click.option(
+    "--style",
+    help="Select style (defined in config file)",
+    default=None,
+    show_default=True,
 )
 @click.option(
     "-i",
@@ -31,13 +48,6 @@ class Options(dict):
     show_default=True,
 )
 @click.option(
-    "--no-color",
-    help="Do not use colors. Alternatively, set the environment variable NO_COLOR",
-    is_flag=True,
-    default=False,
-    show_default=True,
-)
-@click.option(
     "-f",
     "--filter",
     help="Filter flows that match the filter expression. Run 'ofparse filter'"
@@ -46,7 +56,7 @@ class Options(dict):
     show_default=False,
 )
 @click.pass_context
-def maincli(ctx, filename, paged, no_color, filter):
+def maincli(ctx, config, style, filename, paged, filter):
     """
     OpenFlow Parse utility.
 
@@ -57,12 +67,18 @@ def maincli(ctx, filename, paged, no_color, filter):
     ctx.obj = Options()
     ctx.obj["filename"] = filename or ""
     ctx.obj["paged"] = paged
-    ctx.obj["no_color"] = no_color
     if filter:
         try:
             ctx.obj["filter"] = OFFilter(filter)
         except Exception as e:
             raise click.BadParameter("Wrong filter syntax: {}".format(e))
+
+    config_file = config or _default_config_path
+    parser = configparser.ConfigParser()
+    parser.read(config_file)
+
+    ctx.obj["config"] = parser
+    ctx.obj["style"] = style
 
 
 @maincli.command(hidden=True)
