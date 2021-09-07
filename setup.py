@@ -42,6 +42,7 @@ setup(
     packages=find_packages(include=["ovs_dbg", "ovs_dbg.ofparse"]),
     setup_requires=setup_requirements,
     scripts=["bin/ofparse", "bin/ovs-lgrep"],
+    data_files=["ovs_dbg/ofparse/ofparse.conf"],
     test_suite="tests",
     tests_require=test_requirements,
     url="https://ovs-dbg.readthedocs.io/en/latest/",
