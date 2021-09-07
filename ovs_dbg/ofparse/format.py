@@ -13,6 +13,7 @@ class FlowStyle:
         - key.highlighted (if key is found in hightlighted)
         - key.{key}
         - key
+        - default
 
     In order to determine the style for a "value", the following items in the
     dictionary are fetched:
@@ -23,11 +24,11 @@ class FlowStyle:
         - value.{key}
         - value.type.{value.__class__.__name__}
         - value
+        - default
 
     Additionally, the following style items can be defined:
         - delim: for delimiters
         - delim.highlighted: for delimiters of highlighted key-values
-        - extra: for extra characters
     """
 
     def __init__(self, initial=None):
@@ -71,14 +72,14 @@ class FlowStyle:
 
     def get_delim_style(self, highlighted=False):
         delim_style_lookup = ["delim.highlighted"] if highlighted else []
-        delim_style_lookup.extend(["delim"])
+        delim_style_lookup.extend(["delim", "default"])
         return next(
             (self._styles.get(s) for s in delim_style_lookup if self._styles.get(s)),
             None,
         )
 
     def get_flag_style(self):
-        return self._styles.get("flag")
+        return self._styles.get("flag") or self._styles.get("default")
 
     def get_key_style(self, kv, highlighted=False):
         key = kv.meta.kstring
@@ -86,7 +87,7 @@ class FlowStyle:
         key_style_lookup = (
             ["key.highlighted.%s" % key, "key.highlighted"] if highlighted else []
         )
-        key_style_lookup.extend(["key.%s" % key, "key"])
+        key_style_lookup.extend(["key.%s" % key, "key", "default"])
 
         style = next(
             (self._styles.get(s) for s in key_style_lookup if self._styles.get(s)),
@@ -113,6 +114,7 @@ class FlowStyle:
                 "value.%s" % key,
                 "value.type.%s" % value_type,
                 "value",
+                "default",
             ]
         )
 
@@ -138,7 +140,39 @@ class FlowFormatter:
         """
         self._highlighted = keys
 
-    def format_flow(self, buf, flow, style_obj=None, default_style=None):
+    def _style_from_opts(self, opts, opts_key, style_constructor):
+        """Create style object from options
+
+        Args:
+            opts (dict): Options dictionary
+            opts_key (str): The options style key to extract (e.g: console or html)
+            style_constructor(callable): A callable that creates a derived style object
+        """
+        if not opts or not opts.get("style"):
+            return None
+
+        section_name = ".".join(["styles", opts.get("style")])
+        if section_name not in opts.get("config").sections():
+            raise Exception("Style not present in config file")
+
+        config = opts.get("config")[section_name]
+        style = {}
+        for key in config:
+            (_, console, style_full_key) = key.partition(opts_key + ".")
+            if not console:
+                continue
+
+            (style_key, _, prop) = style_full_key.rpartition(".")
+            if not prop or not style_key:
+                raise Exception("malformed style config: {}".format(key))
+
+            if not style.get(style_key):
+                style[style_key] = {}
+            style[style_key][prop] = config[key]
+
+        return FlowStyle({k: style_constructor(**v) for k, v in style.items()})
+
+    def format_flow(self, buf, flow, style_obj=None):
         """
         Formats the flow into the provided buffer
 
@@ -146,21 +180,19 @@ class FlowFormatter:
             buf (FlowBuffer): the flow buffer to append to
             flow (ovs_dbg.OFPFlow): the flow to format
             style_obj (FlowStyle): Optional; style to use
-            default_style (Any): Optional; default style to use
         """
         last_printed_pos = 0
+        style_obj = style_obj or FlowStyle()
 
         for section in sorted(flow.sections, key=lambda x: x.pos):
             buf.append_extra(
                 flow.orig[last_printed_pos : section.pos],
-                style=style_obj.get("extra") or default_style,
+                style=style_obj.get("default"),
             )
-            self.format_kv_list(
-                buf, section.data, section.string, style_obj, default_style
-            )
+            self.format_kv_list(buf, section.data, section.string, style_obj)
             last_printed_pos = section.pos + len(section.string)
 
-    def format_kv_list(self, buf, kv_list, full_str, style_obj, default_style=None):
+    def format_kv_list(self, buf, kv_list, full_str, style_obj):
         """
         Format a KeyValue List
 
@@ -169,23 +201,19 @@ class FlowFormatter:
             kv_list (list[KeyValue]: the KeyValue list to format
             full_str (str): the full string containing all k-v
             style_obj (FlowStyle): a FlowStyle object to use
-            default_style (Any): the default style to pass to the buffer if
-                the provided style_obj did not return a valid style
         """
         for i in range(len(kv_list)):
             kv = kv_list[i]
-            written = self.format_kv(
-                buf, kv, style_obj=style_obj, default_style=default_style
-            )
+            written = self.format_kv(buf, kv, style_obj=style_obj)
 
             end = kv_list[i + 1].meta.kpos if i < (len(kv_list) - 1) else len(full_str)
 
             buf.append_extra(
                 full_str[(kv.meta.kpos + written) : end].rstrip("\n\r"),
-                style=style_obj.get("extra") or default_style,
+                style=style_obj.get("default"),
             )
 
-    def format_kv(self, buf, kv, style_obj, default_style=None):
+    def format_kv(self, buf, kv, style_obj):
         """Format a KeyValue
 
         A formatted keyvalue has the following parts:
@@ -195,8 +223,6 @@ class FlowFormatter:
             buf (FlowBuffer): buffer to append the KeyValue to
             kv (KeyValue): The KeyValue to print
             style_obj (FlowStyle): The style object to use
-            default_style (Any): The default object to use in case the style_obj
-                fails to find a valid style
 
         Returns the number of printed characters
         """
@@ -204,7 +230,7 @@ class FlowFormatter:
         key = kv.meta.kstring
         highlighted = key in self._highlighted
 
-        key_style = style_obj.get_key_style(kv, highlighted) or default_style
+        key_style = style_obj.get_key_style(kv, highlighted)
         buf.append_key(kv, key_style)  # format value
         ret += len(key)
 
@@ -212,20 +238,16 @@ class FlowFormatter:
             return ret
 
         if kv.meta.delim not in ("\n", "\t", "\r", ""):
-            buf.append_delim(
-                kv, style_obj.get_delim_style(highlighted) or default_style
-            )
+            buf.append_delim(kv, style_obj.get_delim_style(highlighted))
             ret += len(kv.meta.delim)
 
-        value_style = style_obj.get_value_style(kv, highlighted) or default_style
+        value_style = style_obj.get_value_style(kv, highlighted)
 
         buf.append_value(kv, value_style)  # format value
         ret += len(kv.meta.vstring)
 
         if kv.meta.end_delim:
-            buf.append_end_delim(
-                kv, style_obj.get_delim_style(highlighted) or default_style
-            )
+            buf.append_end_delim(kv, style_obj.get_delim_style(highlighted))
             ret += len(kv.meta.end_delim)
 
         return ret

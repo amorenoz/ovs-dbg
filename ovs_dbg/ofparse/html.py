@@ -46,8 +46,8 @@ class HTMLBuffer(FlowBuffer):
             kv (KeyValue): the KeyValue instance to append
             style (HTMLStyle): the style to use
         """
-        href = style.anchor_gen(kv) if style.anchor_gen else ""
-        return self._append(kv.meta.kstring, style.color, href)
+        href = style.anchor_gen(kv) if (style and style.anchor_gen) else ""
+        return self._append(kv.meta.kstring, style.color if style else "", href)
 
     def append_delim(self, kv, style):
         """Append a delimiter
@@ -55,8 +55,8 @@ class HTMLBuffer(FlowBuffer):
             kv (KeyValue): the KeyValue instance to append
             style (HTMLStyle): the style to use
         """
-        href = style.anchor_gen(kv) if style.anchor_gen else ""
-        return self._append(kv.meta.delim, style.color, href)
+        href = style.anchor_gen(kv) if (style and style.anchor_gen) else ""
+        return self._append(kv.meta.delim, style.color if style else "", href)
 
     def append_end_delim(self, kv, style):
         """Append an end delimiter
@@ -64,8 +64,8 @@ class HTMLBuffer(FlowBuffer):
             kv (KeyValue): the KeyValue instance to append
             style (HTMLStyle): the style to use
         """
-        href = style.anchor_gen(kv) if style.anchor_gen else ""
-        return self._append(kv.meta.end_delim, style.color, href)
+        href = style.anchor_gen(kv) if (style and style.anchor_gen) else ""
+        return self._append(kv.meta.end_delim, style.color if style else "", href)
 
     def append_value(self, kv, style):
         """Append a value
@@ -73,8 +73,8 @@ class HTMLBuffer(FlowBuffer):
             kv (KeyValue): the KeyValue instance to append
             style (HTMLStyle): the style to use
         """
-        href = style.anchor_gen(kv) if style.anchor_gen else ""
-        return self._append(kv.meta.vstring, style.color, href)
+        href = style.anchor_gen(kv) if (style and style.anchor_gen) else ""
+        return self._append(kv.meta.vstring, style.color if style else "", href)
 
     def append_extra(self, extra, style):
         """Append extra string
@@ -82,7 +82,7 @@ class HTMLBuffer(FlowBuffer):
             kv (KeyValue): the KeyValue instance to append
             style (HTMLStyle): the style to use
         """
-        return self._append(extra, style.color, "")
+        return self._append(extra, style.color if style else "", "")
 
 
 class HTMLFormatter(FlowFormatter):
@@ -90,20 +90,25 @@ class HTMLFormatter(FlowFormatter):
     Formts a flow in HTML Format
     """
 
-    default_style = HTMLStyle()
     default_style_obj = FlowStyle(
         {
             "value.resubmit": HTMLStyle(
                 anchor_gen=lambda x: "#table_{}".format(x.value["table"])
-            )
+            ),
+            "default": HTMLStyle(),
         }
     )
 
-    def __init__(self):
+    def __init__(self, opts=None):
         super(HTMLFormatter, self).__init__()
+        self.style = self._style_from_opts(opts, "html", HTMLStyle) or FlowStyle()
+        self.style.set_value_style(
+            "resubmit",
+            HTMLStyle(
+                self.style.get("value.resubmit"),
+                anchor_gen=lambda x: "#table_{}".format(x.value["table"]),
+            ),
+        )
 
     def format_flow(self, buf, flow, style=None):
-        style_obj = style or self.default_style_obj
-        return super(HTMLFormatter, self).format_flow(
-            buf, flow, style_obj, self.default_style
-        )
+        return super(HTMLFormatter, self).format_flow(buf, flow, self.style)
