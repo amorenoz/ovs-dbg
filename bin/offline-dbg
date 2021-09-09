@@ -2,22 +2,36 @@
 
 set -eu
 
+SCRIPT=`realpath -s $0`
+SCRIPT_PATH=`dirname $SCRIPT`
+CONTAINER_PATH=${SCRIPT_PATH}/../containers/ovs-dbg
+
 OVN_NAMESPACE=ovn-kubernetes
 VAR_RUN=/tmp/offline-dbg/var-run
 
+
 usage() {
-    echo "Start:"
-    echo "$0 [OPTIONS] start [-o] NODE"
-    echo "  NODE: The name of the k8s node to debug offline"
-    echo "  Start options:"
-    echo "  -o:     Openshift environment"
+    echo "$0 [OPTIONS] COMMAND [COMMAND_OPTIONS]"
     echo ""
-    echo "Stop:"
-    echo "$0 [OPTIONS] stop "
+    echo "$0 helps you debug OVS by recreating an environment offline"
     echo ""
-    echo "OPTIONS:"
+    echo "Available commands:"
+    echo "  build           Builds the needed container images"
+    echo "  start  NODE     Starts the offline debugging environment from k8s/oc NODE"
+    echo "    Options":
+    echo "       -o:             Openshift environment"
+    echo ""
+    echo "  stop            Stops the offline debugging environment"
+    echo ""
+    echo "Generic options"
     echo "  -h:     Print help"
-    echo ""
+}
+
+do_build() {
+    echo "Offline OVS Debugging: building images"
+    echo "***************************************"
+
+    docker build -t ovs-dbg -f ${CONTAINER_PATH}/Dockerfile ${CONTAINER_PATH}
 }
 
 do_stop() {
@@ -107,6 +121,9 @@ CMD=$1
 shift
 
 case $CMD in
+    build)
+        do_build $@
+        ;;
     start)
         do_start $@
         ;;
