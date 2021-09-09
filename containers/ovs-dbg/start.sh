@@ -36,8 +36,6 @@ ovsdb() {
           cp $OVSDB_BACKUP /usr/local/etc/openvswitch/conf.db
   else
           echo "Creating new DB"
-
-          #sleep infinity
           ovsdb-tool create /usr/local/etc/openvswitch/conf.db /usr/local/share/openvswitch/vswitch.ovsschema
   fi
 
@@ -52,6 +50,9 @@ case ${cmd} in
   ;;
 "ovsdb")
   ovsdb
+  ;;
+"sleep")
+  sleep infinity 
   ;;
 "*")
   echo "Command not supported: ${cmd}"
