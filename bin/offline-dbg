@@ -7,7 +7,8 @@ SCRIPT_PATH=`dirname $SCRIPT`
 CONTAINER_PATH=${SCRIPT_PATH}/../containers/ovs-dbg
 
 OVN_NAMESPACE=ovn-kubernetes
-VAR_RUN=/tmp/offline-dbg/var-run
+WORKDIR=${OVS_DBG_WORKDIR:-/tmp/ovs-offline-dbg}
+VAR_RUN=${WORKDIR}/var-run
 
 
 usage() {
@@ -25,6 +26,7 @@ usage() {
     echo ""
     echo "Generic options"
     echo "  -h:     Print help"
+    echo "  -w:     Set working directory. Also configurable via OVS_DBG_WORKDIR env var. Default: /tmp/ovs-offline-dbg"
 }
 
 do_build() {
@@ -43,6 +45,18 @@ do_stop() {
 }
 
 do_start() {
+    while getopts "oh" opt; do
+        case ${opt} in
+            h)
+                usage
+                exit 0
+                ;;
+            o)
+                OVN_NAMESPACE=openshift-ovn-kubernetes
+                ;;
+        esac
+    done
+
     if [ -z $1 ]; then
         usage
         exit 1
@@ -100,14 +114,14 @@ do_start() {
     done
 }
 
-while getopts ":ho" opt; do
+while getopts ":hw:" opt; do
     case ${opt} in
         h)
             usage
             exit 0
             ;;
-        o)
-            OVN_NAMESPACE=openshift-ovn-kubernetes
+        w)
+            WORKDIR=$(realpath $OPTARG)
             ;;
     esac
 done
