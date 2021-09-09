@@ -17,17 +17,23 @@ usage() {
     echo "Debug OVS by recreating an environment offline"
     echo ""
     echo "Available commands:"
-    echo "  build           Builds the needed container images"
-    echo "  start  NODE     Starts the offline debugging environment from k8s/oc NODE"
+    echo "  build                Builds the needed container images"
+    echo "  collect-k8s NODE     Collects information from a running k8s node and saves it in the working directory"
     echo "    Options":
-    echo "       -o:             Openshift environment"
+    echo "       -o:    Openshift environment"
     echo ""
-    echo "  stop            Stops the offline debugging environment"
+    echo "  start                Starts an offline debugging session. Data must have been previously collected in the working directory"
+    echo "  stop                 Stops the offline debugging environment"
     echo ""
     echo "Generic options"
     echo "  -h:     Print help"
     echo "  -w:     Set working directory. Also configurable via OVS_DBG_WORKDIR env var. Default: /tmp/ovs-offline-dbg"
     echo "  -d:     Set debug mode"
+}
+
+error() {
+    echo "Error: $@"
+    exit 1
 }
 
 do_build() {
@@ -38,14 +44,16 @@ do_build() {
 }
 
 do_stop() {
-    docker kill ovsdb-server || true
-    docker kill ovs-vswitchd || true
-    rm -rf $VAR_RUN
+    docker kill ovsdb-server &>/dev/null || true
+    docker kill ovs-vswitchd &>/dev/null || true
+    docker rm ovsdb-server &>/dev/null || true
+    docker rm ovs-vswitchd &>/dev/null || true
+    rm -rf ${WORKDIR}
     echo "Offline OVS Debugging stopped"
     echo "*****************************"
 }
 
-do_start() {
+do_collect-k8s() {
     OPTIND=1
     while getopts "oh" opt; do
         case ${opt} in
@@ -65,34 +73,48 @@ do_start() {
         exit 1
     fi
     NODE=$1
-    kubectl get node $NODE || echo "Node not found"; exit
-    
+    kubectl get node $NODE || error "Node not found"
+
     ovnkube_node=$(kubectl get pods -n $OVN_NAMESPACE --field-selector spec.nodeName=$NODE -o name | head -1 | sed "s/^.\{4\}//")
-    
+
+
+    # Collect the flows and groups for future restoration
     bridges=$(kubectl exec -n $OVN_NAMESPACE $ovnkube_node -- ovs-vsctl -- --real list-br)
     kubectl exec -it -n $OVN_NAMESPACE $ovnkube_node -- sh -c "/usr/share/openvswitch/scripts/ovs-save save-flows $(echo $bridges | xargs) > /tmp/restore.sh"
-    kubectl cp -n $OVN_NAMESPACE $ovnkube_node:/tmp/restore.sh /tmp/restore.sh
+    kubectl cp -n $OVN_NAMESPACE $ovnkube_node:/tmp/restore.sh ${WORKDIR}/restore_flows/do_restore.sh
     
-    # find where the logs have been saved and copy it locally
-    save_dir=$(cat /tmp/restore.sh | awk '/replace/{print $6; exit}' | xargs dirname)
+    save_dir=$(cat ${WORKDIR}/restore_flows/do_restore.sh | awk '/replace/{print $6; exit}' | xargs dirname)
+    kubectl cp -n $OVN_NAMESPACE $ovnkube_node:$save_dir ${WORKDIR}/restore_flows
+    cat <<EOF > ${WORKDIR}/restore_flows/restore.sh
+CURR_DIR=\$(dirname \$(realpath \$0))
+ln -s \$CURR_DIR $save_dir
+sh \$CURR_DIR/do_restore.sh
+EOF
     
-    kubectl cp -n $OVN_NAMESPACE $ovnkube_node:$save_dir $save_dir
-    mv /tmp/restore.sh $save_dir
-    
-    # get the DB backup
+    # Collect the DB backup
     mkdir -p $VAR_RUN
-    kubectl exec -i -n $OVN_NAMESPACE $ovnkube_node ovsdb-client backup > /tmp/db.conf
+    kubectl exec -i -n $OVN_NAMESPACE $ovnkube_node ovsdb-client backup > ${WORKDIR}/db.conf
 
+    echo ""
+    echo ""
+    echo "Offline OVS Debugging: data collected and stored in ${WORKDIR}"
+    echo "**************************************************************"
+}
+
+do_start() {
     # Ensure ovs-dbg image is present
-    docker inspect ovs-dbg 2>&1 >/dev/null || (docker pull quay.io/amorenoz/ovs-dbg && docker tag quay.io/amorenoz/ovs-dbg ovs-dbg)
+    docker inspect ovs-dbg 2>&1 >/dev/null || (
+        echo "Failed to find a local container named ovs-dbg. Pulling from quay.io/amorenoz/ovs-dbg"
+        docker pull quay.io/amorenoz/ovs-dbg && docker tag quay.io/amorenoz/ovs-dbg ovs-dbg
+    )
     
     # run ovsdb-server
     docker kill ovsdb-server || true
-    docker run -d -p 127.0.0.1:6640:6640/tcp -v /tmp/db.conf:/usr/local/var/run/openvswitch/db.backup -v ${VAR_RUN}:/usr/local/var/run/openvswitch/  --name ovsdb-server --rm ovs-dbg ovsdb
+    docker run -d -p 127.0.0.1:6640:6640/tcp -v ${WORKDIR}/db.conf:/usr/local/var/run/openvswitch/db.backup -v ${VAR_RUN}:/usr/local/var/run/openvswitch/  --name ovsdb-server --rm ovs-dbg ovsdb 
     
     # run ovs-vswitchd
     docker kill ovs-vswitchd || true
-    docker run -d -p 127.0.0.1:16640:6640/tcp -e RESTORE_DIR=$save_dir -v $save_dir:$save_dir -v ${VAR_RUN}:/usr/local/var/run/openvswitch/ --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
+    docker run -d -p 127.0.0.1:16640:6640/tcp -e RESTORE_DIR="/root/restore_flows" -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${VAR_RUN}:/usr/local/var/run/openvswitch/ --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
 
     sleep 3
     
@@ -119,6 +141,7 @@ while getopts ":hdw:" opt; do
             ;;
         w)
             WORKDIR=$(realpath $OPTARG)
+            VAR_RUN=${WORKDIR}/var-run
             ;;
         d)
             set -x
@@ -135,6 +158,9 @@ CMD=$1
 shift
 
 case $CMD in
+    collect-k8s)
+        do_collect-k8s $@
+        ;;
     build)
         do_build $@
         ;;
