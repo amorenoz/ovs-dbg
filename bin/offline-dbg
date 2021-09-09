@@ -24,9 +24,12 @@ usage() {
     echo ""
     echo "  collect-db  DBFILE   Collects the provided database file and prepares it for offline debugging"
     echo ""
-    echo "  start                Starts an offline debugging session. Data must have been previously collected in the working directory"
-    echo "  print                Prints the available information found in the working directory"
+    echo "  start [SERVICE]      Starts an offline debugging session service. hData must have been previously collected in the working directory"
+    echo "                       Supported services: ovsdb, vswitchd, all(default)"
+    echo ""
     echo "  stop                 Stops the offline debugging environment"
+    echo ""
+    echo "  print                Prints the available information found in the working directory"
     echo ""
     echo "Generic options"
     echo "  -h:     Print help"
@@ -68,6 +71,10 @@ process_dbfile() {
 do_collect-db() {
     local orig_dbfile=$1
     cp $orig_dbfile $WORKDIR/db.conf
+    echo ""
+    echo ""
+    echo "Offline OVS Debugging: DB file collected and stored in ${WORKDIR}"
+    echo "*****************************************************************"
 }
 
 do_collect-k8s() {
@@ -126,24 +133,46 @@ EOF
     echo "**************************************************************"
 }
 
+start_ovsdb() {
+    # run ovsdb-server
+    docker kill ovsdb-server &>/dev/null || true
+    docker rm ovsdb-server &>/dev/null || true
+    docker run -d -p 127.0.0.1:6640:6640/tcp -v ${WORKDIR}/db.conf:/usr/local/var/run/openvswitch/db.backup -v ${VAR_RUN}:/usr/local/var/run/openvswitch/  --name ovsdb-server ovs-dbg ovsdb
+    sleep 3
+}
+
+start_vswitchd() {
+    # run ovs-vswitchd
+    docker kill ovs-vswitchd &>/dev/null || true
+    docker rm ovs-vswitchd &>/dev/null || true
+    docker run -d -p 127.0.0.1:16640:6640/tcp -e RESTORE_DIR="/root/restore_flows" -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${VAR_RUN}:/usr/local/var/run/openvswitch/ --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
+    sleep 3
+}
+
 do_start() {
+    local svc=${1-all}
+
     # Ensure ovs-dbg image is present
     docker inspect ovs-dbg 2>&1 >/dev/null || (
         echo "Failed to find a local container named ovs-dbg. Pulling from quay.io/amorenoz/ovs-dbg"
         docker pull quay.io/amorenoz/ovs-dbg && docker tag quay.io/amorenoz/ovs-dbg ovs-dbg
     )
 
-    # run ovsdb-server
-    docker kill ovsdb-server &>/dev/null || true
-    docker rm ovsdb-server &>/dev/null || true
-    docker run -d -p 127.0.0.1:6640:6640/tcp -v ${WORKDIR}/db.conf:/usr/local/var/run/openvswitch/db.backup -v ${VAR_RUN}:/usr/local/var/run/openvswitch/  --name ovsdb-server ovs-dbg ovsdb
-
-    # run ovs-vswitchd
-    docker kill ovs-vswitchd &>/dev/null || true
-    docker rm ovs-vswitchd &>/dev/null || true
-    docker run -d -p 127.0.0.1:16640:6640/tcp -e RESTORE_DIR="/root/restore_flows" -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${VAR_RUN}:/usr/local/var/run/openvswitch/ --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
-
-    sleep 3
+    case ${svc} in
+        all)
+            start_ovsdb
+            start_vswitchd
+            ;;
+        ovsdb)
+            start_ovsdb
+            ;;
+        vswitchd)
+            start_vswitchd
+            ;;
+        *)
+            usage
+            exit 1
+    esac
 
     echo ""
     echo "Offline OVS Debugging started"
@@ -155,16 +184,35 @@ do_start() {
 
 print_tools() {
     echo "Working directory: $WORKDIR:"
-    vswitchd_ctl=$(ls -x $VAR_RUN/ovs-vswitchd.*.ctl)
-    ovsdb_sock=$(ls -x $VAR_RUN/db.sock)
 
-    echo ""
-    echo "You can now execute the follwing ovs tools:"
-    echo "   ovs-appctl --target=${vswitchd_ctl}"
-    echo "   ovs-vsctl --db unix:${ovsdb_sock}"
-    for mgt in $(ls -x $VAR_RUN/*.mgmt); do
-        echo "   ovs-ofctl COMMAND ${mgt}"
-    done
+    if [ $(find $VAR_RUN -name "ovs-vswitchd.*.ctl") ]; then
+        vswitchd_ctl=$(ls -x $VAR_RUN/ovs-vswitchd.*.ctl)
+        echo ""
+        echo "openvswitch control found at ${vswitchd_ctl}"
+        echo "You can run ovs-appctl commands as:"
+        echo "   ovs-appctl --target=${vswitchd_ctl} [...]"
+    fi
+
+    if [ $(find $VAR_RUN -name "db.sock") ]; then
+        ovsdb_sock=$(ls -x $VAR_RUN/db.sock)
+        echo ""
+        echo "OVSDB socket found at ${ovsdb_sock}"
+        echo "You can run ovsdb commands such as:"
+        echo "   ovs-vsctl --db unix:${ovsdb_sock} [...]"
+        echo "   ovn-nbctl --db unix:${ovsdb_sock} [...]"
+        echo "   ovn-sbctl --db unix:${ovsdb_sock} [...]"
+        echo "   ovsdb-client ${ovsdb_sock} [...]"
+    fi
+
+    if [ $(find $VAR_RUN -name "*mgmt") ]; then
+        ofproto_socks=$(ls -x $VAR_RUN/*.mgmt)
+        echo ""
+        echo "openflow bridge management sockets found at ${ofproto_socks}"
+        echo "You can run ofproto commands such as:"
+        for mgt in $(ls -x $VAR_RUN/*.mgmt); do
+            echo "   ovs-ofctl [...] ${mgt}"
+        done
+    fi
 }
 
 while getopts ":hdw:" opt; do

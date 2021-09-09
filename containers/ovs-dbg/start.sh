@@ -38,6 +38,8 @@ ovsdb() {
           ovsdb-tool create $DB_FILE  /usr/local/share/openvswitch/vswitch.ovsschema
   fi
 
+  mkdir -p /usr/local/var/run/openvswitch/
+
   ovsdb-server --remote=punix:/usr/local/var/run/openvswitch/db.sock --remote=ptcp:6640 --pidfile=ovsdb-server.pid $DB_FILE
 
 }
