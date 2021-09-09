@@ -14,7 +14,7 @@ VAR_RUN=${WORKDIR}/var-run
 usage() {
     echo "$0 [OPTIONS] COMMAND [COMMAND_OPTIONS]"
     echo ""
-    echo "$0 helps you debug OVS by recreating an environment offline"
+    echo "Debug OVS by recreating an environment offline"
     echo ""
     echo "Available commands:"
     echo "  build           Builds the needed container images"
@@ -27,6 +27,7 @@ usage() {
     echo "Generic options"
     echo "  -h:     Print help"
     echo "  -w:     Set working directory. Also configurable via OVS_DBG_WORKDIR env var. Default: /tmp/ovs-offline-dbg"
+    echo "  -d:     Set debug mode"
 }
 
 do_build() {
@@ -45,6 +46,7 @@ do_stop() {
 }
 
 do_start() {
+    OPTIND=1
     while getopts "oh" opt; do
         case ${opt} in
             h)
@@ -56,19 +58,14 @@ do_start() {
                 ;;
         esac
     done
+    shift $(((OPTIND -1)))
 
-    if [ -z $1 ]; then
+    if [ $# -lt 1 ]; then  
         usage
         exit 1
     fi
     NODE=$1
-    kubectl get node $NODE
-    res=$?
-    
-    if [ res -ne 0 ]; then
-        echo "Node not found"
-        exit 1
-    fi
+    kubectl get node $NODE || echo "Node not found"; exit
     
     ovnkube_node=$(kubectl get pods -n $OVN_NAMESPACE --field-selector spec.nodeName=$NODE -o name | head -1 | sed "s/^.\{4\}//")
     
@@ -114,7 +111,7 @@ do_start() {
     done
 }
 
-while getopts ":hw:" opt; do
+while getopts ":hdw:" opt; do
     case ${opt} in
         h)
             usage
@@ -122,6 +119,9 @@ while getopts ":hw:" opt; do
             ;;
         w)
             WORKDIR=$(realpath $OPTARG)
+            ;;
+        d)
+            set -x
             ;;
     esac
 done
