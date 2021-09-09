@@ -7,17 +7,11 @@ vswitchd-dummy() {
   echo "RESTORE_DIR=$RESTORE_DIR"
 
   (
-  echo "Starting flow restoration. Waiting for ovs-vswitchd to start..."
+  echo "Waiting for ovs-vswitchd to start..."
   sleep 5
 
   if [ -d "$RESTORE_DIR" ]; then
       echo "Restoring flows"
-      for file in $(ls -x $RESTORE_DIR/*flows.dump); do
-          # fix igmp flows
-          sed -i 's/igmp,/ip,nw_proto=2,/g' $file
-      done
-      # do not remove directory
-      sed -i '/rm.*/d' $RESTORE_DIR/restore.sh
       sh -e $RESTORE_DIR/restore.sh
   fi
   ) &
