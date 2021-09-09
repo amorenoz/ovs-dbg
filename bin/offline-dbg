@@ -23,6 +23,7 @@ usage() {
     echo "       -o:    Openshift environment"
     echo ""
     echo "  start                Starts an offline debugging session. Data must have been previously collected in the working directory"
+    echo "  print                Prints the available information found in the working directory"
     echo "  stop                 Stops the offline debugging environment"
     echo ""
     echo "Generic options"
@@ -117,14 +118,21 @@ do_start() {
     docker run -d -p 127.0.0.1:16640:6640/tcp -e RESTORE_DIR="/root/restore_flows" -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${VAR_RUN}:/usr/local/var/run/openvswitch/ --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
 
     sleep 3
-    
+
+    echo ""
+    echo "Offline OVS Debugging started"
+    echo "******************************"
+    echo ""
+    print_tools
+
+}
+
+print_tools() {
+    echo "Working directory: $WORKDIR:"
     vswitchd_ctl=$(ls -x $VAR_RUN/ovs-vswitchd.*.ctl)
     ovsdb_sock=$(ls -x $VAR_RUN/db.sock)
     
     echo ""
-    echo ""
-    echo "Offline OVS Debugging started"
-    echo "******************************"
     echo "You can now execute the follwing ovs tools:"
     echo "   ovs-appctl --target=${vswitchd_ctl}"
     echo "   ovs-vsctl --db unix:${ovsdb_sock}"
@@ -166,6 +174,9 @@ case $CMD in
         ;;
     start)
         do_start $@
+        ;;
+    print)
+        print_tools
         ;;
     stop)
         do_stop $@
