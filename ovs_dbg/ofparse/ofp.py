@@ -157,7 +157,7 @@ def logic(opts, show_flows):
                         result = opts.get("highlight").evaluate(flow)
                         if result:
                             highlighted = result.kv
-                    ConsoleFormatter(console, opts).format_flow(buf, flow, highlighted)
+                    ConsoleFormatter(opts=opts, console=console).format_flow(buf, flow, highlighted)
                     lflow_tree.add(buf.text)
 
     with print_context(console, opts):
