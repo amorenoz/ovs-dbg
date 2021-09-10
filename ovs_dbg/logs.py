@@ -31,7 +31,7 @@ class OVSLog:
         self.raw_string = string
         fields = string.split("|", 4)
         if len(fields) != len(self._fields):
-            raise Exception("Not a valid OVS Flow: %s" & string)
+            raise Exception("Not a valid OVS Flow: %s" % string)
 
         self.timestamp = datetime.datetime.strptime(fields[0], self.time_format)
         self.sequence = int(fields[1])
