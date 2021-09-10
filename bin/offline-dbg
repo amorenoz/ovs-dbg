@@ -185,7 +185,7 @@ do_start() {
 print_tools() {
     echo "Working directory: $WORKDIR:"
 
-    if [ $(find $VAR_RUN -name "ovs-vswitchd.*.ctl") ]; then
+    if ls -x $VAR_RUN/ovs-vswitchd.*.ctl &>/dev/null; then
         vswitchd_ctl=$(ls -x $VAR_RUN/ovs-vswitchd.*.ctl)
         echo ""
         echo "openvswitch control found at ${vswitchd_ctl}"
@@ -193,7 +193,7 @@ print_tools() {
         echo "   ovs-appctl --target=${vswitchd_ctl} [...]"
     fi
 
-    if [ $(find $VAR_RUN -name "db.sock") ]; then
+    if ls -x $VAR_RUN/db.sock &>/dev/null; then
         ovsdb_sock=$(ls -x $VAR_RUN/db.sock)
         echo ""
         echo "OVSDB socket found at ${ovsdb_sock}"
@@ -204,7 +204,7 @@ print_tools() {
         echo "   ovsdb-client ${ovsdb_sock} [...]"
     fi
 
-    if [ $(find $VAR_RUN -name "*mgmt") ]; then
+    if ls -x $VAR_RUN/*.mgmt &>/dev/null; then
         ofproto_socks=$(ls -x $VAR_RUN/*.mgmt)
         echo ""
         echo "openflow bridge management sockets found at ${ofproto_socks}"
