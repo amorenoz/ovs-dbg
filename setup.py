@@ -49,6 +49,6 @@ setup(
     project_urls={
         "Source": "https://github.com/amorenoz/ovs-dbg",
     },
-    version="0.0.7",
+    version="0.0.8",
     zip_safe=False,
 )
