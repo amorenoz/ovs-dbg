@@ -136,9 +136,6 @@ def hash_pallete(hue, saturation, value):
 
     def get_style(string):
         hash_val = zlib.crc32(bytes(str(string), "utf-8"))
-        print(hash_val)
-        print(hash_val % len(styles))
-        print(len(styles))
         return styles[hash_val % len(styles)]
 
     return get_style
