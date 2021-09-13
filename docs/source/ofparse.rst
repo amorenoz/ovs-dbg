@@ -126,6 +126,15 @@ When printing a logical representation of a flow list, flows are grouped into *l
 - match on the same fields (regardless of the match value)
 - execute the same actions (regardless of the actions' arguments)
 
+
+HTML representation
+*******************
+Use the *html* option to print an interactive flow table in html
+
+::
+
+    ofparse openflow html > /myflows.html
+
 -----------------
 DPIF Flow parsing
 -----------------
@@ -137,6 +146,32 @@ The openflow flow parsing supports this extra formats:
 ::
 
     ofparse datapath logic
+
+
+HTML representation
+*******************
+Use the *html* option to print an interactive flow table in html
+
+::
+
+    ofparse datapath html > myflows.html
+
+
+Graph representation
+********************
+Use the *graph* option to print a graphviz graph of the datapath. Flows are
+sorted by their *recirc_id* to better understand the datapath's logic.
+
+::
+
+    ofparse datapath graph | dot -Tsvg > myflows.svg
+
+
+Use the additional **-h** flag to show the graph in a html page alongside the interactive flow table
+
+::
+
+    ofparse datapath graph --html > myflows.html
 
 
 ---------
@@ -173,6 +208,91 @@ Examples:
     n_bytes>0 and drop
     nw_src~=192.168.1.1 or arp.tsa=192.168.1.1
     ! tcp && output.port=2
+
+
+
+----------
+Formatting
+----------
+Formatting can be configured by modifying the *ofparse.conf* file provided as
+part of the distribution (python egg).
+
+Formatting options are placed under **[style.{style_name}]** section in the config file. Styles can then be selected using **--style** flag.
+
+For instance, if you want to create your predefined style called "foo", edit
+config file to show:
+
+::
+
+    [style.foo]
+    ...
+
+and then run:
+
+::
+
+    ofparse --style=foo ....
+
+
+Console formatting
+******************
+
+To modify how flows are printed in the console, add configuration entries using
+the following format:
+
+::
+
+    console.{substring_identifier}.[color | underline] = {value}
+
+- **The substring identidier** can have the following keys:
+   - *[key | value | flag | delim | default]* to select whether the key, the value, the standalone key (flag), the delimiters (such as '(') or the "rest" of the string respectively.
+   - *{key_name}*: to specify a key match
+   - *type.{type_name}* to specify a value type (the use of complex types such as 'IPAddress', 'IPMask', 'EthMask' are supported)
+   - *highlighted* if the style is to be applied when the key is highlighted
+- **color** options must have values matching CSS-style colors, eg: #ff00ff, red.
+- **underline** options must have values "true" or "false"
+
+
+Examples:
+
+::
+
+    # set default colors:
+    console.key.color = #5D86BA
+    console.value.color= #B0C4DE
+    console.delim.color= #B0C4DE
+    console.default.color= #FFFFFF
+    console.flag.color = #875fff
+
+    # defaults for special types
+    console.value.type.IPAddress.color = #008700
+    console.value.type.IPMask.color = #008700
+    console.value.type.EthMask.color = #008700
+
+    # dim some values that can be quite long arguments
+    console.value.ct.color = bright_black
+    console.value.ufid.color = #870000
+    console.value.clone.color = bright_black
+    console.value.controller.color = bright_black
+
+    # show drop and recirculations
+    console.key.drop.color = red
+    console.key.resubmit.color = #00d700
+    console.key.output.color = #00d700
+    console.value.output.color = #00d700
+
+    # highlights
+    console.key.highlighted.color = #f20905
+    console.key.highlighted.underline = true
+    console.value.highlighted.underline = true
+    console.delim.highlighted.underline = true
+
+
+HTML Formatting
+***************
+HTML Formatting is very uses the same substring identifiers as the console formatting.
+
+The only difference is that *underline* is not supported.
 
 
 

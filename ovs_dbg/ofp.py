@@ -41,12 +41,12 @@ from ovs_dbg.ofp_act import (
 class OFPFlow(Flow):
     """OpenFlow Flow"""
 
-    def __init__(self, sections, orig=""):
+    def __init__(self, sections, orig="", id=None):
         """Constructor"""
-        super(OFPFlow, self).__init__(sections, orig)
+        super(OFPFlow, self).__init__(sections, orig, id)
 
     @classmethod
-    def from_string(cls, ofp_string):
+    def from_string(cls, ofp_string, id=None):
         """Parse a ofproto flow string
 
         The string is expected to have the follwoing format:
@@ -102,7 +102,7 @@ class OFPFlow(Flow):
         )
         sections.append(asection)
 
-        return cls(sections, ofp_string)
+        return cls(sections, ofp_string, id)
 
     @classmethod
     def _info_decoders(cls):

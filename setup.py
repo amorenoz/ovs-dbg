@@ -8,7 +8,7 @@ from setuptools import setup, find_packages
 with open("README.md") as readme_file:
     readme = readme_file.read()
 
-requirements = ["click", "rich", "pyparsing", "netaddr"]
+requirements = ["click", "rich", "pyparsing", "netaddr", "graphviz"]
 
 setup_requirements = [
     "pytest-runner",
@@ -41,13 +41,14 @@ setup(
     name="ovs_dbg",
     packages=find_packages(include=["ovs_dbg", "ovs_dbg.ofparse"]),
     setup_requires=setup_requirements,
-    scripts=["bin/ofparse"],
+    scripts=["bin/ofparse", "bin/ovs-lgrep"],
+    data_files=["ovs_dbg/ofparse/ofparse.conf"],
     test_suite="tests",
     tests_require=test_requirements,
     url="https://ovs-dbg.readthedocs.io/en/latest/",
     project_urls={
         "Source": "https://github.com/amorenoz/ovs-dbg",
     },
-    version="0.0.5",
+    version="0.0.8",
     zip_safe=False,
 )
