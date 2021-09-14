@@ -2,7 +2,6 @@
 """
 import sys
 import json
-import rich
 
 from ovs_dbg.ofp import OFPFlow
 from ovs_dbg.decoders import FlowEncoder
@@ -60,12 +59,7 @@ def tojson(flow_factory, opts):
         cls=FlowEncoder,
     )
 
-    if opts["paged"]:
-        console = rich.Console()
-        with print_context(console, opts):
-            console.print(flow_json)
-    else:
-        print(flow_json)
+    print(flow_json)
 
 
 def pprint(flow_factory, opts):
