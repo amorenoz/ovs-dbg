@@ -4,27 +4,30 @@ set -mex
 
 vswitchd-dummy() {
   echo "=============== vswitchd-dummy ==============="
-  echo "RESTORE_DIR=$RESTORE_DIR"
+  OVSDB_SOCKET=${OVSDB_SOCKET:-/usr/local/var/run/openvswitch/db.sock}
+  echo "RESTORE_DIR=${RESTORE_DIR}"
 
   (
   echo "Waiting for ovs-vswitchd to start..."
   sleep 5
 
-  if [ -d "$RESTORE_DIR" ]; then
+  if [ -d "${RESTORE_DIR}" ]; then
       echo "Restoring flows"
-      sh -e $RESTORE_DIR/restore.sh
+      sh -e ${RESTORE_DIR}/restore.sh
   fi
   ) &
 
-  ovs-vswitchd --enable-dummy=override -vvconn -vnetdev_dummy  --no-chdir --pidfile  -vsyslog:off
+  ovs-vswitchd --enable-dummy=override -vvconn -vnetdev_dummy  --no-chdir --pidfile  -vsyslog:off unix:${OVSDB_SOCKET}
 
 }
 
 ovsdb() {
-  OVSDB_BACKUP=${OVSDB_BACKUP:-/usr/local/var/run/openvswitch/db.backup}
+  OVSDB_BACKUP=${OVSDB_BACKUP:-/usr/local/var/run/openvswitch/conf.db}
+  local filename=$(basename ${OVSDB_BACKUP})
+  OVSDB_SOCKET=${OVSDB_SOCKET:-/usr/local/var/run/openvswitch/db.sock}
   echo "=============== ovsdb-server ==============="
   echo "OVSDB_BACKUP=$OVSDB_BACKUP"
-  DB_FILE=/usr/local/etc/openvswitch/conf.db
+  DB_FILE=/usr/local/etc/openvswitch/${filename}
 
   if [ -f ${OVSDB_BACKUP} ]; then
           echo "Using backup DB file at $OVSDB_BACKUP"
@@ -40,7 +43,7 @@ ovsdb() {
 
   mkdir -p /usr/local/var/run/openvswitch/
 
-  ovsdb-server --remote=punix:/usr/local/var/run/openvswitch/db.sock --remote=ptcp:6640 --pidfile=ovsdb-server.pid $DB_FILE
+  ovsdb-server --remote=punix:${OVSDB_SOCKET} --remote=ptcp:6640 --pidfile=ovsdb-server.pid $DB_FILE
 
 }
 
