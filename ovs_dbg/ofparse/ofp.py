@@ -1,7 +1,7 @@
 import click
 
 from ovs_dbg.ofp import OFPFlowFactory
-from ovs_dbg.ofparse.ofp_logic import LogicFlowProcessor
+from ovs_dbg.ofparse.ofp_logic import LogicFlowProcessor, CookieProcessor
 from ovs_dbg.ofparse.main import maincli
 from ovs_dbg.ofparse.process import (
     FlowProcessor,
@@ -9,7 +9,6 @@ from ovs_dbg.ofparse.process import (
     ConsoleProcessor,
 )
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter, HTMLStyle
-
 
 factory = OFPFlowFactory()
 
@@ -159,3 +158,12 @@ def html(opts):
     processor = HTMLProcessor(opts, factory)
     processor.process()
     print(processor.html())
+
+
+@openflow.command()
+@click.pass_obj
+def cookie(opts):
+    """Print the flow tables sorted by cookie"""
+    processor = CookieProcessor(opts, factory)
+    processor.process()
+    processor.print()

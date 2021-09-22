@@ -208,3 +208,54 @@ class LogicFlowProcessor(FlowProcessor):
                                 lflow_tree.add(buf.text)
 
                 console.print(tree)
+
+
+class CookieProcessor(FlowProcessor):
+    """Processor that sorts flows into tables and cookies"""
+
+    def __init__(self, opts, factory):
+        super().__init__(opts, factory)
+        self.data = dict()
+
+    def start_file(self, name, filename):
+        self.cookies = dict()
+
+    def stop_file(self, name, filename):
+        self.data[name] = self.cookies
+
+    def process_flow(self, flow, name):
+        """Sort the flows by table and logical flow"""
+        cookie = flow.info.get("cookie") or 0
+        if not self.cookies.get(cookie):
+            self.cookies[cookie] = dict()
+
+        table = flow.info.get("table") or 0
+        if not self.cookies[cookie].get(table):
+            self.cookies[cookie][table] = list()
+        self.cookies[cookie][table].append(flow)
+
+    def print(self):
+        console = Console(
+            color_system=None if self.opts["style"] is None else "256"
+        )
+        ofconsole = ConsoleFormatter(opts=self.opts, console=console)
+        with print_context(console, self.opts):
+            for name, cookies in self.data.items():
+                console.print("\n")
+                console.print(file_header(name))
+                tree = Tree("Ofproto Cookie Tree")
+
+                for cookie, tables in cookies.items():
+                    cookie_tree = tree.add(
+                        "** Cookie {} **".format(hex(cookie))
+                    )
+                    tables_tree = cookie_tree.add("Tables")
+                    for table, flows in tables.items():
+                        table_tree = tables_tree.add(
+                            "* Table {} * ".format(table)
+                        )
+                        for flow in flows:
+                            buf = ConsoleBuffer(Text())
+                            ofconsole.format_flow(buf, flow)
+                            table_tree.add(buf.text)
+                console.print(tree)
