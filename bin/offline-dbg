@@ -135,6 +135,12 @@ EOF
     kubectl exec -i -n $OVN_NAMESPACE $ovnkube_node ovsdb-client backup > ${WORKDIR}/${ovnkube_node}_ovs.db
     do_collect-db ${WORKDIR}/${ovnkube_node}_ovs.db ovs
 
+    # Collect OVN information
+    ovnkube_db_pod=$(kubectl get pods -n $OVN_NAMESPACE -o name | grep ovnkube-db | sed "s/^.\{4\}//")
+    kubectl cp -n ${OVN_NAMESPACE} ${ovnkube_db_pod}:/etc/openvswitch/ovnnb_db.db  ${WORKDIR}/ovnnb_db.db
+    kubectl cp -n ${OVN_NAMESPACE} ${ovnkube_db_pod}:/etc/openvswitch/ovnsb_db.db  ${WORKDIR}/ovnsb_db.db
+    do_collect-db ${WORKDIR}/ovnnb_db.db ovn_nb
+    do_collect-db ${WORKDIR}/ovnsb_db.db ovn_sb
 }
 
 check_for_OpenFlow_14() {
