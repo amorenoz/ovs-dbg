@@ -134,7 +134,7 @@ def graph(opts, html):
 
     def callback(flow):
         """Parse the flows and sort them by table"""
-        rid = hex(flow.match.get("recirc_id") or 0)
+        rid = flow.match.get("recirc_id") or 0
         if not recirc_flows.get(rid):
             recirc_flows[rid] = list()
         recirc_flows[rid].append(flow)
@@ -146,71 +146,20 @@ def graph(opts, html):
         filter=opts.get("filter"),
     )
 
-    node_styles = {
-        OFFilter("ct and (ct_state or ct_label or ct_mark)"): {"color": "#ff00ff"},
-        OFFilter("ct_state or ct_label or ct_mark"): {"color": "#0000ff"},
-        OFFilter("ct"): {"color": "#ff0000"},
-    }
-
     g = graphviz.Digraph("DP flows", node_attr={"shape": "rectangle"})
     g.attr(compound="true")
     g.attr(rankdir="TB")
 
     for recirc, flows in recirc_flows.items():
-        with g.subgraph(
-            name="cluster_{}".format(recirc), comment="recirc {}".format(recirc)
-        ) as sg:
+        cluster_name = graph_recirc_cluster(recirc)
+        label = "recirc {}".format(recirc)
+        create_flow_cluster(cluster_name, label, flows, g, g)
 
-            sg.attr(rankdir="TB")
-            sg.attr(ranksep="0.02")
-            sg.attr(label="recirc_id {}".format(recirc))
-
-            invis = "f{}".format(recirc)
-            sg.node(invis, color="white", len="0", shape="point", width="0", height="0")
-
-            previous = None
-            for flow in flows:
-                name = "Flow_{}".format(flow.id)
-                summary = "Line: {} \n".format(flow.id)
-                summary += "\n".join(
-                    [
-                        flow.section("info").string,
-                        ",".join(flow.match.keys()),
-                        "actions: " + ",".join(list(a.keys())[0] for a in flow.actions),
-                    ]
-                )
-                attr = (
-                    node_styles.get(
-                        next(filter(lambda f: f.evaluate(flow), node_styles), None)
-                    )
-                    or {}
-                )
-
-                sg.node(
-                    name=name,
-                    label=summary,
-                    _attributes=attr,
-                    fontsize="8",
-                    nojustify="true",
-                    URL="#flow_{}".format(flow.id),
-                )
-
-                if previous:
-                    sg.edge(previous, name, color="white")
-                else:
-                    sg.edge(invis, name, color="white", length="0")
-                previous = name
-
-                next_recirc = next(
-                    (kv.value for kv in flow.actions_kv if kv.key == "recirc"), None
-                )
-                if next_recirc:
-                    cname = "cluster_{}".format(hex(next_recirc))
-                    g.edge(name, "f{}".format(hex(next_recirc)), lhead=cname)
-                else:
-                    g.edge(name, "end")
-
-    g.edge("start", "f0x0", lhead="cluster_0x0")
+    g.edge(
+        "start",
+        graph_invis_node(graph_recirc_cluster(0)),
+        lhead=graph_recirc_cluster(0),
+    )
     g.node("start", shape="Mdiamond")
     g.node("end", shape="Msquare")
 
@@ -227,6 +176,92 @@ def graph(opts, html):
 
     html_obj += get_html_obj(list(itertools.chain(*recirc_flows.values())), opts)
     print(html_obj)
+
+
+node_styles = {
+    OFFilter("ct and (ct_state or ct_label or ct_mark)"): {"color": "#ff00ff"},
+    OFFilter("ct_state or ct_label or ct_mark"): {"color": "#0000ff"},
+    OFFilter("ct"): {"color": "#ff0000"},
+}
+
+
+def graph_recirc_cluster(recirc_id):
+    return "cluster_recirc_{}".format(hex(recirc_id))
+
+
+def graph_invis_node(cluster_name):
+    return "invis_{}".format(cluster_name)
+
+
+def create_flow_cluster(cluster_name, label, flows, graph, parent=None):
+    """Create a flow cluster
+    Args:
+        cluster_name(str): the name of the new cluster
+        label(str): the label of the subgraph
+        flows([Flow]): list of flows to add to the cluster
+        graph(Graph): the graph to add the subgraph to
+        parent(Graph): Optional, another subgraph this one should be under
+    """
+    parent = parent or graph
+    cluster = parent.subgraph(name=cluster_name, comment=label)
+
+    with cluster as sg:
+        sg.attr(rankdir="TB")
+        sg.attr(ranksep="0.02")
+        sg.attr(label=label)
+        # Create an invisible node so that we can point to subgraphs
+        invis = graph_invis_node(cluster_name)
+        sg.node(invis, color="white", len="0", shape="point", width="0", height="0")
+        previous = None
+        for flow in flows:
+            name = "Flow_{}".format(flow.id)
+            sg.node(**graph_node_flow(flow, name))
+            # Connect to previous so that dot rendering places them one after
+            # the other
+            if previous:
+                sg.edge(previous, name, color="white")
+            else:
+                sg.edge(invis, name, color="white", length="0")
+            previous = name
+
+            # determine next hop
+            next_recirc = next(
+                (kv.value for kv in flow.actions_kv if kv.key == "recirc"), None
+            )
+            if next_recirc:
+                cname = graph_recirc_cluster(next_recirc)
+                graph.edge(name, graph_invis_node(cname), lhead=cname)
+            else:
+                graph.edge(name, "end")
+    return cluster
+
+
+def graph_node_flow(flow, name):
+    """
+    Returns the dictionary of attributes of a graphviz node that represents
+    the flow with a given name
+    """
+    summary = "Line: {} \n".format(flow.id)
+    summary += "\n".join(
+        [
+            flow.section("info").string,
+            ",".join(flow.match.keys()),
+            "actions: " + ",".join(list(a.keys())[0] for a in flow.actions),
+        ]
+    )
+    attr = (
+        node_styles.get(next(filter(lambda f: f.evaluate(flow), node_styles), None))
+        or {}
+    )
+
+    return {
+        "name": name,
+        "label": summary,
+        "_attributes": attr,
+        "fontsize": "8",
+        "nojustify": "true",
+        "URL": "#flow_{}".format(flow.id),
+    }
 
 
 class HTMLFlowTree:
