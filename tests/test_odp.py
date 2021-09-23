@@ -3,7 +3,7 @@ import pytest
 
 from ovs_dbg.odp import ODPFlow
 from ovs_dbg.kv import KeyValue
-from ovs_dbg.decoders import EthMask, IPMask, Mask32, Mask16, Mask8, Mask128
+from ovs_dbg.decoders import EthMask, IPMask, Mask32, Mask16, Mask8, Mask64, Mask128
 
 
 @pytest.mark.parametrize(
@@ -40,12 +40,12 @@ from ovs_dbg.decoders import EthMask, IPMask, Mask32, Mask16, Mask8, Mask128
                 KeyValue(
                     "tunnel",
                     {
-                        "geneve": {
+                        "geneve": [{
                             "class": Mask16("0"),
                             "type": Mask8("0"),
                             "len": Mask8("4"),
                             "data": Mask128("0xa/0xff"),
-                        },
+                        }],
                         "vxlan": {"flags": 0x800000, "vni": 0x1C7},
                         "erspan": {"ver": 2, "dir": 1, "hwid": 0x1},
                     },
@@ -404,12 +404,12 @@ def test_odp_fields(input_string, expected):
                             "geneve": {
                                 "crit": True,
                                 "vni": 0x1C7,
-                                "options": {
+                                "options": [{
                                     "class": 0xFFFF,
                                     "type": 0x80,
                                     "len": 4,
                                     "data": 0xA,
-                                },
+                                }],
                             }
                         }
                     },
