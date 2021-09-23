@@ -22,6 +22,7 @@ class DatapathGraph:
     def __init__(self, flows):
         self._flows = flows
 
+        self._output_nodes = []
         self._graph = graphviz.Digraph("DP flows", node_attr={"shape": "rectangle"})
         self._graph.attr(compound="true")
         self._graph.attr(rankdir="LR")
@@ -51,6 +52,10 @@ class DatapathGraph:
     @classmethod
     def invis_node_name(cls, cluster_name):
         return "invis_{}".format(cluster_name)
+
+    @classmethod
+    def output_node_name(cls, port):
+        return "output_{}".format(port)
 
     def _flow_node(self, flow, name):
         """
@@ -112,16 +117,58 @@ class DatapathGraph:
                 previous = name
 
                 # determine next hop
-                next_recirc = next(
-                    (kv.value for kv in flow.actions_kv if kv.key == "recirc"), None
-                )
-                if next_recirc:
-                    cname = self.recirc_cluster_name(next_recirc)
-                    self._graph.edge(name, self.invis_node_name(cname), lhead=cname)
-                else:
-                    self._graph.edge(name, "end")
+                self._set_next_node(name, flow)
 
         return cluster
+
+    def _set_next_node(self, name, flow):
+        """
+        Determine the next node and add edges to it
+        """
+        created = False
+
+        for kv in flow.actions_kv:
+            if kv.key == "check_pkt_len":
+                for subname, subvalue in kv.value.get("gt").items():
+                    created = self._set_next_node_action(name, subname, subvalue)
+                for subname, subvalue in kv.value.get("le").items():
+                    created = self._set_next_node_action(name, subname, subvalue)
+            elif kv.key == "sample":
+                for subname, subvalue in kv.value.get("actions").items():
+                    created = self._set_next_node_action(name, subname, subvalue)
+            else:
+                created = self._set_next_node_action(name, kv.key, kv.value)
+
+        if not created:
+            # Add to a generic "End" if no other action was detected
+            self._graph.edge(name, "end")
+
+    def _set_next_node_action(self, name, action_name, action_obj):
+        """
+        Based on the action object, set the next node
+        """
+        if action_name == "recirc":
+            cname = self.recirc_cluster_name(action_obj)
+            self._graph.edge(name, self.invis_node_name(cname), lhead=cname)
+            return True
+        elif action_name == "output":
+            port = action_obj.get("port")
+            if port not in self._output_nodes:
+                self._graph.node(
+                    self.output_node_name(port),
+                    shape="Msquare",
+                    label="Port {}".format(port),
+                )
+                self._output_nodes.append(port)
+            self._graph.edge(name, self.output_node_name(port))
+            return True
+        elif action_name in ["drop", "userspace"]:
+            if action_name not in self._output_nodes:
+                self._graph.node(action_name, shape="Msquare")
+                self._output_nodes.append(action_name)
+            self._graph.edge(name, action_name)
+            return True
+        return False
 
     def _populate_graph(self):
         """Populate the the internal graph"""
