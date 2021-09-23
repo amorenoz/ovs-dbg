@@ -20,6 +20,7 @@ from ovs_dbg.ofparse.console import (
 )
 from ovs_dbg.ofparse.format import FlowStyle
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
+from ovs_dbg.ofparse.dp_graph import DatapathGraph
 from ovs_dbg.odp import ODPFlow
 from ovs_dbg.filter import OFFilter
 
@@ -146,162 +147,21 @@ def graph(opts, html):
         filter=opts.get("filter"),
     )
 
-    g = graphviz.Digraph("DP flows", node_attr={"shape": "rectangle"})
-    g.attr(compound="true")
-    g.attr(rankdir="LR")
-    g.node("end", shape="Msquare")
-
-    for recirc, flows in recirc_flows.items():
-        if recirc == 0:
-            # Deal with input ports
-            flows_per_inport = {}
-            free_flows = []
-            for flow in flows:
-                port = flow.match.get("in_port")
-                if port:
-                    if not flows_per_inport.get(port):
-                        flows_per_inport[port] = list()
-                    flows_per_inport[port].append(flow)
-                else:
-                    free_flows.append(flow)
-
-            # Build base graph with free flows
-            cluster_name = graph_recirc_cluster(recirc)
-            label = "recirc {}".format(recirc)
-            sg = create_flow_cluster(cluster_name, label, free_flows, g)
-
-            # Íf there are free_flows, create a dummy inport port
-            if free_flows:
-                g.edge(
-                    "start",
-                    graph_invis_node(graph_recirc_cluster(0)),
-                    lhead=graph_recirc_cluster(0),
-                )
-                g.node("start", shape="Mdiamond")
-
-            for inport, flows in flows_per_inport.items():
-                # Build a subgraph per input port
-                cluster_name = graph_inport_cluster(inport)
-                label = "input port: {}".format(inport)
-
-                with sg as parent:
-                    create_flow_cluster(cluster_name, label, flows, g, parent)
-
-                # Make an Input node point to each subgraph
-                node_name = "input_{}".format(inport)
-                g.node(
-                    node_name, shape="Mdiamond", label="input port {}".format(inport)
-                )
-                g.edge(node_name, graph_invis_node(cluster_name), lhead=cluster_name)
-
-        else:
-            cluster_name = graph_recirc_cluster(recirc)
-            label = "recirc {}".format(recirc)
-            create_flow_cluster(cluster_name, label, flows, g)
+    dpg = DatapathGraph(recirc_flows)
 
     if not html:
-        print(g.source)
+        print(dpg.source())
         return
 
     html_obj = ""
     html_obj += "<h1> Flow Graph </h1>"
     html_obj += "<div width=400px height=300px>"
-    svg = g.pipe(format="svg")
+    svg = dpg.pipe(format="svg")
     html_obj += svg.decode("utf-8")
     html_obj += "</div>"
 
     html_obj += get_html_obj(list(itertools.chain(*recirc_flows.values())), opts)
     print(html_obj)
-
-
-node_styles = {
-    OFFilter("ct and (ct_state or ct_label or ct_mark)"): {"color": "#ff00ff"},
-    OFFilter("ct_state or ct_label or ct_mark"): {"color": "#0000ff"},
-    OFFilter("ct"): {"color": "#ff0000"},
-}
-
-
-def graph_recirc_cluster(recirc_id):
-    return "cluster_recirc_{}".format(hex(recirc_id))
-
-
-def graph_inport_cluster(inport):
-    return "cluster_inport_{}".format(inport)
-
-
-def graph_invis_node(cluster_name):
-    return "invis_{}".format(cluster_name)
-
-
-def create_flow_cluster(cluster_name, label, flows, graph, parent=None):
-    """Create a flow cluster
-    Args:
-        cluster_name(str): the name of the new cluster
-        label(str): the label of the subgraph
-        flows([Flow]): list of flows to add to the cluster
-        graph(Graph): the graph to add the subgraph to
-        parent(Graph): Optional, another subgraph this one should be under
-    """
-    parent = parent or graph
-    cluster = parent.subgraph(name=cluster_name, comment=label)
-
-    with cluster as sg:
-        sg.attr(rankdir="TB")
-        sg.attr(ranksep="0.02")
-        sg.attr(label=label)
-        # Create an invisible node so that we can point to subgraphs
-        invis = graph_invis_node(cluster_name)
-        sg.node(invis, color="white", len="0", shape="point", width="0", height="0")
-        previous = None
-        for flow in flows:
-            name = "Flow_{}".format(flow.id)
-            sg.node(**graph_node_flow(flow, name))
-            # Connect to previous so that dot rendering places them one after
-            # the other
-            if previous:
-                sg.edge(previous, name, color="white")
-            else:
-                sg.edge(invis, name, color="white", length="0")
-            previous = name
-
-            # determine next hop
-            next_recirc = next(
-                (kv.value for kv in flow.actions_kv if kv.key == "recirc"), None
-            )
-            if next_recirc:
-                cname = graph_recirc_cluster(next_recirc)
-                graph.edge(name, graph_invis_node(cname), lhead=cname)
-            else:
-                graph.edge(name, "end")
-    return cluster
-
-
-def graph_node_flow(flow, name):
-    """
-    Returns the dictionary of attributes of a graphviz node that represents
-    the flow with a given name
-    """
-    summary = "Line: {} \n".format(flow.id)
-    summary += "\n".join(
-        [
-            flow.section("info").string,
-            ",".join(flow.match.keys()),
-            "actions: " + ",".join(list(a.keys())[0] for a in flow.actions),
-        ]
-    )
-    attr = (
-        node_styles.get(next(filter(lambda f: f.evaluate(flow), node_styles), None))
-        or {}
-    )
-
-    return {
-        "name": name,
-        "label": summary,
-        "_attributes": attr,
-        "fontsize": "8",
-        "nojustify": "true",
-        "URL": "#flow_{}".format(flow.id),
-    }
 
 
 class HTMLFlowTree:
