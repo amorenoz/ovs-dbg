@@ -148,20 +148,56 @@ def graph(opts, html):
 
     g = graphviz.Digraph("DP flows", node_attr={"shape": "rectangle"})
     g.attr(compound="true")
-    g.attr(rankdir="TB")
+    g.attr(rankdir="LR")
+    g.node("end", shape="Msquare")
 
     for recirc, flows in recirc_flows.items():
-        cluster_name = graph_recirc_cluster(recirc)
-        label = "recirc {}".format(recirc)
-        create_flow_cluster(cluster_name, label, flows, g, g)
+        if recirc == 0:
+            # Deal with input ports
+            flows_per_inport = {}
+            free_flows = []
+            for flow in flows:
+                port = flow.match.get("in_port")
+                if port:
+                    if not flows_per_inport.get(port):
+                        flows_per_inport[port] = list()
+                    flows_per_inport[port].append(flow)
+                else:
+                    free_flows.append(flow)
 
-    g.edge(
-        "start",
-        graph_invis_node(graph_recirc_cluster(0)),
-        lhead=graph_recirc_cluster(0),
-    )
-    g.node("start", shape="Mdiamond")
-    g.node("end", shape="Msquare")
+            # Build base graph with free flows
+            cluster_name = graph_recirc_cluster(recirc)
+            label = "recirc {}".format(recirc)
+            sg = create_flow_cluster(cluster_name, label, free_flows, g)
+
+            # Íf there are free_flows, create a dummy inport port
+            if free_flows:
+                g.edge(
+                    "start",
+                    graph_invis_node(graph_recirc_cluster(0)),
+                    lhead=graph_recirc_cluster(0),
+                )
+                g.node("start", shape="Mdiamond")
+
+            for inport, flows in flows_per_inport.items():
+                # Build a subgraph per input port
+                cluster_name = graph_inport_cluster(inport)
+                label = "input port: {}".format(inport)
+
+                with sg as parent:
+                    create_flow_cluster(cluster_name, label, flows, g, parent)
+
+                # Make an Input node point to each subgraph
+                node_name = "input_{}".format(inport)
+                g.node(
+                    node_name, shape="Mdiamond", label="input port {}".format(inport)
+                )
+                g.edge(node_name, graph_invis_node(cluster_name), lhead=cluster_name)
+
+        else:
+            cluster_name = graph_recirc_cluster(recirc)
+            label = "recirc {}".format(recirc)
+            create_flow_cluster(cluster_name, label, flows, g)
 
     if not html:
         print(g.source)
@@ -187,6 +223,10 @@ node_styles = {
 
 def graph_recirc_cluster(recirc_id):
     return "cluster_recirc_{}".format(hex(recirc_id))
+
+
+def graph_inport_cluster(inport):
+    return "cluster_inport_{}".format(inport)
 
 
 def graph_invis_node(cluster_name):
