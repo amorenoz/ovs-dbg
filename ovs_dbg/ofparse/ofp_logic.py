@@ -1,3 +1,6 @@
+import sys
+import io
+
 from rich.tree import Tree
 from rich.text import Text
 from rich.console import Console
@@ -210,12 +213,58 @@ class LogicFlowProcessor(FlowProcessor):
                 console.print(tree)
 
 
+class OVNDetrace(object):
+    def __init__(self, opts):
+        if not opts.get("ovn_detrace_flag"):
+            raise Exception("Cannot initialize OVN Detrace connection")
+
+        if opts.get("ovn_detrace_path"):
+            sys.path.append(opts.get("ovn_detrace_path"))
+
+        import ovn_detrace
+
+        class FakePrinter(ovn_detrace.Printer):
+            def __init__(self):
+                self.buff = io.StringIO()
+
+            def print_p(self, msg):
+                print("  * ", msg, file=self.buff)
+
+            def print_h(self, msg):
+                print("   * ", msg, file=self.buff)
+
+            def clear(self):
+                self.buff = io.StringIO()
+
+        self.ovn_detrace = ovn_detrace
+        self.ovnnb_conn = ovn_detrace.OVSDB(
+            opts.get("ovnnb_db"), "OVN_Northbound"
+        )
+        self.ovnsb_conn = ovn_detrace.OVSDB(
+            opts.get("ovnsb_db"), "OVN_Southbound"
+        )
+        self.ovn_printer = FakePrinter()
+        self.cookie_handlers = ovn_detrace.get_cookie_handlers(
+            self.ovnnb_conn, self.ovnsb_conn, self.ovn_printer
+        )
+
+    def get_ovn_info(self, cookie):
+        self.ovn_printer.clear()
+        self.ovn_detrace.print_record_from_cookie(
+            self.ovnsb_conn, self.cookie_handlers, "{:x}".format(cookie)
+        )
+        return self.ovn_printer.buff.getvalue()
+
+
 class CookieProcessor(FlowProcessor):
     """Processor that sorts flows into tables and cookies"""
 
     def __init__(self, opts, factory):
         super().__init__(opts, factory)
         self.data = dict()
+        self.ovn_detrace = (
+            OVNDetrace(opts) if opts.get("ovn_detrace_flag") else None
+        )
 
     def start_file(self, name, filename):
         self.cookies = dict()
@@ -249,6 +298,14 @@ class CookieProcessor(FlowProcessor):
                     cookie_tree = tree.add(
                         "** Cookie {} **".format(hex(cookie))
                     )
+
+                    if self.ovn_detrace:
+                        ovn_info = self.ovn_detrace.get_ovn_info(cookie)
+                        ovn = cookie_tree.add("OVN Info")
+                        for part in ovn_info.split("\n"):
+                            if part.strip():
+                                ovn.add(part.strip())
+
                     tables_tree = cookie_tree.add("Tables")
                     for table, flows in tables.items():
                         table_tree = tables_tree.add(
