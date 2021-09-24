@@ -20,6 +20,7 @@ from ovs_dbg.ofparse.console import (
 )
 from ovs_dbg.ofparse.format import FlowStyle
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
+from ovs_dbg.ofparse.dp_graph import DatapathGraph
 from ovs_dbg.odp import ODPFlow
 from ovs_dbg.filter import OFFilter
 
@@ -134,7 +135,7 @@ def graph(opts, html):
 
     def callback(flow):
         """Parse the flows and sort them by table"""
-        rid = hex(flow.match.get("recirc_id") or 0)
+        rid = flow.match.get("recirc_id") or 0
         if not recirc_flows.get(rid):
             recirc_flows[rid] = list()
         recirc_flows[rid].append(flow)
@@ -146,82 +147,16 @@ def graph(opts, html):
         filter=opts.get("filter"),
     )
 
-    node_styles = {
-        OFFilter("ct and (ct_state or ct_label or ct_mark)"): {"color": "#ff00ff"},
-        OFFilter("ct_state or ct_label or ct_mark"): {"color": "#0000ff"},
-        OFFilter("ct"): {"color": "#ff0000"},
-    }
-
-    g = graphviz.Digraph("DP flows", node_attr={"shape": "rectangle"})
-    g.attr(compound="true")
-    g.attr(rankdir="TB")
-
-    for recirc, flows in recirc_flows.items():
-        with g.subgraph(
-            name="cluster_{}".format(recirc), comment="recirc {}".format(recirc)
-        ) as sg:
-
-            sg.attr(rankdir="TB")
-            sg.attr(ranksep="0.02")
-            sg.attr(label="recirc_id {}".format(recirc))
-
-            invis = "f{}".format(recirc)
-            sg.node(invis, color="white", len="0", shape="point", width="0", height="0")
-
-            previous = None
-            for flow in flows:
-                name = "Flow_{}".format(flow.id)
-                summary = "Line: {} \n".format(flow.id)
-                summary += "\n".join(
-                    [
-                        flow.section("info").string,
-                        ",".join(flow.match.keys()),
-                        "actions: " + ",".join(list(a.keys())[0] for a in flow.actions),
-                    ]
-                )
-                attr = (
-                    node_styles.get(
-                        next(filter(lambda f: f.evaluate(flow), node_styles), None)
-                    )
-                    or {}
-                )
-
-                sg.node(
-                    name=name,
-                    label=summary,
-                    _attributes=attr,
-                    fontsize="8",
-                    nojustify="true",
-                    URL="#flow_{}".format(flow.id),
-                )
-
-                if previous:
-                    sg.edge(previous, name, color="white")
-                else:
-                    sg.edge(invis, name, color="white", length="0")
-                previous = name
-
-                next_recirc = next(
-                    (kv.value for kv in flow.actions_kv if kv.key == "recirc"), None
-                )
-                if next_recirc:
-                    cname = "cluster_{}".format(hex(next_recirc))
-                    g.edge(name, "f{}".format(hex(next_recirc)), lhead=cname)
-                else:
-                    g.edge(name, "end")
-
-    g.edge("start", "f0x0", lhead="cluster_0x0")
-    g.node("start", shape="Mdiamond")
-    g.node("end", shape="Msquare")
+    dpg = DatapathGraph(recirc_flows)
 
     if not html:
-        print(g.source)
+        print(dpg.source())
         return
 
     html_obj = ""
     html_obj += "<h1> Flow Graph </h1>"
     html_obj += "<div width=400px height=300px>"
-    svg = g.pipe(format="svg")
+    svg = dpg.pipe(format="svg")
     html_obj += svg.decode("utf-8")
     html_obj += "</div>"
 
