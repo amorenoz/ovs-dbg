@@ -10,6 +10,14 @@ OVN_NAMESPACE=ovn-kubernetes
 WORKDIR=${OVS_DBG_WORKDIR:-/tmp/ovs-offline-dbg}
 VAR_RUN=${WORKDIR}/var-run
 
+declare -A open_flow_protocols=(
+    [0x1]=OpenFlow10
+    [0x2]=OpenFlow11
+    [0x3]=OpenFlow12
+    [0x4]=OpenFlow13
+    [0x5]=OpenFlow14
+    [0x6]=OpenFlow15
+)
 
 usage() {
     echo "$0 [OPTIONS] COMMAND [COMMAND_OPTIONS]"
@@ -22,6 +30,7 @@ usage() {
     echo "    Options":
     echo "       -o:    Openshift environment"
     echo ""
+    echo "  collect-sos SOS      Collects information from the provided sos.tar.xz and saves it in the working directory"
     echo "  collect-db  DBFILE   Collects the provided database file and prepares it for offline debugging"
     echo ""
     echo "  start [SERVICE]      Starts an offline debugging session service. hData must have been previously collected in the working directory"
@@ -126,6 +135,134 @@ EOF
     # Collect the DB backup
     mkdir -p $VAR_RUN
     kubectl exec -i -n $OVN_NAMESPACE $ovnkube_node ovsdb-client backup > ${WORKDIR}/db.conf
+
+    echo ""
+    echo ""
+    echo "Offline OVS Debugging: data collected and stored in ${WORKDIR}"
+    echo "**************************************************************"
+}
+
+check_for_OpenFlow_14() {
+    # If no protocol listed, default to atomic bundle txn (enabled by default on ovs 2.8 and on)
+    local hex_ofp_version=$(cat ${CMD_DIR}/ovs-ofctl_-t_5_--version | grep "OpenFlow versions" | grep -oP [0-9]*x[0-9]* | tail -1)
+    local version=${open_flow_protocols[$hex_ofp_version]}
+    if [ -z "$version" ]; then
+        echo " --bundle"
+    else
+        [ ${version#OpenFlow} -ge 14 ] && bundle=" --bundle" || bundle=""
+        echo $bundle
+    fi                    
+}
+
+do_collect-sos() {
+    if [ $# -lt 1 ]; then
+        usage
+        exit 1
+    fi
+    local sos=$1
+
+    local dir_name=`tar -tf $sos | head -1 | cut -f1 -d"/"`
+
+    local sos_files="${dir_name}/sos_commands/rpm ${dir_name}/sos_commands/openvswitch"
+
+    local db_locations="var/lib/openvswitch etc/openvswitch usr/local/etc/openvswitch"
+
+    if test -f "$sos"; then
+        mkdir ${WORKDIR}/sos_report || error "Sos_report already exists. To collect a new sos report, first run 'stop' or set a new \${WORKDIR}"
+        echo "Extracting sos report from '$sos'..."
+    else
+        echo "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
+    fi
+
+    for dir in $sos_files; do
+        tar -xvf $sos -C ${WORKDIR}/sos_report $dir --strip-components 1 &>/dev/null || error "Could not extract critical directory $dir from $sos"
+    done
+    CMD_DIR=${WORKDIR}/sos_report/sos_commands/openvswitch/
+
+    local db_dir=''
+    for dir in $db_locations; do
+        tar -xvf $sos -C ${WORKDIR}/sos_report ${dir_name}/${dir}/conf.db --strip-components 1 &>/dev/null || true
+        if test -f "${WORKDIR}/sos_report/${dir}/conf.db"; then
+            db_dir=$dir
+            break
+        fi
+    done
+
+    if [ -z "${db_dir-}" ]; then
+        echo "warning: conf.db not found in default locations."
+        echo "If the target cluster has defined \$ovs_dbdir it could be located there"
+        echo "Please add manually using collect-db and re-run collect-sos"
+    else
+        mv ${WORKDIR}/sos_report/${db_dir}/conf.db ${WORKDIR}/db.conf
+    fi
+
+    # OVS 2.7 and earlier do not enable OpenFlow 1.4 (by default) and lack
+    # other features needed to save and restore flows.
+    local ovs_ver=$(cat ${WORKDIR}/sos_report/sos_commands/rpm/package-data | grep -o ^openvswitch-[0-9].[0-9]*.[0-9])
+    case $ovs_ver in
+    "openvswitch-1."*.*)
+        error "Outdated ovs version (2.8 or higher required)"
+        ;;
+    "openvswitch-2."[0-7].*)
+        error "Outdated ovs version (2.8 or higher required)"
+        ;;
+    esac
+
+    save_dir=${WORKDIR}/restore_flows
+    mkdir -p $save_dir
+
+    if test -f "${CMD_DIR}/ovs-vsctl_-t_5_list-br"; then
+        bridges=$(cat ${CMD_DIR}/ovs-vsctl_-t_5_list-br)
+    else
+        error "ovs-vsctl_-t_5_list-br missing from sos report. Make sure your sos archive is generated from the most recent sos report"
+    fi
+    
+    # Collect group, flow, and tlv dumps
+    for br in $bridges; do
+        local version=$(ls $CMD_DIR | grep ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_${br} | grep -o "OpenFlow[0-9]*")
+        local high_ver=$(echo "$version" | sort | tail -n 1)
+        cp ${CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-flows_${br} $save_dir || error "Sos report missing dump-flows for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+        cp ${CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-tlv-map_${br} $save_dir || error "Sos report missing dump-tlv for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+        cp ${CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-groups_${br} $save_dir || error "Sos report missing dump-groups for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+    done
+    # Apply the workarounds found in ovs-save to the current flows and
+    # groups to allow for restoration
+    for dump in ${save_dir}/*dump-flows*; do
+        sed -i -e '/NXST_FLOW/d' \
+            -e '/OFPST_FLOW/d' \
+            -e 's/\(idle\|hard\)_age=[^,]*,//g' \
+            -e 's/igmp/ip,nw_proto=2/g' \
+            "$dump"
+    done
+
+    for dump in ${save_dir}/*dump-groups*; do
+        sed -i -e '/^OFPST_GROUP_DESC/d' \
+            -e '/^NXST_GROUP_DESC/d' \
+            "$dump"
+    done
+
+    # If possible use OpenFlow 1.4 atomic bundle txn for flows and groups
+    local bundle=$(check_for_OpenFlow_14)
+
+    # Create restore.sh script
+    echo "CURR_DIR=\$(dirname \$(realpath \$0))" >> ${save_dir}/restore.sh
+    for br in $bridges; do
+        local flow_version=$(ls /${save_dir}/ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_$br | grep -o OpenFlow[0-9]*)
+        local group_version=$(ls /${save_dir}/ovs-ofctl_-O_OpenFlow[0-9]*_dump-groups_$br | grep -o OpenFlow[0-9]*)
+        echo -n "ovs-ofctl add-tlv-map ${br} '" >> ${save_dir}/restore.sh
+        cat ${save_dir}/ovs-ofctl_-O_OpenFlow[0-9]*_dump-tlv-map_$br | \
+        awk '/^  *0x/ {if (cnt != 0) printf ","; \
+            cnt++;printf "{class="$1",type="$2",len="$3"}->"$4}' >> ${save_dir}/restore.sh
+        echo "'" >> ${save_dir}/restore.sh
+
+        echo "ovs-ofctl -O ${group_version} add-groups ${br} \
+                    \"\$CURR_DIR/ovs-ofctl_-O_${group_version}_dump-groups_${br}\" ${bundle}" >> ${save_dir}/restore.sh
+
+        echo "ovs-ofctl -O $flow_version replace-flows ${br} \
+                    \"\$CURR_DIR/ovs-ofctl_-O_${flow_version}_dump-flows_${br}\" ${bundle}" >> ${save_dir}/restore.sh
+    done
+
+    mkdir -p $VAR_RUN
 
     echo ""
     echo ""
@@ -244,6 +381,9 @@ mkdir -p ${WORKDIR}
 case $CMD in
     collect-k8s)
         do_collect-k8s $@
+        ;;
+    collect-sos)
+        do_collect-sos $@
         ;;
     collect-db)
         do_collect-db $@
