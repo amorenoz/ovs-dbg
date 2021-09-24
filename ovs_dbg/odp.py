@@ -1,5 +1,6 @@
 """ Defines an Openvswitch Datapath Flow
 """
+import re
 from functools import partial
 from dataclasses import dataclass
 
@@ -20,6 +21,7 @@ from ovs_dbg.decoders import (
     Mask8,
     Mask16,
     Mask32,
+    Mask64,
     Mask128,
     IPMask,
     EthMask,
@@ -139,7 +141,7 @@ class ODPFlow(Flow):
                                     "collector_sed_id": decode_int,
                                     "obs_domain_id": decode_int,
                                     "obs_point_id": decode_int,
-                                    "output_port": decode_int,
+                                    "output_port": decode_default,
                                     "ingress": decode_flag,
                                     "egress": decode_flag,
                                 }
@@ -148,7 +150,7 @@ class ODPFlow(Flow):
                         "ipfix": nested_kv_decoder(
                             KVDecoders(
                                 {
-                                    "output_port": decode_int,
+                                    "output_port": decode_default,
                                 }
                             )
                         ),
@@ -242,7 +244,7 @@ class ODPFlow(Flow):
                     "sample": nested_kv_decoder(
                         KVDecoders(
                             {
-                                "sample": (lambda x: decode_int(x.strip("%"))),
+                                "sample": (lambda x: float(x.strip("%"))),
                                 "actions": nested_kv_decoder(
                                     KVDecoders(
                                         decoders=_decoders,
@@ -438,15 +440,15 @@ class ODPFlow(Flow):
             "tunnel": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "tun_id": decode_int,
+                        "tun_id": Mask64,
                         "src": IPMask,
                         "dst": IPMask,
                         "ipv6_src": IPMask,
                         "ipv6_dst": IPMask,
-                        "tos": decode_int,
-                        "ttl": decode_int,
-                        "tp_src": decode_int,
-                        "tp_dst": decode_int,
+                        "tos": Mask8,
+                        "ttl": Mask8,
+                        "tp_src": Mask16,
+                        "tp_dst": Mask16,
                         "erspan": nested_kv_decoder(
                             KVDecoders(
                                 {
@@ -667,9 +669,15 @@ def decode_geneve(mask, value):
         def free_decoder(value):
             return "data", decode_int(value)
 
-    return decode_nested_kv(
-        KVDecoders(decoders=decoders, default_free=free_decoder), value.strip("{}")
-    )
+    result = []
+    for opts in re.findall(r"{.*?}", value):
+        result.append(
+            decode_nested_kv(
+                KVDecoders(decoders=decoders, default_free=free_decoder),
+                opts.strip("{}"),
+            )
+        )
+    return result
 
 
 def decode_tnl_gre(value):
