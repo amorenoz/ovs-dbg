@@ -149,7 +149,12 @@ class DatapathGraph:
         """
         if action_name == "recirc":
             cname = self.recirc_cluster_name(action_obj)
-            self._graph.edge(name, self.invis_node_name(cname), lhead=cname)
+            self._graph.edge(
+                name,
+                self.invis_node_name(cname),
+                lhead=cname,
+                _attributes={"weight": "20"},
+            )
             return True
         elif action_name == "output":
             port = action_obj.get("port")
@@ -158,15 +163,18 @@ class DatapathGraph:
                     self.output_node_name(port),
                     shape="Msquare",
                     label="Port {}".format(port),
+                    rank="sink",
                 )
                 self._output_nodes.append(port)
-            self._graph.edge(name, self.output_node_name(port))
+            self._graph.edge(
+                name, self.output_node_name(port), _attributes={"weight": "1"}
+            )
             return True
         elif action_name in ["drop", "userspace"]:
             if action_name not in self._output_nodes:
-                self._graph.node(action_name, shape="Msquare")
+                self._graph.node(action_name, shape="Msquare", rank="sink")
                 self._output_nodes.append(action_name)
-            self._graph.edge(name, action_name)
+                self._graph.edge(name, action_name, _attributes={"weight": "1"})
             return True
         return False
 
