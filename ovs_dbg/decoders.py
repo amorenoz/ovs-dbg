@@ -124,7 +124,12 @@ class IntMask(Decoder):
         return "%s('%s')" % (self.__class__.__name__, self)
 
     def __eq__(self, other):
-        return self.value == other.value and self.mask == other.mask
+        if isinstance(other, IntMask):
+            return self.value == other.value and self.mask == other.mask
+        elif isinstance(other, int):
+            return self.value == other and self.mask == self.max_mask()
+        else:
+            raise ValueError("Cannot compare against ", other)
 
     def __contains__(self, other):
         if isinstance(other, IntMask):
@@ -177,7 +182,6 @@ def decode_mask(mask_size):
         __name__ = "Mask{}".format(size)
 
     return Mask
-
 
 
 class EthMask(Decoder):
