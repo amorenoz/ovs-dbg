@@ -41,7 +41,7 @@ setup(
     name="ovs_dbg",
     packages=find_packages(include=["ovs_dbg", "ovs_dbg.ofparse"]),
     setup_requires=setup_requirements,
-    scripts=["bin/ofparse", "bin/ovs-lgrep"],
+    scripts=["bin/ofparse", "bin/ovs-lgrep", "bin/ovs-offline"],
     data_files=["ovs_dbg/ofparse/ofparse.conf"],
     test_suite="tests",
     tests_require=test_requirements,

@@ -6,7 +6,7 @@ SCRIPT_PATH=`dirname $SCRIPT`
 CONTAINER_PATH=${SCRIPT_PATH}/../containers/ovs-dbg
 
 OVN_NAMESPACE=ovn-kubernetes
-WORKDIR=${OVS_DBG_WORKDIR:-/tmp/ovs-offline-dbg}
+WORKDIR=${OVS_DBG_WORKDIR:-/tmp/ovs-offline}
 VAR_RUN=${WORKDIR}/var-run
 SOS_DIR=${WORKDIR}/sos_report
 SOS_CMD_DIR=${SOS_DIR}/sos_commands/openvswitch/
