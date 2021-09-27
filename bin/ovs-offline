@@ -26,23 +26,27 @@ usage() {
     echo ""
     echo "Debug OVS by recreating an environment offline"
     echo ""
-    echo "Available commands:"
+    echo "Basic commands:"
     echo "  build                Builds the needed container images"
-    echo "  collect-k8s NODE     Collects information from a running k8s node and saves it in the working directory"
-    echo "    Options":
-    echo "       -o:    Openshift environment"
-    echo ""
-    echo "  collect-sos-ovs      SOS      Collects the OpenvSwitch information from the provided sos.tar.xz and prepares it for offline debugging"
-    echo ""
-    echo "  collect-db-ovs       DBFILE   Collects the provided OpenvSwitch database file and prepares it for offline debugging"
-    echo "  collect-db-ovn-nb    DBFILE   Collects the provided OVN_Northbound database file and prepares it for offline debugging"
-    echo "  collect-db-ovn-sb    DBFILE   Collects the provided OVN_Southbound database file and prepares it for offline debugging"
     echo ""
     echo "  start                Starts an offline debugging session service. Data must have been previously collected in the working directory"
     echo ""
     echo "  stop                 Stops the offline debugging environment"
     echo ""
-    echo "  print                Prints the available information found in the working directory"
+    echo "  show                 Prints the available information found in the working directory"
+    echo ""
+    echo " Data collection commands"
+    echo "  collect-k8s NODE     Collects information from a running k8s node and saves it in the working directory"
+    echo "    Options":
+    echo "       -o:    Openshift environment"
+    echo ""
+    echo "  collect-sos-ovs      SOS      Collects the OpenvSwitch information from the provided sos.tar.xz and prepares it for offline debugging"
+    echo "  collect-sos-ovn      SOS      Collects the OVN information from the provided sos.tar.xz and prepares it for offline debugging"
+    echo ""
+    echo "  collect-db-ovs       DBFILE   Collects the provided OpenvSwitch database file and prepares it for offline debugging"
+    echo "  collect-db-ovn-nb    DBFILE   Collects the provided OVN_Northbound database file and prepares it for offline debugging"
+    echo "  collect-db-ovn-sb    DBFILE   Collects the provided OVN_Southbound database file and prepares it for offline debugging"
+    echo ""
     echo ""
     echo "Generic options"
     echo "  -h:     Print help"
@@ -466,7 +470,7 @@ case $CMD in
         echo ""
         print_tools
         ;;
-    print)
+    show)
         print_tools
         ;;
     stop)

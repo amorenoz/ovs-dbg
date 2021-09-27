@@ -1,0 +1,14 @@
+#/usr/bin/env bash
+
+_ovs_offline_commands="build start stop show collect-k8s collect-sos-ovs collect-sos-ovn collect-db-ovs collect-db-ovn-nb collect-db-ovn-sb"
+
+_ovs_offline_completions()
+{
+  if [ "${#COMP_WORDS[@]}" != "2" ]; then
+    return
+  fi
+
+  COMPREPLY=($(compgen -W "${_ovs_offline_commands}" -- "${COMP_WORDS[1]}"))
+}
+
+complete -F _ovs_offline_completions ovs-offline
