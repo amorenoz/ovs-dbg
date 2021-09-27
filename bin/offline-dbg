@@ -8,6 +8,9 @@ CONTAINER_PATH=${SCRIPT_PATH}/../containers/ovs-dbg
 OVN_NAMESPACE=ovn-kubernetes
 WORKDIR=${OVS_DBG_WORKDIR:-/tmp/ovs-offline-dbg}
 VAR_RUN=${WORKDIR}/var-run
+SOS_DIR=${WORKDIR}/sos_report
+SOS_CMD_DIR=${SOS_DIR}/sos_commands/openvswitch/
+
 
 declare -A open_flow_protocols=(
     [0x1]=OpenFlow10
@@ -145,7 +148,7 @@ EOF
 
 check_for_OpenFlow_14() {
     # If no protocol listed, default to atomic bundle txn (enabled by default on ovs 2.8 and on)
-    local hex_ofp_version=$(cat ${CMD_DIR}/ovs-ofctl_-t_5_--version | grep "OpenFlow versions" | grep -oP [0-9]*x[0-9]* | tail -1)
+    local hex_ofp_version=$(cat ${SOS_CMD_DIR}/ovs-ofctl_-t_5_--version | grep "OpenFlow versions" | grep -oP [0-9]*x[0-9]* | tail -1)
     local version=${open_flow_protocols[$hex_ofp_version]}
     if [ -z "$version" ]; then
         echo " --bundle"
@@ -161,21 +164,20 @@ do_collect-sos-ovn() {
         exit 1
     fi
     local sos=$1
+    [ -f "$sos" ] ||  error "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
     local dir_name=`tar -tf $sos | head -1 | cut -f1 -d"/"`
     local ovn_nb_file="${dir_name}/var/lib/openvswitch/ovn/ovnnb_db.db"
     local ovn_sb_file="${dir_name}/var/lib/openvswitch/ovn/ovnsb_db.db"
 
-    [ -f "$sos" ] ||  error "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
-
-    mkdir -p ${WORKDIR}/sos_report
+    mkdir -p ${SOS_DIR}
 
     echo "Extracting OVN data from sos report..."
-    tar -xvf $sos -C ${WORKDIR}/sos_report $ovn_nb_file --strip-components=5 &>/dev/null || error "Could not extract OVN NB database"
-    tar -xvf $sos -C ${WORKDIR}/sos_report $ovn_sb_file --strip-components=5 &>/dev/null || error "Could not extract OVN NB database"
-    do_collect-db "${WORKDIR}/sos_report/ovnnb_db.db" "ovn_nb"
-    rm "${WORKDIR}/sos_report/ovnnb_db.db"
-    do_collect-db "${WORKDIR}/sos_report/ovnsb_db.db" "ovn_sb"
-    rm "${WORKDIR}/sos_report/ovnsb_db.db"
+    tar -xvf $sos -C ${SOS_DIR} $ovn_nb_file --strip-components=5 &>/dev/null || error "Could not extract OVN NB database"
+    tar -xvf $sos -C ${SOS_DIR} $ovn_sb_file --strip-components=5 &>/dev/null || error "Could not extract OVN NB database"
+    do_collect-db "${SOS_DIR}/ovnnb_db.db" "ovn_nb"
+    rm "${SOS_DIR}/ovnnb_db.db"
+    do_collect-db "${SOS_DIR}/ovnsb_db.db" "ovn_sb"
+    rm "${SOS_DIR}/ovnsb_db.db"
 }
 
 do_collect-sos-ovs() {
@@ -184,26 +186,22 @@ do_collect-sos-ovs() {
         exit 1
     fi
     local sos=$1
+    [ -f "$sos" ] ||  error "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
     local dir_name=`tar -tf $sos | head -1 | cut -f1 -d"/"`
     local sos_files="${dir_name}/sos_commands/rpm ${dir_name}/sos_commands/openvswitch"
     local db_locations="var/lib/openvswitch etc/openvswitch usr/local/etc/openvswitch"
 
-    if test -f "$sos"; then
-        mkdir -p ${WORKDIR}/sos_report
-        echo "Extracting sos report from '$sos'..."
-    else
-        error "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
-    fi
+    mkdir -p ${SOS_DIR}
 
+    echo "Extracting OVS data from sos report..."
     for dir in $sos_files; do
-        tar -xvf $sos -C ${WORKDIR}/sos_report $dir --strip-components 1 &>/dev/null || error "Could not extract critical directory $dir from $sos"
+        tar -xvf $sos -C ${SOS_DIR} $dir --strip-components 1 &>/dev/null || error "Could not extract critical directory $dir from $sos"
     done
-    CMD_DIR=${WORKDIR}/sos_report/sos_commands/openvswitch/
 
     local db_dir=''
     for dir in $db_locations; do
-        tar -xvf $sos -C ${WORKDIR}/sos_report ${dir_name}/${dir}/conf.db --strip-components 1 &>/dev/null || true
-        if test -f "${WORKDIR}/sos_report/${dir}/conf.db"; then
+        tar -xvf $sos -C ${SOS_DIR} ${dir_name}/${dir}/conf.db --strip-components 1 &>/dev/null || true
+        if test -f "${SOS_DIR}/${dir}/conf.db"; then
             db_dir=$dir
             break
         fi
@@ -214,13 +212,13 @@ do_collect-sos-ovs() {
         echo "If the target cluster has defined \$ovs_dbdir it could be located there"
         echo "Please add manually using collect-db and re-run collect-sos"
     else
-        do_collect-db ${WORKDIR}/sos_report/${db_dir}/conf.db ovs
-        rm ${WORKDIR}/sos_report/${db_dir}/conf.db
+        do_collect-db ${SOS_DIR}/${db_dir}/conf.db ovs
+        rm ${SOS_DIR}/${db_dir}/conf.db
     fi
 
     # OVS 2.7 and earlier do not enable OpenFlow 1.4 (by default) and lack
     # other features needed to save and restore flows.
-    local ovs_ver=$(cat ${WORKDIR}/sos_report/sos_commands/rpm/package-data | grep -o ^openvswitch-[0-9].[0-9]*.[0-9])
+    local ovs_ver=$(cat ${SOS_DIR}/sos_commands/rpm/package-data | grep -o ^openvswitch-[0-9].[0-9]*.[0-9])
     case $ovs_ver in
     "openvswitch-1."*.*)
         error "Outdated ovs version (2.8 or higher required)"
@@ -233,19 +231,19 @@ do_collect-sos-ovs() {
     save_dir=${WORKDIR}/restore_flows
     mkdir -p $save_dir
 
-    if test -f "${CMD_DIR}/ovs-vsctl_-t_5_list-br"; then
-        bridges=$(cat ${CMD_DIR}/ovs-vsctl_-t_5_list-br)
+    if test -f "${SOS_CMD_DIR}/ovs-vsctl_-t_5_list-br"; then
+        bridges=$(cat ${SOS_CMD_DIR}/ovs-vsctl_-t_5_list-br)
     else
         error "ovs-vsctl_-t_5_list-br missing from sos report. Make sure your sos archive is generated from the most recent sos report"
     fi
 
     # Collect group, flow, and tlv dumps
     for br in $bridges; do
-        local version=$(ls $CMD_DIR | grep ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_${br} | grep -o "OpenFlow[0-9]*")
+        local version=$(ls $SOS_CMD_DIR | grep ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_${br} | grep -o "OpenFlow[0-9]*")
         local high_ver=$(echo "$version" | sort | tail -n 1)
-        cp ${CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-flows_${br} $save_dir || error "Sos report missing dump-flows for bridge $br. Make sure your sos archive is generated from the most recent sos report"
-        cp ${CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-tlv-map_${br} $save_dir || error "Sos report missing dump-tlv for bridge $br. Make sure your sos archive is generated from the most recent sos report"
-        cp ${CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-groups_${br} $save_dir || error "Sos report missing dump-groups for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-flows_${br} $save_dir || error "Sos report missing dump-flows for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-tlv-map_${br} $save_dir || error "Sos report missing dump-tlv for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-groups_${br} $save_dir || error "Sos report missing dump-groups for bridge $br. Make sure your sos archive is generated from the most recent sos report"
     done
     # Apply the workarounds found in ovs-save to the current flows and
     # groups to allow for restoration
