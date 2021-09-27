@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -eu
 
 SCRIPT=`realpath -s $0`
@@ -30,11 +29,13 @@ usage() {
     echo "    Options":
     echo "       -o:    Openshift environment"
     echo ""
-    echo "  collect-sos SOS      Collects information from the provided sos.tar.xz and saves it in the working directory"
-    echo "  collect-db  DBFILE   Collects the provided database file and prepares it for offline debugging"
+    echo "  collect-sos-ovs      SOS      Collects the OpenvSwitch information from the provided sos.tar.xz and prepares it for offline debugging"
     echo ""
-    echo "  start [SERVICE]      Starts an offline debugging session service. hData must have been previously collected in the working directory"
-    echo "                       Supported services: ovsdb, vswitchd, all(default)"
+    echo "  collect-db-ovs       DBFILE   Collects the provided OpenvSwitch database file and prepares it for offline debugging"
+    echo "  collect-db-ovn-nb    DBFILE   Collects the provided OVN_Northbound database file and prepares it for offline debugging"
+    echo "  collect-db-ovn-sb    DBFILE   Collects the provided OVN_Southbound database file and prepares it for offline debugging"
+    echo ""
+    echo "  start                Starts an offline debugging session service. Data must have been previously collected in the working directory"
     echo ""
     echo "  stop                 Stops the offline debugging environment"
     echo ""
@@ -52,38 +53,35 @@ error() {
 }
 
 do_build() {
-    echo "Offline OVS Debugging: building images"
-    echo "***************************************"
-
     docker build -t ovs-dbg -f ${CONTAINER_PATH}/Dockerfile ${CONTAINER_PATH}
 }
 
 do_stop() {
-    docker kill ovsdb-server &>/dev/null || true
     docker kill ovs-vswitchd &>/dev/null || true
-    docker rm ovsdb-server &>/dev/null || true
     docker rm ovs-vswitchd &>/dev/null || true
+    docker kill ovsdb-server-ovs &>/dev/null || true
+    docker rm ovsdb-server-ovs &>/dev/null || true
+    docker kill ovsdb-server-ovn_nb &>/dev/null || true
+    docker rm ovsdb-server-ovn_nb &>/dev/null || true
+    docker kill ovsdb-server-ovn_sb &>/dev/null || true
+    docker rm ovsdb-server-ovn_sb &>/dev/null || true
     rm -rf ${WORKDIR}
-    echo "Offline OVS Debugging stopped"
-    echo "*****************************"
-}
-
-process_dbfile() {
-    local orig_dbfile=$1
-    local final_dbfile=$WORKDIR/final.db
-    if [ -f ${final_dbfile} ]; then
-        echo "Warning, overwriting DB file $final_dbfile"
-    fi
-    ovs
 }
 
 do_collect-db() {
+    # $1: database file to backup
+    # $2: name of the database (ovs | ovn_nb | ovn_sb)
     local orig_dbfile=$1
-    cp $orig_dbfile $WORKDIR/db.conf
-    echo ""
-    echo ""
-    echo "Offline OVS Debugging: DB file collected and stored in ${WORKDIR}"
-    echo "*****************************************************************"
+    local name=$2
+
+    local dest_dbfile=${WORKDIR}/db/${name}/$(basename -- ${orig_dbfile})
+
+    if [ -f ${dest_dbfile} ]; then
+        error "A database of type ${name} already exists in the current working directory. Run 'stop' or select a different working directory"
+    fi
+
+    mkdir -p ${WORKDIR}/db/${name}
+    cp $orig_dbfile ${dest_dbfile}
 }
 
 do_collect-k8s() {
@@ -134,12 +132,15 @@ EOF
 
     # Collect the DB backup
     mkdir -p $VAR_RUN
-    kubectl exec -i -n $OVN_NAMESPACE $ovnkube_node ovsdb-client backup > ${WORKDIR}/db.conf
+    kubectl exec -i -n $OVN_NAMESPACE $ovnkube_node ovsdb-client backup > ${WORKDIR}/${ovnkube_node}_ovs.db
+    do_collect-db ${WORKDIR}/${ovnkube_node}_ovs.db ovs
 
-    echo ""
-    echo ""
-    echo "Offline OVS Debugging: data collected and stored in ${WORKDIR}"
-    echo "**************************************************************"
+    # Collect OVN information
+    ovnkube_db_pod=$(kubectl get pods -n $OVN_NAMESPACE -o name | grep ovnkube-db | sed "s/^.\{4\}//")
+    kubectl cp -n ${OVN_NAMESPACE} ${ovnkube_db_pod}:/etc/openvswitch/ovnnb_db.db  ${WORKDIR}/ovnnb_db.db
+    kubectl cp -n ${OVN_NAMESPACE} ${ovnkube_db_pod}:/etc/openvswitch/ovnsb_db.db  ${WORKDIR}/ovnsb_db.db
+    do_collect-db ${WORKDIR}/ovnnb_db.db ovn_nb
+    do_collect-db ${WORKDIR}/ovnsb_db.db ovn_sb
 }
 
 check_for_OpenFlow_14() {
@@ -151,27 +152,47 @@ check_for_OpenFlow_14() {
     else
         [ ${version#OpenFlow} -ge 14 ] && bundle=" --bundle" || bundle=""
         echo $bundle
-    fi                    
+    fi
 }
 
-do_collect-sos() {
+do_collect-sos-ovn() {
     if [ $# -lt 1 ]; then
         usage
         exit 1
     fi
     local sos=$1
-
     local dir_name=`tar -tf $sos | head -1 | cut -f1 -d"/"`
+    local ovn_nb_file="${dir_name}/var/lib/openvswitch/ovn/ovnnb_db.db"
+    local ovn_sb_file="${dir_name}/var/lib/openvswitch/ovn/ovnsb_db.db"
 
+    [ -f "$sos" ] ||  error "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
+
+    mkdir -p ${WORKDIR}/sos_report
+
+    echo "Extracting OVN data from sos report..."
+    tar -xvf $sos -C ${WORKDIR}/sos_report $ovn_nb_file --strip-components=5 &>/dev/null || error "Could not extract OVN NB database"
+    tar -xvf $sos -C ${WORKDIR}/sos_report $ovn_sb_file --strip-components=5 &>/dev/null || error "Could not extract OVN NB database"
+    do_collect-db "${WORKDIR}/sos_report/ovnnb_db.db" "ovn_nb"
+    rm "${WORKDIR}/sos_report/ovnnb_db.db"
+    do_collect-db "${WORKDIR}/sos_report/ovnsb_db.db" "ovn_sb"
+    rm "${WORKDIR}/sos_report/ovnsb_db.db"
+}
+
+do_collect-sos-ovs() {
+    if [ $# -lt 1 ]; then
+        usage
+        exit 1
+    fi
+    local sos=$1
+    local dir_name=`tar -tf $sos | head -1 | cut -f1 -d"/"`
     local sos_files="${dir_name}/sos_commands/rpm ${dir_name}/sos_commands/openvswitch"
-
     local db_locations="var/lib/openvswitch etc/openvswitch usr/local/etc/openvswitch"
 
     if test -f "$sos"; then
-        mkdir ${WORKDIR}/sos_report || error "Sos_report already exists. To collect a new sos report, first run 'stop' or set a new \${WORKDIR}"
+        mkdir -p ${WORKDIR}/sos_report
         echo "Extracting sos report from '$sos'..."
     else
-        echo "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
+        error "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
     fi
 
     for dir in $sos_files; do
@@ -193,7 +214,8 @@ do_collect-sos() {
         echo "If the target cluster has defined \$ovs_dbdir it could be located there"
         echo "Please add manually using collect-db and re-run collect-sos"
     else
-        mv ${WORKDIR}/sos_report/${db_dir}/conf.db ${WORKDIR}/db.conf
+        do_collect-db ${WORKDIR}/sos_report/${db_dir}/conf.db ovs
+        rm ${WORKDIR}/sos_report/${db_dir}/conf.db
     fi
 
     # OVS 2.7 and earlier do not enable OpenFlow 1.4 (by default) and lack
@@ -216,7 +238,7 @@ do_collect-sos() {
     else
         error "ovs-vsctl_-t_5_list-br missing from sos report. Make sure your sos archive is generated from the most recent sos report"
     fi
-    
+
     # Collect group, flow, and tlv dumps
     for br in $bridges; do
         local version=$(ls $CMD_DIR | grep ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_${br} | grep -o "OpenFlow[0-9]*")
@@ -263,91 +285,103 @@ do_collect-sos() {
     done
 
     mkdir -p $VAR_RUN
-
-    echo ""
-    echo ""
-    echo "Offline OVS Debugging: data collected and stored in ${WORKDIR}"
-    echo "**************************************************************"
 }
 
 start_ovsdb() {
     # run ovsdb-server
-    docker kill ovsdb-server &>/dev/null || true
-    docker rm ovsdb-server &>/dev/null || true
-    docker run -d -p 127.0.0.1:6640:6640/tcp -v ${WORKDIR}/db.conf:/usr/local/var/run/openvswitch/db.backup -v ${VAR_RUN}:/usr/local/var/run/openvswitch/  --name ovsdb-server ovs-dbg ovsdb
+    # $1 : database_type (directory within $WORKDIR/db)
+    local name=$1
+    local db_file=$(ls -x ${WORKDIR}/db/${name} | tail -1)
+    local backup_local_file=${WORKDIR}/db/${name}/${db_file}
+
+    local remote_var_run=/usr/local/var/run/openvswitch
+    local local_var_run=${VAR_RUN}/${name}
+
+    local container_name=ovsdb-server-${name}
+    local backup_file=${remote_var_run}/${name}.db
+    local socket_file=${remote_var_run}/${name}.sock
+
+    docker kill ovsdb-server-${name} &>/dev/null || true
+    docker rm ovsdb-server-${name} &>/dev/null || true
+
+    echo "Starting container ovsdb-server-${name}"
+    docker run -d -e OVSDB_BACKUP=${backup_file} -e OVSDB_SOCKET=${socket_file} -v ${backup_local_file}:${backup_file} -v ${local_var_run}:${remote_var_run} --name ovsdb-server-${name} ovs-dbg ovsdb
     sleep 3
 }
 
 start_vswitchd() {
     # run ovs-vswitchd
+    local remote_var_run=/usr/local/var/run/openvswitch
+    local socket_file=${remote_var_run}/ovs.sock
+    local local_var_run=${VAR_RUN}/ovs
+
     docker kill ovs-vswitchd &>/dev/null || true
     docker rm ovs-vswitchd &>/dev/null || true
-    docker run -d -p 127.0.0.1:16640:6640/tcp -e RESTORE_DIR="/root/restore_flows" -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${VAR_RUN}:/usr/local/var/run/openvswitch/ --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
+
+    echo "Starting container ovs-vswitchd"
+    docker run -d -e OVSDB_SOCKET=${socket_file} -e RESTORE_DIR="/root/restore_flows" -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
     sleep 3
 }
 
 do_start() {
-    local svc=${1-all}
-
     # Ensure ovs-dbg image is present
     docker inspect ovs-dbg 2>&1 >/dev/null || (
         echo "Failed to find a local container named ovs-dbg. Pulling from quay.io/amorenoz/ovs-dbg"
         docker pull quay.io/amorenoz/ovs-dbg && docker tag quay.io/amorenoz/ovs-dbg ovs-dbg
     )
 
-    case ${svc} in
-        all)
-            start_ovsdb
+    for db_type in $(ls -x ${WORKDIR}/db); do
+        start_ovsdb ${db_type}
+        if [ ${db_type} == "ovs" ]; then
             start_vswitchd
-            ;;
-        ovsdb)
-            start_ovsdb
-            ;;
-        vswitchd)
-            start_vswitchd
-            ;;
-        *)
-            usage
-            exit 1
-    esac
-
-    echo ""
-    echo "Offline OVS Debugging started"
-    echo "******************************"
-    echo ""
-    print_tools
-
+        fi
+    done
 }
 
 print_tools() {
     echo "Working directory: $WORKDIR:"
 
-    if ls -x $VAR_RUN/ovs-vswitchd.*.ctl &>/dev/null; then
-        vswitchd_ctl=$(ls -x $VAR_RUN/ovs-vswitchd.*.ctl)
+    if ls -x $VAR_RUN/ovs/ovs-vswitchd.*.ctl &>/dev/null; then
+        vswitchd_ctl=$(ls -x $VAR_RUN/ovs/ovs-vswitchd.*.ctl)
         echo ""
-        echo "openvswitch control found at ${vswitchd_ctl}"
-        echo "You can run ovs-appctl commands as:"
-        echo "   ovs-appctl --target=${vswitchd_ctl} [...]"
+        echo "* openvswitch control found at ${vswitchd_ctl}"
+        echo "  You can run ovs-appctl commands as:"
+        echo "      ovs-appctl --target=${vswitchd_ctl} [...]"
     fi
 
-    if ls -x $VAR_RUN/db.sock &>/dev/null; then
-        ovsdb_sock=$(ls -x $VAR_RUN/db.sock)
-        echo ""
-        echo "OVSDB socket found at ${ovsdb_sock}"
-        echo "You can run ovsdb commands such as:"
-        echo "   ovs-vsctl --db unix:${ovsdb_sock} [...]"
-        echo "   ovn-nbctl --db unix:${ovsdb_sock} [...]"
-        echo "   ovn-sbctl --db unix:${ovsdb_sock} [...]"
-        echo "   ovsdb-client ${ovsdb_sock} [...]"
-    fi
+    for type in ovs ovn_nb ovn_sb; do
+        if ls -x ${VAR_RUN}/${type}/*.sock &>/dev/null; then
+            db_sock=$(ls -x $VAR_RUN/${type}/*.sock)
+            command=""
+            case ${type} in
+                ovs)
+                    command="ovs-vsctl"
+                    ;;
+                ovn_nb)
+                    command="ovn-nbctl"
+                    ;;
+                ovn_sb)
+                    command="ovn-sbctl"
+                    ;;
+                *)
+                    error "Unkown db socket file ${db_sock}"
+            esac
+            echo ""
+            echo "* ${type} ovsdb-server socket found at ${db_sock}"
+            echo "  You can run commands such as:"
+            echo "      ${command} --db unix:${db_sock} [...]"
+            echo "  or"
+            echo "      ovsdb-client ${db_sock} [...]"
+        fi
+    done
 
-    if ls -x $VAR_RUN/*.mgmt &>/dev/null; then
-        ofproto_socks=$(ls -x $VAR_RUN/*.mgmt)
+    if ls -x $VAR_RUN/ovs/*.mgmt &>/dev/null; then
+        ofproto_socks=$(ls -x $VAR_RUN/ovs/*.mgmt)
         echo ""
-        echo "openflow bridge management sockets found at ${ofproto_socks}"
-        echo "You can run ofproto commands such as:"
-        for mgt in $(ls -x $VAR_RUN/*.mgmt); do
-            echo "   ovs-ofctl [...] ${mgt}"
+        echo "* openflow bridge management sockets found at ${ofproto_socks}"
+        echo "  You can run ofproto commands such as:"
+        for mgt in $(ls -x $VAR_RUN/ovs/*.mgmt); do
+            echo "      ovs-ofctl [...] ${mgt}"
         done
     fi
 }
@@ -381,24 +415,66 @@ mkdir -p ${WORKDIR}
 case $CMD in
     collect-k8s)
         do_collect-k8s $@
+        echo ""
+        echo ""
+        echo "Offline OVS Debugging: data collected and stored in ${WORKDIR}"
+        echo "**********************"
         ;;
-    collect-sos)
-        do_collect-sos $@
+    collect-sos-ovs)
+        do_collect-sos-ovs $@
+        echo ""
+        echo ""
+        echo "Offline OVS Debugging: OVS data collected and stored in ${WORKDIR}"
+        echo "*******************************************************************"
         ;;
-    collect-db)
-        do_collect-db $@
+    collect-sos-ovn)
+        do_collect-sos-ovn $@
+        echo ""
+        echo ""
+        echo "Offline OVS Debugging: OVN data collected and stored in ${WORKDIR}"
+        echo "*******************************************************************"
+        ;;
+    collect-db-ovs)
+        do_collect-db $@ "ovs"
+        echo ""
+        echo ""
+        echo "Offline OVS Debugging: OVS DB file collected and stored in ${WORKDIR}"
+        echo "**********************"
+        ;;
+    collect-db-ovn-nb)
+        do_collect-db $@ "ovn_nb"
+        echo ""
+        echo ""
+        echo "Offline OVS Debugging: OVN NB DB file collected and stored in ${WORKDIR}"
+        echo "**********************"
+        ;;
+    collect-db-ovn-sb)
+        do_collect-db $@ "ovn_sb"
+        echo ""
+        echo ""
+        echo "Offline OVS Debugging: OVN SB DB file collected and stored in ${WORKDIR}"
+        echo "**********************"
         ;;
     build)
         do_build $@
+        echo "Offline OVS Debugging: images built"
+        echo "***********************************"
         ;;
     start)
         do_start $@
+        echo ""
+        echo "Offline OVS Debugging started"
+        echo "******************************"
+        echo ""
+        print_tools
         ;;
     print)
         print_tools
         ;;
     stop)
         do_stop $@
+        echo "Offline OVS Debugging stopped"
+        echo "*****************************"
         ;;
     *)
         echo "Invalid command $CMD" 1>&2
