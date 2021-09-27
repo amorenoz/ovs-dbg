@@ -77,7 +77,7 @@ do_collect-db() {
     local dest_dbfile=${WORKDIR}/db/${name}/$(basename -- ${orig_dbfile})
 
     if [ -f ${dest_dbfile} ]; then
-        error "${dest_dbfile} already exists"
+        error "A database of type ${name} already exists in the current working directory. Run 'stop' or select a different working directory"
     fi
 
     mkdir -p ${WORKDIR}/db/${name}
@@ -152,7 +152,30 @@ check_for_OpenFlow_14() {
     else
         [ ${version#OpenFlow} -ge 14 ] && bundle=" --bundle" || bundle=""
         echo $bundle
-    fi                    
+    fi
+}
+
+do_collect-sos-ovn() {
+    if [ $# -lt 1 ]; then
+        usage
+        exit 1
+    fi
+    local sos=$1
+    local dir_name=`tar -tf $sos | head -1 | cut -f1 -d"/"`
+    local ovn_nb_file="${dir_name}/var/lib/openvswitch/ovn/ovnnb_db.db"
+    local ovn_sb_file="${dir_name}/var/lib/openvswitch/ovn/ovnsb_db.db"
+
+    [ -f "$sos" ] ||  error "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
+
+    mkdir -p ${WORKDIR}/sos_report
+
+    echo "Extracting OVN data from sos report..."
+    tar -xvf $sos -C ${WORKDIR}/sos_report $ovn_nb_file --strip-components=5 &>/dev/null || error "Could not extract OVN NB database"
+    tar -xvf $sos -C ${WORKDIR}/sos_report $ovn_sb_file --strip-components=5 &>/dev/null || error "Could not extract OVN NB database"
+    do_collect-db "${WORKDIR}/sos_report/ovnnb_db.db" "ovn_nb"
+    rm "${WORKDIR}/sos_report/ovnnb_db.db"
+    do_collect-db "${WORKDIR}/sos_report/ovnsb_db.db" "ovn_sb"
+    rm "${WORKDIR}/sos_report/ovnsb_db.db"
 }
 
 do_collect-sos-ovs() {
@@ -166,10 +189,10 @@ do_collect-sos-ovs() {
     local db_locations="var/lib/openvswitch etc/openvswitch usr/local/etc/openvswitch"
 
     if test -f "$sos"; then
-        mkdir ${WORKDIR}/sos_report || error "Sos_report already exists. To collect a new sos report, first run 'stop' or set a new \${WORKDIR}"
+        mkdir -p ${WORKDIR}/sos_report
         echo "Extracting sos report from '$sos'..."
     else
-        echo "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
+        error "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
     fi
 
     for dir in $sos_files; do
@@ -215,7 +238,7 @@ do_collect-sos-ovs() {
     else
         error "ovs-vsctl_-t_5_list-br missing from sos report. Make sure your sos archive is generated from the most recent sos report"
     fi
-    
+
     # Collect group, flow, and tlv dumps
     for br in $bridges; do
         local version=$(ls $CMD_DIR | grep ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_${br} | grep -o "OpenFlow[0-9]*")
@@ -330,7 +353,7 @@ print_tools() {
         if ls -x ${VAR_RUN}/${type}/*.sock &>/dev/null; then
             db_sock=$(ls -x $VAR_RUN/${type}/*.sock)
             command=""
-            case ${type} in 
+            case ${type} in
                 ovs)
                     command="ovs-vsctl"
                     ;;
@@ -402,6 +425,13 @@ case $CMD in
         echo ""
         echo ""
         echo "Offline OVS Debugging: OVS data collected and stored in ${WORKDIR}"
+        echo "*******************************************************************"
+        ;;
+    collect-sos-ovn)
+        do_collect-sos-ovn $@
+        echo ""
+        echo ""
+        echo "Offline OVS Debugging: OVN data collected and stored in ${WORKDIR}"
         echo "*******************************************************************"
         ;;
     collect-db-ovs)
