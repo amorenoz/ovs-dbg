@@ -13,6 +13,9 @@ From the git checkout
 
     pip install .
 
+## Enable bash autocomplete
+
+    eval "$(ovs-dbg-complete)"
 
 # Available tools
 ## ofparse
