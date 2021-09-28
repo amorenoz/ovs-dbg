@@ -1,6 +1,6 @@
-======================
-ovs-offline
-======================
+===============================================================
+ovs-offline: Spin up OvS and OVN daemons for offline debugging
+===============================================================
 
 The **ovs-offline** tool helps you debug OVS issues offline by recreating the OVSDB and the Openflow flows.
 
