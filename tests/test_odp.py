@@ -40,12 +40,14 @@ from ovs_dbg.decoders import EthMask, IPMask, Mask32, Mask16, Mask8, Mask64, Mas
                 KeyValue(
                     "tunnel",
                     {
-                        "geneve": [{
-                            "class": Mask16("0"),
-                            "type": Mask8("0"),
-                            "len": Mask8("4"),
-                            "data": Mask128("0xa/0xff"),
-                        }],
+                        "geneve": [
+                            {
+                                "class": Mask16("0"),
+                                "type": Mask8("0"),
+                                "len": Mask8("4"),
+                                "data": Mask128("0xa/0xff"),
+                            }
+                        ],
                         "vxlan": {"flags": 0x800000, "vni": 0x1C7},
                         "erspan": {"ver": 2, "dir": 1, "hwid": 0x1},
                     },
@@ -148,7 +150,7 @@ def test_odp_fields(input_string, expected):
                     {
                         "commit": True,
                         "label": Mask128(
-                           "0x1234567890ABCDEF1234567890ABCDEF/0xF1F2F3F4F5F6F7F8F9F0FAFBFCFDFEFF"
+                            "0x1234567890ABCDEF1234567890ABCDEF/0xF1F2F3F4F5F6F7F8F9F0FAFBFCFDFEFF"
                         ),
                     },
                 ),
@@ -404,12 +406,14 @@ def test_odp_fields(input_string, expected):
                             "geneve": {
                                 "crit": True,
                                 "vni": 0x1C7,
-                                "options": [{
-                                    "class": 0xFFFF,
-                                    "type": 0x80,
-                                    "len": 4,
-                                    "data": 0xA,
-                                }],
+                                "options": [
+                                    {
+                                        "class": 0xFFFF,
+                                        "type": 0x80,
+                                        "len": 4,
+                                        "data": 0xA,
+                                    }
+                                ],
                             }
                         }
                     },
