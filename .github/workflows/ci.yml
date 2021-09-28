@@ -24,6 +24,8 @@ jobs:
           python -m pip install pipenv wheel
       - name: Install dependencies
         run: |
-          pipenv install --dev
+          pipenv install --dev --pre
       - name: Run tests with pytest
         run: pipenv run python -m pytest
+      - name: Check format
+        run: pipenv run python -m black --check --diff .

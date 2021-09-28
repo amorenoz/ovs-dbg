@@ -51,11 +51,9 @@ def get_decoder(field):
         if field.get("mask") == "MFM_NONE":
             return "decoders.decode_int"
         else:
-            if field.get('n_bits') in [8, 16, 32, 64, 128, 992]:
-                return "decoders.Mask{}".format(field.get('n_bits'))
-            return "decoders.decode_mask({})".format(
-                field.get("n_bits")
-            )
+            if field.get("n_bits") in [8, 16, 32, 64, 128, 992]:
+                return "decoders.Mask{}".format(field.get("n_bits"))
+            return "decoders.decode_mask({})".format(field.get("n_bits"))
     elif formatting in ["IPv4", "IPv6"]:
         return "decoders.IPMask"
     elif formatting == "Ethernet":

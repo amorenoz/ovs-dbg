@@ -13,6 +13,9 @@ From the git checkout
 
     pip install .
 
+## Enable bash autocomplete
+
+    eval "$(ovs-dbg-complete)"
 
 # Available tools
 ## ofparse
@@ -29,10 +32,10 @@ formatting and filtering.
 
     ovs-lgrep --help
 
-## offline-dbg
-`offline-dbg` is a script that locally recreates a running OVS so you can debug offline (including running `ovs-appctl ofproto/trace`)
+## ovs-offline
+`ovs-offline` is a script that locally recreates a running OVS so you can debug offline (including running `ovs-appctl ofproto/trace`)
 
-    offline-dbg
+    ovs-offline
 
 # Contribute
 PRs are welcome!

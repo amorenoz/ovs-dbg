@@ -1,4 +1,5 @@
 import click
+import os.path
 import sys
 import configparser
 
@@ -6,7 +7,9 @@ from ovs_dbg.filter import OFFilter
 from pkg_resources import resource_filename
 
 _default_config_file = "ofparse.conf"
-_default_config_path = resource_filename(__name__, _default_config_file)
+_default_config_path = os.path.abspath(
+    os.path.join(resource_filename(__name__, ""), "etc", _default_config_file)
+)
 
 
 class Options(dict):
@@ -21,8 +24,10 @@ class Options(dict):
 @click.option(
     "-c",
     "--config",
-    help="Use non-default config file",
+    help="Use config file",
     type=click.Path(),
+    default=_default_config_path,
+    show_default=True,
 )
 @click.option(
     "--style",
