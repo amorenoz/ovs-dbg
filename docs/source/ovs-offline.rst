@@ -8,7 +8,7 @@ The **ovs-offline** tool helps you debug OVS issues offline by recreating the OV
 Usage
 ------
 
-In general, the tool work in two steps. First you must **collect** the logs, flows etc, and then you **start** the offline debugging environment
+In general, the tool works in two steps. First you must **collect** the logs, flows etc, and then you **start** the offline debugging environment
 
 (Optional) Build the ovs-dbg container:
 
@@ -52,7 +52,7 @@ You can also collect OVN NB and OVN SB databases:
 
 ::
 
-    ./bin/ovs-offline collect-db-ovn-nb /path/to/ovnsb_db.db
+    ./bin/ovs-offline collect-db-ovn-sb /path/to/ovnsb_db.db
 
 
 Collect data from a sos report archive
@@ -80,12 +80,18 @@ Start the setup
 
 Once you start, the tool will print the commands that are available for offline debugging.
 
+You can run OVS/OVN commands directly on your offline environment by sourcing the generated script.
+
+::
+
+    source /tmp/ovs-offline/bin/activate
 
 Stop and clean the setup
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 ::
 
+    deactivate
     ./bin/ovs-offline stop
 
 
