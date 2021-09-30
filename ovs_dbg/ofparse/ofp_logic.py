@@ -1,5 +1,6 @@
 import sys
 import io
+import re
 
 from rich.tree import Tree
 from rich.text import Text
@@ -295,12 +296,20 @@ class CookieProcessor(FlowProcessor):
                 tree = Tree("Ofproto Cookie Tree")
 
                 for cookie, tables in cookies.items():
+                    ovn_info = None
+                    if self.ovn_detrace:
+                        ovn_info = self.ovn_detrace.get_ovn_info(cookie)
+                        if self.opts.get("ovn_filter"):
+                            ovn_regexp = re.compile(
+                                self.opts.get("ovn_filter")
+                            )
+                            if not ovn_regexp.search(ovn_info):
+                                continue
+
                     cookie_tree = tree.add(
                         "** Cookie {} **".format(hex(cookie))
                     )
-
-                    if self.ovn_detrace:
-                        ovn_info = self.ovn_detrace.get_ovn_info(cookie)
+                    if ovn_info:
                         ovn = cookie_tree.add("OVN Info")
                         for part in ovn_info.split("\n"):
                             if part.strip():

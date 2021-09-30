@@ -205,8 +205,18 @@ def ovn_detrace_callback(ctx, param, value):
     "Otherwise, the default is unix:/var/run/ovn/ovnnb_db.sock",
     callback=ovn_detrace_callback,
 )
+@click.option(
+    "-o",
+    "--ovn-filter",
+    help="Specify a filter to be run on ovn-detrace information (implied -d). "
+    "Format: python regular expression "
+    "(see https://docs.python.org/3/library/re.html)",
+    callback=ovn_detrace_callback,
+)
 @click.pass_obj
-def cookie(opts, ovn_detrace_flag, ovn_detrace_path, ovnnb_db, ovnsb_db):
+def cookie(
+    opts, ovn_detrace_flag, ovn_detrace_path, ovnnb_db, ovnsb_db, ovn_filter
+):
     """Print the flow tables sorted by cookie"""
     if ovn_detrace_flag:
         opts["ovn_detrace_flag"] = True
