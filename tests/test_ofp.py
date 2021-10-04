@@ -128,6 +128,22 @@ from ovs_dbg.decoders import EthMask, IPMask
             ],
         ),
         (
+            "actions=learn(load:NXM_NX_TUN_ID[]->NXM_NX_TUN_ID[])",
+            [
+                KeyValue(
+                    "learn",
+                    [
+                        {
+                            "load": {
+                                "src": {"field": "NXM_NX_TUN_ID"},
+                                "dst": {"field": "NXM_NX_TUN_ID"},
+                            }
+                        }
+                    ],
+                ),
+            ],
+        ),
+        (
             "actions=set_field:00:11:22:33:44:55->eth_src",
             [
                 KeyValue(

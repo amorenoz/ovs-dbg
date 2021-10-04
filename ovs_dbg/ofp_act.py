@@ -96,7 +96,12 @@ def decode_load_field(value):
     if len(parts) != 2:
         raise ValueError("Malformed load action : %s" % value)
 
-    return {"value": int(parts[0], 0), "dst": decode_field(parts[1])}
+    # If the load action is performed within a learn() action,
+    # The value can be specified as another field.
+    try:
+        return {"value": int(parts[0], 0), "dst": decode_field(parts[1])}
+    except ValueError:
+        return {"src": decode_field(parts[0]), "dst": decode_field(parts[1])}
 
 
 def decode_set_field(field_decoders, value):
