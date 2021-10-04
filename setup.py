@@ -12,6 +12,7 @@ requirements = ["click>=8.0.0", "rich", "pyparsing", "netaddr", "graphviz"]
 
 setup_requirements = [
     "pytest-runner",
+    "setuptools_scm",
 ]
 
 test_requirements = [
@@ -60,6 +61,6 @@ setup(
     project_urls={
         "Source": "https://github.com/amorenoz/ovs-dbg",
     },
-    version="0.0.10",
     zip_safe=False,
+    use_scm_version=True,
 )
