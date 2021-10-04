@@ -3,6 +3,11 @@ testpaths=["tests"]
 
 [build-system]
 requires = [
-    "setuptools>=42",
-    "wheel"
+    "setuptools>=45",
+    "wheel",
+    "setuptools_scm>=6.2",
 ]
+
+[tool.setuptools_scm]
+write_to = "ovs_dbg/_version.py"
+
