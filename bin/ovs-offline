@@ -170,18 +170,26 @@ do_collect-sos-ovn() {
     local sos=$1
     [ -f "$sos" ] ||  error "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
     local dir_name=`tar -tf $sos | head -1 | cut -f1 -d"/"`
-    local ovn_nb_file="${dir_name}/var/lib/openvswitch/ovn/ovnnb_db.db"
-    local ovn_sb_file="${dir_name}/var/lib/openvswitch/ovn/ovnsb_db.db"
+    local db_locations="var/lib/openvswitch/ovn usr/local/etc/openvswitch etc/openvswitch var/lib/openvswitch"
 
     mkdir -p ${SOS_DIR}
 
     echo "Extracting OVN data from sos report..."
-    tar -xvf $sos -C ${SOS_DIR} $ovn_nb_file --strip-components=5 &>/dev/null || error "Could not extract OVN NB database"
-    tar -xvf $sos -C ${SOS_DIR} $ovn_sb_file --strip-components=5 &>/dev/null || error "Could not extract OVN NB database"
-    do_collect-db "${SOS_DIR}/ovnnb_db.db" "ovn_nb"
-    rm "${SOS_DIR}/ovnnb_db.db"
-    do_collect-db "${SOS_DIR}/ovnsb_db.db" "ovn_sb"
-    rm "${SOS_DIR}/ovnsb_db.db"
+    local found_db=false
+    for dir in $db_locations; do
+        let strip="2 + $(echo ${dir} | tr -dc "/" | wc -m)"
+        if tar -xvf $sos -C ${SOS_DIR} ${dir_name}/${dir}/ovnnb_db.db ${dir_name}/${dir}/ovnsb_db.db --strip-components=${strip} &>/dev/null; then
+            found_db=true
+            do_collect-db "${SOS_DIR}/ovnnb_db.db" "ovn_nb"
+            do_collect-db "${SOS_DIR}/ovnsb_db.db" "ovn_sb"
+            rm ${SOS_DIR}/ovn*b_db.db
+            break
+        fi
+    done
+
+    if ! $found_db; then
+        error "Could not extract both OVN database files"
+    fi
 }
 
 do_collect-sos-ovs() {
@@ -202,22 +210,21 @@ do_collect-sos-ovs() {
         tar -xvf $sos -C ${SOS_DIR} $dir --strip-components 1 &>/dev/null || error "Could not extract critical directory $dir from $sos"
     done
 
-    local db_dir=''
+    found_db=false
     for dir in $db_locations; do
-        tar -xvf $sos -C ${SOS_DIR} ${dir_name}/${dir}/conf.db --strip-components 1 &>/dev/null || true
-        if test -f "${SOS_DIR}/${dir}/conf.db"; then
-            db_dir=$dir
+        let strip="2 + $(echo ${dir} | tr -dc "/" | wc -m)"
+        if tar -xvf $sos -C ${SOS_DIR} ${dir_name}/${dir}/conf.db --strip-components=${strip} &>/dev/null; then
+            do_collect-db ${SOS_DIR}/conf.db ovs
+            rm ${SOS_DIR}/conf.db
+            found_db=true
             break
         fi
     done
 
-    if [ -z "${db_dir-}" ]; then
+    if ! $found_db; then
         echo "warning: conf.db not found in default locations."
         echo "If the target cluster has defined \$ovs_dbdir it could be located there"
         echo "Please add manually using collect-db and re-run collect-sos"
-    else
-        do_collect-db ${SOS_DIR}/${db_dir}/conf.db ovs
-        rm ${SOS_DIR}/${db_dir}/conf.db
     fi
 
     # OVS 2.7 and earlier do not enable OpenFlow 1.4 (by default) and lack
