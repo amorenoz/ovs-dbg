@@ -21,6 +21,7 @@ from ovs_dbg.ofparse.console import (
 from ovs_dbg.ofparse.format import FlowStyle
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
 from ovs_dbg.ofparse.dp_graph import DatapathGraph
+from ovs_dbg.ofparse.dp_tree import FlowTree, FlowElem
 from ovs_dbg.odp import ODPFlow
 from ovs_dbg.filter import OFFilter
 
@@ -50,24 +51,9 @@ def pretty(opts):
 @click.pass_obj
 def logic(opts):
     """Print the flows in a tree based on the 'recirc_id'"""
-
-    flow_list = []
-
-    def callback(flow):
-        flow_list.append(flow)
-
-    process_flows(
-        flow_factory=ODPFlow.from_string,
-        callback=callback,
-        filename=opts.get("filename"),
-        filter=opts.get("filter"),
-    )
-
-    tree = Tree("Datapath Flows (logical)")
     ofconsole = ConsoleFormatter(opts)
-    console = ofconsole.console
 
-    # HSV_tuples = [(x / size, 0.7, 0.8) for x in range(size)]
+    # Generate a color pallete for cookies
     recirc_style_gen = hash_pallete(
         hue=[x / 50 for x in range(0, 50)], saturation=[0.7], value=[0.8]
     )
@@ -79,21 +65,17 @@ def logic(opts):
     style.set_value_style("recirc", recirc_style_gen)
     style.set_value_style("recirc_id", recirc_style_gen)
 
-    def append_to_tree(parent, flow):
-        buf = ConsoleBuffer(Text())
-        highlighted = None
-        if opts.get("highlight"):
-            result = opts.get("highlight").evaluate(flow)
-            if result:
-                highlighted = result.kv
-        ofconsole.format_flow(buf, flow, highlighted)
-        tree_elem = parent.add(buf.text)
-        return tree_elem
+    console_tree = ConsoleTree(ofconsole, opts)
 
-    process_flow_tree(flow_list, tree, 0, append_to_tree)
+    process_flows(
+        flow_factory=ODPFlow.from_string,
+        callback=console_tree.add,
+        filename=opts.get("filename"),
+        filter=opts.get("filter"),
+    )
 
-    with print_context(console, opts):
-        console.print(tree)
+    console_tree.build()
+    console_tree.print()
 
 
 @datapath.command()
@@ -101,21 +83,17 @@ def logic(opts):
 def html(opts):
     """Print the flows in an HTML list sorted by recirc_id"""
 
-    flow_list = []
-
-    def callback(flow):
-        flow_list.append(flow)
+    html_tree = HTMLTree(opts)
 
     process_flows(
         flow_factory=ODPFlow.from_string,
-        callback=callback,
+        callback=html_tree.add,
         filename=opts.get("filename"),
         filter=opts.get("filter"),
     )
 
-    html_obj = get_html_obj(flow_list, opts)
-
-    print(html_obj)
+    html_tree.build()
+    print(html_tree.render())
 
 
 @datapath.command()
@@ -160,67 +138,67 @@ def graph(opts, html):
     html_obj += svg.decode("utf-8")
     html_obj += "</div>"
 
-    html_obj += get_html_obj(list(itertools.chain(*recirc_flows.values())), opts)
+    html_tree = HTMLTree(opts, recirc_flows)
+    html_obj += html_tree.render()
+
     print(html_obj)
 
 
-class HTMLFlowTree:
-    def __init__(self, flow=None, opts=None):
-        self._flow = flow
-        self._formatter = HTMLFormatter(opts)
-        self._subflows = list()
-        self._opts = opts
+class ConsoleTree(FlowTree):
+    """ConsoleTree is a FlowTree that prints the tree in a console
 
-    def append(self, flow):
-        self._subflows.append(flow)
+    Args:
+        console (ConsoleFormatter): console to use for printing
+        opts (dict): Options dictionary
+    """
 
-    def render(self, item=0):
-        html_obj = "<div>"
-        if self._flow:
-            html_obj += """
-        <input id="collapsible_{item}" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
-        <label for="collapsible_{item}" class="lbl-toggle lbl-toggle-flow">Flow {id}</label>
-        """.format(
-                item=item, id=self._flow.id
-            )
-            html_obj += '<div class="flow collapsible-content" id="flow_{id}" onfocus="onFlowClick(this)" onclick="onFlowClick(this)" >'.format(
-                id=self._flow.id
-            )
-            buf = HTMLBuffer()
-            highlighted = None
-            if self._opts.get("highlight"):
-                result = self._opts.get("highlight").evaluate(self._flow)
-                if result:
-                    highlighted = result.kv
-            self._formatter.format_flow(buf, self._flow, highlighted)
-            html_obj += buf.text
-            html_obj += "</div>"
-        if self._subflows:
-            html_obj += "<div>"
-            html_obj += "<ul  style='list-style-type:none;'>"
-            for sf in self._subflows:
-                item += 1
-                html_obj += "<li>"
-                (html_elem, items) = sf.render(item)
-                html_obj += html_elem
-                item += items
-                html_obj += "</li>"
-            html_obj += "</ul>"
-            html_obj += "</div>"
-        html_obj += "</div>"
-        return html_obj, item
+    class ConsoleElem(FlowElem):
+        def __init__(self, flow=None, is_root=False):
+            self.tree = None
+            super(ConsoleTree.ConsoleElem, self).__init__(flow, is_root=is_root)
+
+    def __init__(self, console, opts):
+        self.console = console
+        self.root = self.ConsoleElem(is_root=True)
+        self.opts = opts
+        super(ConsoleTree, self).__init__()
+
+    def _new_elem(self, flow, _):
+        """Override _new_elem to provide ConsoleElems"""
+        return self.ConsoleElem(flow)
+
+    def _append_to_tree(self, elem, parent):
+        """Callback to be used for FlowTree._build
+        Appends the flow to the rich.Tree
+        """
+        if elem.is_root:
+            elem.tree = Tree("Datapath Flows (logical)")
+            return
+
+        buf = ConsoleBuffer(Text())
+        highlighted = None
+        if self.opts.get("highlight"):
+            result = self.opts.get("highlight").evaluate(elem.flow)
+            if result:
+                highlighted = result.kv
+        self.console.format_flow(buf, elem.flow, highlighted)
+        elem.tree = parent.tree.add(buf.text)
+
+    def print(self):
+        self.traverse(self._append_to_tree)
+        with print_context(self.console.console, self.opts):
+            self.console.console.print(self.root.tree)
 
 
-def get_html_obj(flow_list, opts=None):
-    def append_to_html(parent, flow):
-        html_flow = HTMLFlowTree(flow, opts)
-        parent.append(html_flow)
-        return html_flow
+class HTMLTree(FlowTree):
+    """HTMLTree is a Flowtree that prints the tree in html format
 
-    root = HTMLFlowTree(flow=None, opts=opts)
-    process_flow_tree(flow_list, root, 0, append_to_html)
+    Args:
+        opts(dict): Options dictionary
+        flows(dict[int, list[DPFlow]): Optional; initial flows
+    """
 
-    html_obj = """
+    html_header = """
     <style>
     .flow{
         background-color:white;
@@ -334,41 +312,86 @@ def get_html_obj(flow_list, opts=None):
       window.onhashchange = locationHashChanged;
     </script>
     """
-    html_obj += """
+
+    class HTMLTreeElem(FlowElem):
+        """An element within the HTML Tree,
+        It is composed of a flow and its subflows that can be added by calling
+        append()
+        """
+
+        def __init__(self, flow=None, opts=None):
+            self._formatter = HTMLFormatter(opts)
+            self._opts = opts
+            super(HTMLTree.HTMLTreeElem, self).__init__(flow)
+
+        def render(self, item=0):
+            """Render the HTML Element
+            Args:
+                item (int): the item id
+
+            Returns:
+                (html_obj, items) tuple where html_obj is the html string and
+                items is the number of subitems rendered in total
+            """
+            html_obj = "<div>"
+            if self.flow:
+                html_obj += """
+            <input id="collapsible_{item}" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
+            <label for="collapsible_{item}" class="lbl-toggle lbl-toggle-flow">Flow {id}</label>
+            """.format(
+                    item=item, id=self.flow.id
+                )
+                html_obj += '<div class="flow collapsible-content" id="flow_{id}" onfocus="onFlowClick(this)" onclick="onFlowClick(this)" >'.format(
+                    id=self.flow.id
+                )
+                buf = HTMLBuffer()
+                highlighted = None
+                if self._opts.get("highlight"):
+                    result = self._opts.get("highlight").evaluate(self.flow)
+                    if result:
+                        highlighted = result.kv
+                self._formatter.format_flow(buf, self.flow, highlighted)
+                html_obj += buf.text
+                html_obj += "</div>"
+            if self.children:
+                html_obj += "<div>"
+                html_obj += "<ul  style='list-style-type:none;'>"
+                for sf in self.children:
+                    item += 1
+                    html_obj += "<li>"
+                    (html_elem, items) = sf.render(item)
+                    html_obj += html_elem
+                    item += items
+                    html_obj += "</li>"
+                html_obj += "</ul>"
+                html_obj += "</div>"
+            html_obj += "</div>"
+            return html_obj, item
+
+    def __init__(self, opts, flows=None):
+        self.opts = opts
+        self.root = self.HTMLTreeElem(flow=None, opts=self.opts)
+        super(HTMLTree, self).__init__(flows)
+
+    def _new_elem(self, flow, _):
+        """Override _new_elem to provide HTMLTreeElems"""
+        return self.HTMLTreeElem(flow, self.opts)
+
+    def render(self):
+        """Render the Tree in HTML
+        Returns:
+            an html string representing the element
+        """
+        html_obj = (
+            self.html_header
+            + """
         <input id="collapsible_main" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
         <label for="collapsible_main" class="lbl-toggle lbl-toggle-main">Flow Table</label>
         """
-    html_obj += "<div id=flow_list>"
-    (html_elem, items) = root.render()
-    html_obj += html_elem
-    html_obj += "</div>"
-    return html_obj
-
-
-def process_flow_tree(flow_list, parent, recirc_id, callback):
-    """Process the datapath flows into a tree by "recirc_id" and sorted by "packets"
-    Args:
-        flow_list (list[odp.ODPFlow]): original list of flows
-        parent (Any): current tree node that serves as parent
-        recirc_id (int): recirc_id to traverse
-        callback(callable): a callback that must accept the current parent and
-            a flow and return an object that can potentially serve as parent for
-            a nested call to callback
-
-    This function is recursive
-    """
-    sorted_flows = sorted(
-        filter(lambda f: f.match.get("recirc_id") == recirc_id, flow_list),
-        key=lambda x: x.info.get("packets") or 0,
-        reverse=True,
-    )
-
-    for flow in sorted_flows:
-        next_recirc = next(
-            (kv.value for kv in flow.actions_kv if kv.key == "recirc"), None
         )
 
-        next_parent = callback(parent, flow)
-
-        if next_recirc:
-            process_flow_tree(flow_list, next_parent, next_recirc, callback)
+        html_obj += "<div id=flow_list>"
+        (html_elem, items) = self.root.render()
+        html_obj += html_elem
+        html_obj += "</div>"
+        return html_obj
