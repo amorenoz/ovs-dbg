@@ -71,10 +71,11 @@ def logic(opts):
         flow_factory=ODPFlow.from_string,
         callback=console_tree.add,
         filename=opts.get("filename"),
-        filter=opts.get("filter"),
     )
 
     console_tree.build()
+    if opts.get("filter"):
+        console_tree.filter(opts.get("filter"))
     console_tree.print()
 
 
@@ -89,10 +90,11 @@ def html(opts):
         flow_factory=ODPFlow.from_string,
         callback=html_tree.add,
         filename=opts.get("filename"),
-        filter=opts.get("filter"),
     )
 
     html_tree.build()
+    if opts.get("filter"):
+        html_tree.filter(opts.get("filter"))
     print(html_tree.render())
 
 

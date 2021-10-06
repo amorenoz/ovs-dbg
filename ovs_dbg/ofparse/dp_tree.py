@@ -25,6 +25,20 @@ class FlowElem(TreeElem):
         self.flow = flow
         super(FlowElem, self).__init__(children, is_root)
 
+    def evaluate_any(self, filter):
+        """Evaluate the filter on the element and all its children
+        Args:
+            filter(OFFilter): the filter to evaluate
+
+        Returns:
+            True if ANY of the flows (including self and children) evaluates
+            true
+        """
+        if filter.evaluate(self.flow):
+            return True
+
+        return any([child.evaluate_any(filter) for child in self.children])
+
 
 class FlowTree:
     """
@@ -97,3 +111,17 @@ class FlowTree:
         override this method to return any derived TreeElem
         """
         return FlowElem(flow)
+
+    def filter(self, filter):
+        """Removes the first level subtrees if none of its sub-elements match
+        the filter
+        Args:
+            filter(OFFilter): filter to apply
+        """
+        to_remove = list()
+        for l0 in self.root.children:
+            passes = l0.evaluate_any(filter)
+            if not passes:
+                to_remove.append(l0)
+        for elem in to_remove:
+            self.root.children.remove(elem)
