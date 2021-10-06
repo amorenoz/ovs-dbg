@@ -380,7 +380,7 @@ print_tools() {
             echo "  You can run commands such as:"
             echo "      ${command} --db unix:${db_sock} [...]"
             echo "  or"
-            echo "      ovsdb-client ${db_sock} [...]"
+            echo "      ovsdb-client [...] unix:${db_sock} "
         fi
     done
 
