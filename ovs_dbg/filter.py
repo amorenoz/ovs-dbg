@@ -70,6 +70,10 @@ class ClauseExpression:
 
         Args:
             kv_list (list[KeyValue]): list of KeyValue to look into
+
+        Returns:
+            If found, tuple (kv, data) where kv is the KeyValue that matched
+            and data is the data to be used for evaluation. None if not found.
         """
         key_parts = self.field.split(".")
         field = key_parts[0]
@@ -80,7 +84,7 @@ class ClauseExpression:
         for kv in kvs:
             if kv.key == self.field:
                 # exact match
-                return kv
+                return (kv, kv.value)
             if len(key_parts) > 1:
                 data = kv.value
                 for subkey in key_parts[1:]:
@@ -92,11 +96,20 @@ class ClauseExpression:
                     if not data:
                         break
                 if data:
-                    return kv
+                    return (kv, data)
         return None
 
     def _find_keyval_to_evaluate(self, flow):
-        """Finds the key-value to use for evaluation"""
+        """Finds the key-value and data to use for evaluation on a flow
+
+        Args:
+            flow(Flow): The flow where the lookup is performed
+
+        Returns:
+            If found, tuple (kv, data) where kv is the KeyValue that matched
+            and data is the data to be used for evaluation. None if not found.
+
+        """
         for section in flow.sections:
             data = self._find_data_in_kv(section.data)
             if data:
@@ -110,12 +123,12 @@ class ClauseExpression:
         Args:
             flow (Flow): the flow to evaluate
         """
-        keyval = self._find_keyval_to_evaluate(flow)
+        result = self._find_keyval_to_evaluate(flow)
 
-        if not keyval:
+        if not result:
             return EvaluationResult(False)
 
-        data = keyval.value
+        keyval, data = result
 
         if not self.value and not self.operator:
             # just asserting the existance of the key

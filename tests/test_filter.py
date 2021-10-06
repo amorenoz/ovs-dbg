@@ -3,6 +3,7 @@ import pytest
 from ovs_dbg.kv import KeyValue
 from ovs_dbg.filter import OFFilter
 from ovs_dbg.ofp import OFPFlow
+from ovs_dbg.odp import ODPFlow
 
 
 @pytest.mark.parametrize(
@@ -165,6 +166,30 @@ from ovs_dbg.ofp import OFPFlow
             ),
             True,
             ["dl_src", "tp_dst"],
+        ),
+        (
+            "encap",
+            ODPFlow.from_string(
+                "encap(eth_type(0x0800),ipv4(src=10.76.23.240/255.255.255.248,dst=10.76.23.106,proto=17,tos=0/0,ttl=64,frag=no)) actions:drop"
+            ),
+            True,
+            ["encap"],
+        ),
+        (
+            "encap.ipv4.src=10.76.23.240",
+            ODPFlow.from_string(
+                "encap(eth_type(0x0800),ipv4(src=10.76.23.240/255.255.255.248,dst=10.76.23.106,proto=17,tos=0/0,ttl=64,frag=no)) actions:drop"
+            ),
+            False,
+            ["encap"],
+        ),
+        (
+            "encap.ipv4.src~=10.76.23.240",
+            ODPFlow.from_string(
+                "encap(eth_type(0x0800),ipv4(src=10.76.23.240/255.255.255.248,dst=10.76.23.106,proto=17,tos=0/0,ttl=64,frag=no)) actions:drop"
+            ),
+            True,
+            ["encap"],
         ),
     ],
 )
