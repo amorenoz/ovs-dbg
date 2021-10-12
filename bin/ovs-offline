@@ -170,7 +170,7 @@ do_collect-sos-ovn() {
     local sos=$1
     [ -f "$sos" ] ||  error "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
     local dir_name=`tar -tf $sos | head -1 | cut -f1 -d"/"`
-    local db_locations="var/lib/openvswitch/ovn usr/local/etc/openvswitch etc/openvswitch var/lib/openvswitch"
+    local db_locations="var/lib/openvswitch/ovn usr/local/etc/openvswitch etc/openvswitch var/lib/openvswitch var/lib/ovn/etc"
 
     mkdir -p ${SOS_DIR}
 
