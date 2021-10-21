@@ -10,6 +10,7 @@ WORKDIR=${OVS_DBG_WORKDIR:-/tmp/ovs-offline}
 VAR_RUN=${WORKDIR}/var-run
 SOS_DIR=${WORKDIR}/sos_report
 SOS_CMD_DIR=${SOS_DIR}/sos_commands/openvswitch/
+SOURCE_DIR=${WORKDIR}/bin
 
 
 declare -A open_flow_protocols=(
@@ -64,6 +65,9 @@ do_build() {
 }
 
 do_stop() {
+    if ! [ -z "${OVS_OFFLINE_ENV-}" ]; then
+        error "Cannot stop, ovs-offline env is still active. Run \"deactivate\" and try again"
+    fi
     docker kill ovs-vswitchd &>/dev/null || true
     docker rm ovs-vswitchd &>/dev/null || true
     docker kill ovsdb-server-ovs &>/dev/null || true
@@ -308,27 +312,27 @@ start_ovsdb() {
 
     local container_name=ovsdb-server-${name}
     local backup_file=${remote_var_run}/${name}.db
-    local socket_file=${remote_var_run}/${name}.sock
+    local socket_file=${remote_var_run}/db.sock
 
     docker kill ovsdb-server-${name} &>/dev/null || true
     docker rm ovsdb-server-${name} &>/dev/null || true
 
     echo "Starting container ovsdb-server-${name}"
-    docker run -d -e OVSDB_BACKUP=${backup_file} -e OVSDB_SOCKET=${socket_file} -v ${backup_local_file}:${backup_file} -v ${local_var_run}:${remote_var_run} --name ovsdb-server-${name} ovs-dbg ovsdb
+    docker run -d -e OVSDB_BACKUP=${backup_file} -e OVSDB_SOCKET=${socket_file} -v ${backup_local_file}:${backup_file} -v ${local_var_run}:${remote_var_run} --pid=host --name ovsdb-server-${name} ovs-dbg ovsdb
     sleep 3
 }
 
 start_vswitchd() {
     # run ovs-vswitchd
     local remote_var_run=/usr/local/var/run/openvswitch
-    local socket_file=${remote_var_run}/ovs.sock
+    local socket_file=${remote_var_run}/db.sock
     local local_var_run=${VAR_RUN}/ovs
 
     docker kill ovs-vswitchd &>/dev/null || true
     docker rm ovs-vswitchd &>/dev/null || true
 
     echo "Starting container ovs-vswitchd"
-    docker run -d -e OVSDB_SOCKET=${socket_file} -e RESTORE_DIR="/root/restore_flows" -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
+    docker run -d -e OVSDB_SOCKET=${socket_file} -e RESTORE_DIR="/root/restore_flows" -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --pid=host --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
     sleep 3
 }
 
@@ -345,6 +349,102 @@ do_start() {
             start_vswitchd
         fi
     done
+}
+
+generate_cmd_script() {
+    mkdir -p $SOURCE_DIR
+    # Create activate script that can be sourced to run OVS/OVN utilities using the files in $WORKDIR
+    cat <<EOF > ${SOURCE_DIR}/activate
+if [ "\${BASH_SOURCE-}" = "\$0" ]; then
+    echo "You must source this script: \\\$ source \$0" >&2
+    exit 33
+fi
+
+deactivate() {
+    if ! [ -z "\${OLD_PS1+_}" ] ; then
+        PS1="\$OLD_PS1"
+        export PS1
+        unset OLD_PS1
+    fi
+    for env in OVS_RUNDIR OVN_SB_DB OVN_NB_DB; do
+        old_var="OLD_\${env}"
+        if [ ! -z \${!old_var} ]; then
+            export \${env}=\${!old_var}
+            unset \${old_var}
+        else
+            unset \${env}
+        fi
+    done
+    unset -f deactivate
+    unset OVS_OFFLINE_ENV
+}
+
+if [ -z "\${OVS_OFFLINE_ENV}" ] ; then
+    OLD_PS1="\${PS1-}"
+    PS1="(`basename ovs-offline`) \${PS1-}"
+    export PS1
+fi
+echo "* You can now run the following offline commands directly:"
+if [ ! -z \${OVS_RUNDIR} ] && [ -z "\${OVS_OFFLINE_ENV}" ]; then
+  OLD_OVS_RUNDIR=\$OVS_RUNDIR
+fi
+export OVS_RUNDIR=${VAR_RUN}/ovs
+EOF
+
+    if ls -x ${VAR_RUN}/ovs/ovs-vswitchd.*.ctl &>/dev/null; then
+        local vswitchd_ctl=$(ls -x ${VAR_RUN}/ovs/ovs-vswitchd.*.ctl)
+        cat <<EOF >> ${SOURCE_DIR}/activate
+echo "      ovs-appctl [...]"
+echo ''
+EOF
+    fi
+
+    for type in ovs ovn_nb ovn_sb; do
+        if ls -x ${VAR_RUN}/${type}/*.sock &>/dev/null; then
+            local db_sock=$(ls -x ${VAR_RUN}/${type}/*.sock)
+            case ${type} in
+                ovs)
+                    local command="ovs-vsctl"
+                    ;;
+                ovn_nb)
+                    local command="ovn-nbctl"
+                    local db_alias='\$OVN_NB_DB'
+                    cat <<EOF >> ${SOURCE_DIR}/activate
+if [ ! -z \${OVN_NB_DB} ] && [ -z "\${OVS_OFFLINE_ENV}" ]; then
+    OLD_OVN_NB_DB=\$OVN_NB_DB
+fi
+export OVN_NB_DB=unix:${db_sock}
+EOF
+                    ;;
+                ovn_sb)
+                    local command="ovn-sbctl"
+                    local db_alias='\$OVN_SB_DB'
+                    cat <<EOF >> ${SOURCE_DIR}/activate
+if [ ! -z \${OVN_SB_DB} ] && [ -z "\${OVS_OFFLINE_ENV}" ]; then
+    OLD_OVN_SB_DB=\$OVN_SB_DB
+fi
+export OVN_SB_DB=unix:${db_sock}
+EOF
+                    ;;
+                *)
+                    error "Unkown db socket file ${db_sock}"
+            esac
+            cat <<EOF >> ${SOURCE_DIR}/activate
+echo "      ${command} [...]"
+echo "      ovsdb-client [...] ${db_alias-} "
+echo ''
+EOF
+        fi
+    done
+
+    if ls -x ${VAR_RUN}/ovs/*.mgmt &>/dev/null; then
+        echo "echo '      ovs-ofctl [...] [bridge]'" >> ${SOURCE_DIR}/activate
+    fi
+    cat <<EOF >> ${SOURCE_DIR}/activate
+echo "* You can restore your previous environment with: "
+echo "      deactivate"
+export OVS_OFFLINE_ENV="true"
+EOF
 }
 
 print_tools() {
@@ -393,6 +493,10 @@ print_tools() {
             echo "      ovs-ofctl [...] ${mgt}"
         done
     fi
+
+    echo ""
+    echo "* You can also run offline commands directly with the following:"
+    echo "    source ${SOURCE_DIR}/activate"
 }
 
 while getopts ":hdw:" opt; do
@@ -476,6 +580,7 @@ case $CMD in
         echo "******************************"
         echo ""
         print_tools
+        generate_cmd_script
         ;;
     show)
         print_tools
