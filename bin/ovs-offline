@@ -111,18 +111,21 @@ do_collect-k8s() {
         exit 1
     fi
     NODE=$1
-    kubectl get node $NODE || error "Node not found"
+    kubectl get node $NODE &>/dev/null || error "Node not found"
 
     ovnkube_node=$(kubectl get pods -n $OVN_NAMESPACE --field-selector spec.nodeName=$NODE -o name | head -1 | sed "s/^.\{4\}//")
 
 
     # Collect the flows and groups for future restoration using ovs-save
-    bridges=$(kubectl exec -n $OVN_NAMESPACE $ovnkube_node -- ovs-vsctl -- --real list-br)
-    kubectl exec -it -n $OVN_NAMESPACE $ovnkube_node -- sh -c "/usr/share/openvswitch/scripts/ovs-save save-flows $(echo $bridges | xargs) > /tmp/restore.sh"
-    kubectl cp -n $OVN_NAMESPACE $ovnkube_node:/tmp/restore.sh ${WORKDIR}/restore_flows/do_restore.sh
-
+    bridges=$(kubectl exec -n $OVN_NAMESPACE $ovnkube_node -c ovnkube-node -- ovs-vsctl -- --real list-br)
+    kubectl exec -it -n $OVN_NAMESPACE $ovnkube_node -c ovnkube-node -- sh -c "/usr/share/openvswitch/scripts/ovs-save save-flows $(echo $bridges | xargs) > /tmp/restore.sh"
+    kubectl cp -n $OVN_NAMESPACE -c ovnkube-node $ovnkube_node:/tmp/restore.sh ${WORKDIR}/restore_flows/do_restore.sh 2>&1 | grep -v 'tar: Removing leading' || true >&2
+    [ -f $WORKDIR/restore_flows/do_restore.sh ] || error "Could not copy /tmp/restore.sh from ${ovnkube-node}"
     save_dir=$(cat ${WORKDIR}/restore_flows/do_restore.sh | awk '/replace/{print $6; exit}' | xargs dirname)
-    kubectl cp -n $OVN_NAMESPACE $ovnkube_node:$save_dir ${WORKDIR}/restore_flows
+    kubectl cp -n $OVN_NAMESPACE -c ovnkube-node $ovnkube_node:$save_dir ${WORKDIR}/restore_flows 2>&1 | grep -v 'tar: Removing leading' || true >&2
+    dump_count=`ls /tmp/ovs-offline/restore_flows/*.dump 2>/dev/null | wc -l`
+    if [ ${dump_count} -le 0 ]; then error "Could not copy $save_dir from ${ovnkube-node}"; fi
+
     cat <<EOF > ${WORKDIR}/restore_flows/restore.sh
 CURR_DIR=\$(dirname \$(realpath \$0))
 ln -s \$CURR_DIR $save_dir
@@ -139,13 +142,15 @@ EOF
 
     # Collect the DB backup
     mkdir -p $VAR_RUN
-    kubectl exec -i -n $OVN_NAMESPACE $ovnkube_node ovsdb-client backup > ${WORKDIR}/${ovnkube_node}_ovs.db
+    kubectl exec -i -n $OVN_NAMESPACE -c ovnkube-node $ovnkube_node -- ovsdb-client backup > ${WORKDIR}/${ovnkube_node}_ovs.db
     do_collect-db ${WORKDIR}/${ovnkube_node}_ovs.db ovs
 
     # Collect OVN information
     ovnkube_db_pod=$(kubectl get pods -n $OVN_NAMESPACE -o name | grep ovnkube-db | sed "s/^.\{4\}//")
-    kubectl cp -n ${OVN_NAMESPACE} ${ovnkube_db_pod}:/etc/openvswitch/ovnnb_db.db  ${WORKDIR}/ovnnb_db.db
-    kubectl cp -n ${OVN_NAMESPACE} ${ovnkube_db_pod}:/etc/openvswitch/ovnsb_db.db  ${WORKDIR}/ovnsb_db.db
+    kubectl cp -n ${OVN_NAMESPACE} -c nb-ovsdb ${ovnkube_db_pod}:/etc/openvswitch/ovnnb_db.db  ${WORKDIR}/ovnnb_db.db 2>&1 | grep -v 'tar: Removing leading' || true >&2
+    [ -f $WORKDIR/ovnnb_db.db ] || error "Could not copy /etc/openvswitch/ovnnb_db.db from ${ovnkube_db_pod}"
+    kubectl cp -n ${OVN_NAMESPACE} -c sb-ovsdb ${ovnkube_db_pod}:/etc/openvswitch/ovnsb_db.db  ${WORKDIR}/ovnsb_db.db 2>&1 | grep -v 'tar: Removing leading' || true >&2
+    [ -f $WORKDIR/ovnsb_db.db ] || error "Could not copy /etc/openvswitch/ovnsb_db.db from ${ovnkube_db_pod}"
     do_collect-db ${WORKDIR}/ovnnb_db.db ovn_nb
     do_collect-db ${WORKDIR}/ovnsb_db.db ovn_sb
 }
