@@ -122,9 +122,10 @@ The openflow flow parsing supports this extra formats:
 
 When printing a logical representation of a flow list, flows are grouped into *logical flows* that:
 
-- have the same *cookie* and *priority*
+- have the same *priority*
 - match on the same fields (regardless of the match value)
-- execute the same actions (regardless of the actions' arguments)
+- execute the same actions (regardless of the actions' arguments, except for resubmit and output)
+- Optionally, the *cookie* can be counted as part of the logical flow as well (*--cookie*)
 
 
 HTML representation
@@ -293,7 +294,6 @@ HTML Formatting
 HTML Formatting is very uses the same substring identifiers as the console formatting.
 
 The only difference is that *underline* is not supported.
-
 
 
 .. _ovs-actions: http://www.openvswitch.org/support/dist-docs/ovs-actions.7.html 
