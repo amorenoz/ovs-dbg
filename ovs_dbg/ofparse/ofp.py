@@ -49,18 +49,27 @@ def pretty(opts):
     show_default=True,
     help="Show the full flows under each logical flow",
 )
+@click.option(
+    "-c",
+    "--cookie",
+    "cookie_flag",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Consider the cookie in the logical flow",
+)
 @click.pass_obj
-def logic(opts, show_flows):
+def logic(opts, show_flows, cookie_flag):
     """
     Print the logical structure of the flows.
 
     First, sorts the flows based on tables and priorities.
     Then, deduplicates logically equivalent flows: these a flows that match
     on the same set of fields (regardless of the values they match against),
-    have the same priority, cookie and actions (regardless of action arguments)
-
-    Frisorting the flows based on tables and priority, deduplicates flows
-    based on
+    have the same priority, and actions (regardless of action arguments,
+    except in the case of output and recirculate).
+    Optionally, the cookie can also be considered to be part of the logical
+    flow.
     """
     tables = dict()
 
@@ -68,30 +77,97 @@ def logic(opts, show_flows):
         """A Logical Flow represents the scheleton of a flow
 
         Attributes:
-            cookie (int): The flow cookie
-            priority (int): The flow priority
-            action_keys (tuple): The action keys
-            match_keys (tuple): The match keys
+            flow (OFPFlow): The flow
+            match_action_keys(list): Optional; list of action keys that are
+                mathched exactly (not just the key but the value also)
+            match_cookie (bool): Optional; if cookies are part of the logical
+                flow
         """
 
-        def __init__(self, flow):
+        def __init__(self, flow, match_action_keys=[], match_cookie=False):
+            self.cookie = flow.info.get("cookie") or 0 if match_cookie else None
             self.priority = flow.match.get("priority") or 0
-            self.cookie = flow.info.get("cookie") or 0
-            self.action_keys = tuple([kv.key for kv in flow.actions_kv])
             self.match_keys = tuple([kv.key for kv in flow.match_kv])
+
+            self.action_keys = tuple(
+                [kv.key for kv in flow.actions_kv if kv.key not in match_action_keys]
+            )
+            self.match_action_kvs = [
+                kv for kv in flow.actions_kv if kv.key in match_action_keys
+            ]
 
         def __eq__(self, other):
             return (
-                self.cookie == other.cookie
+                (self.cookie == other.cookie if self.cookie else True)
                 and self.priority == other.priority
                 and self.action_keys == other.action_keys
+                and self.equal_match_action_kvs(other)
                 and self.match_keys == other.match_keys
             )
 
+        def equal_match_action_kvs(self, other):
+            """
+            Compares the logical flow's match action key-values with the other's
+            Args:
+                other (LFlow): The other LFlow to compare against
+
+            Returns true if both LFlow have the same action k-v
+            """
+            if len(other.match_action_kvs) != len(self.match_action_kvs):
+                return False
+
+            for kv in self.match_action_kvs:
+                found = False
+                for other_kv in other.match_action_kvs:
+                    if self.match_kv(kv, other_kv):
+                        found = True
+                        break
+                if not found:
+                    return False
+            return True
+
+        def match_kv(self, one, other):
+            """Compares a KeyValue
+            Args:
+                one, other (KeyValue): The objects to compare
+
+            Returns true if both KeyValue objects have the same key and value
+            """
+            return one.key == other.key and one.value == other.value
+
         def __hash__(self):
-            return tuple(
-                [self.cookie, self.priority, self.action_keys, self.match_keys]
-            ).__hash__()
+            hash_data = [
+                self.cookie,
+                self.priority,
+                self.action_keys,
+                tuple((kv.key, str(kv.value)) for kv in self.match_action_kvs),
+                self.match_keys,
+            ]
+            if self.cookie:
+                hash_data.append(self.cookie)
+            return tuple(hash_data).__hash__()
+
+        def format(self, buf):
+            """Format the Logical Flow into a Buffer"""
+            formatter = ConsoleFormatter(opts)
+
+            if self.cookie:
+                buf.append_extra(
+                    "cookie={} ".format(hex(self.cookie)).ljust(18),
+                    style=cookie_style_gen(str(self.cookie)),
+                )
+
+            buf.append_extra("priority={} ".format(self.priority), style="steel_blue")
+            buf.append_extra(",".join(self.match_keys), style="steel_blue")
+            buf.append_extra("  --->  ", style="bold magenta")
+            buf.append_extra(",".join(lflow.action_keys), style="steel_blue")
+
+            if len(self.match_action_kvs) > 0:
+                buf.append_extra(" ", style=None)
+
+            for kv in self.match_action_kvs:
+                formatter.format_kv(buf, kv, formatter.style)
+                buf.append_extra(",", style=None)
 
     def callback(flow):
         """Parse the flows and sort them by table and logical flow"""
@@ -100,7 +176,11 @@ def logic(opts, show_flows):
             tables[table] = dict()
 
         # Group flows by logical hash
-        lflow = LFlow(flow)
+        lflow = LFlow(
+            flow,
+            match_action_keys=["output", "resubmit", "drop"],
+            match_cookie=cookie_flag,
+        )
 
         if not tables[table].get(lflow):
             tables[table][lflow] = list()
@@ -138,14 +218,7 @@ def logic(opts, show_flows):
 
             buf = ConsoleBuffer(Text())
 
-            buf.append_extra(
-                "cookie={} ".format(hex(lflow.cookie)).ljust(18),
-                style=cookie_style_gen(str(lflow.cookie)),
-            )
-            buf.append_extra("priority={} ".format(lflow.priority), style="steel_blue")
-            buf.append_extra(",".join(lflow.match_keys), style="steel_blue")
-            buf.append_extra("  --->  ", style="bold magenta")
-            buf.append_extra(",".join(lflow.action_keys), style="steel_blue")
+            lflow.format(buf)
             buf.append_extra(" ( x {} )".format(len(flows)), style="dark_olive_green3")
             lflow_tree = table_tree.add(buf.text)
 
