@@ -295,7 +295,17 @@ HTML Formatting is very uses the same substring identifiers as the console forma
 
 The only difference is that *underline* is not supported.
 
+Heat Map
+********
+Some output commands support heat-map formatting (*--heat-map*) both in openflow and
+datapath flow formats. This option changes the color of the packet and byte counters
+to reflect their relative size. The color gradient goes through the following colors:
 
-.. _ovs-actions: http://www.openvswitch.org/support/dist-docs/ovs-actions.7.html 
+blue (coldest, lowest), cyan, green, yellow, red (hottest, highest)
+
+Note filtering is typically applied before the range is calculated.
+
+
+.. _ovs-actions: http://www.openvswitch.org/support/dist-docs/ovs-actions.7.html
 .. _ovs-fields: http://www.openvswitch.org/support/dist-docs/ovs-fields.7.html
 .. _ovs-ofctl: http://www.openvswitch.org/support/dist-docs/ovs-ofctl.8.txt
