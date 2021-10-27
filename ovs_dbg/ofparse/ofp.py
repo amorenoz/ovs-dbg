@@ -1,4 +1,5 @@
 import sys
+import itertools
 import click
 import colorsys
 from rich.tree import Tree
@@ -14,9 +15,18 @@ from ovs_dbg.ofparse.console import (
     ConsoleBuffer,
     ConsoleFormatter,
     hash_pallete,
+    heat_pallete,
     print_context,
 )
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
+
+# Try to make it easy to spot same cookies by printing them in different
+# colors
+cookie_style_gen = hash_pallete(
+    hue=[x / 10 for x in range(0, 10)],
+    saturation=[0.5],
+    value=[0.5 + x / 10 * (0.85 - 0.5) for x in range(0, 10)],
+)
 
 
 @maincli.group(subcommand_metavar="FORMAT")
@@ -34,10 +44,44 @@ def json(opts):
 
 
 @openflow.command()
+@click.option(
+    "-h",
+    "--heat-map",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Create heat-map with packet and byte counters",
+)
 @click.pass_obj
-def pretty(opts):
+def pretty(opts, heat_map):
     """Print the flows with some style"""
-    return pprint(flow_factory=create_ofp_flow, opts=opts)
+    flows = list()
+
+    def callback(flow):
+        """Parse the flows and sort them by table"""
+        flows.append(flow)
+
+    process_flows(
+        flow_factory=create_ofp_flow,
+        callback=callback,
+        filename=opts.get("filename"),
+        filter=opts.get("filter"),
+    )
+
+    console = ConsoleFormatter(opts)
+    if heat_map and len(flows) > 0:
+        for field in ["n_packets", "n_bytes"]:
+            values = [f.info.get(field) or 0 for f in flows]
+            console.style.set_value_style(field, heat_pallete(min(values), max(values)))
+
+    for flow in flows:
+        high = None
+        if opts.get("highlight"):
+            result = opts.get("highlight").evaluate(flow)
+            if result:
+                high = result.kv
+        with print_context(console.console, opts):
+            console.print_flow(flow, high)
 
 
 @openflow.command()
@@ -58,8 +102,16 @@ def pretty(opts):
     show_default=True,
     help="Consider the cookie in the logical flow",
 )
+@click.option(
+    "-h",
+    "--heat-map",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Create heat-map with packet and byte counters (when -s is used)",
+)
 @click.pass_obj
-def logic(opts, show_flows, cookie_flag):
+def logic(opts, show_flows, cookie_flag, heat_map):
     """
     Print the logical structure of the flows.
 
@@ -194,20 +246,22 @@ def logic(opts, show_flows, cookie_flag):
         filter=opts.get("filter"),
     )
 
-    # Try to make it easy to spot same cookies by printing them in different
-    # colors
-    cookie_style_gen = hash_pallete(
-        hue=[x / 10 for x in range(0, 10)],
-        saturation=[0.5],
-        value=[0.5 + x / 10 * (0.85 - 0.5) for x in range(0, 10)],
-    )
-
     tree = Tree("Ofproto Flows (logical)")
     console = Console(color_system=None if opts["style"] is None else "256")
+    formatter = ConsoleFormatter(opts=opts, console=console)
 
     for table_num in sorted(tables.keys()):
         table = tables[table_num]
         table_tree = tree.add("** TABLE {} **".format(table_num))
+
+        if heat_map:
+            for field in ["n_packets", "n_bytes"]:
+                values = []
+                for flow_list in table.values():
+                    values.extend([f.info.get(field) or 0 for f in flow_list])
+                formatter.style.set_value_style(
+                    field, heat_pallete(min(values), max(values))
+                )
 
         for lflow in sorted(
             table.keys(),
@@ -230,9 +284,7 @@ def logic(opts, show_flows, cookie_flag):
                         result = opts.get("highlight").evaluate(flow)
                         if result:
                             highlighted = result.kv
-                    ConsoleFormatter(opts=opts, console=console).format_flow(
-                        buf, flow, highlighted
-                    )
+                    formatter.format_flow(buf, flow, highlighted)
                     lflow_tree.add(buf.text)
 
     with print_context(console, opts):
