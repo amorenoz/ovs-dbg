@@ -17,6 +17,7 @@ from ovs_dbg.ofparse.console import (
     ConsoleBuffer,
     print_context,
     hash_pallete,
+    heat_pallete,
 )
 from ovs_dbg.ofparse.format import FlowStyle
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
@@ -41,15 +42,57 @@ def json(opts):
 
 
 @datapath.command()
+@click.option(
+    "-h",
+    "--heat-map",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Create heat-map with packet and byte counters",
+)
 @click.pass_obj
-def pretty(opts):
+def pretty(opts, heat_map):
     """Print the flows with some style"""
-    return pprint(flow_factory=ODPFlow.from_string, opts=opts)
+    flows = list()
+
+    def callback(flow):
+        """Parse the flows and sort them by table"""
+        flows.append(flow)
+
+    process_flows(
+        flow_factory=ODPFlow.from_string,
+        callback=callback,
+        filename=opts.get("filename"),
+        filter=opts.get("filter"),
+    )
+
+    console = ConsoleFormatter(opts)
+    if heat_map and len(flows) > 0:
+        for field in ["packets", "bytes"]:
+            values = [f.info.get(field) or 0 for f in flows]
+            console.style.set_value_style(field, heat_pallete(min(values), max(values)))
+
+    for flow in flows:
+        high = None
+        if opts.get("highlight"):
+            result = opts.get("highlight").evaluate(flow)
+            if result:
+                high = result.kv
+        with print_context(console.console, opts):
+            console.print_flow(flow, high)
 
 
 @datapath.command()
+@click.option(
+    "-h",
+    "--heat-map",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Create heat-map with packet and byte counters",
+)
 @click.pass_obj
-def logic(opts):
+def logic(opts, heat_map):
     """Print the flows in a tree based on the 'recirc_id'"""
     ofconsole = ConsoleFormatter(opts)
 
@@ -76,7 +119,7 @@ def logic(opts):
     console_tree.build()
     if opts.get("filter"):
         console_tree.filter(opts.get("filter"))
-    console_tree.print()
+    console_tree.print(heat_map)
 
 
 @datapath.command()
@@ -186,7 +229,19 @@ class ConsoleTree(FlowTree):
         self.console.format_flow(buf, elem.flow, highlighted)
         elem.tree = parent.tree.add(buf.text)
 
-    def print(self):
+    def print(self, heat=False):
+        """ Print the Flow Tree
+        Args:
+            heat (bool): Optional; whether heat-map style shall be applied
+        """
+        if heat:
+            for field in ["packets", "bytes"]:
+                values = []
+                for flow_list in self._flows.values():
+                    values.extend([f.info.get(field) or 0 for f in flow_list])
+                self.console.style.set_value_style(
+                    field, heat_pallete(min(values), max(values))
+                )
         self.traverse(self._append_to_tree)
         with print_context(self.console.console, self.opts):
             self.console.console.print(self.root.tree)
