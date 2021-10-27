@@ -146,7 +146,15 @@ class OFPFlow(Flow):
             "mplsm",
         ]
 
-        return {**field_decoders, **{key: decode_flag for key in shorthands}}
+        fields = {**field_decoders, **{key: decode_flag for key in shorthands}}
+
+        # vlan_vid field is special. Although it is technically 12 bit wide,
+        # bit 12 is allowed to be set to 1 to indicate that the vlan header is
+        # present (see section VLAN FIELDS in
+        # http://www.openvswitch.org/support/dist-docs/ovs-fields.7.txt)
+        # Therefore, override the generated vlan_vid field size
+        fields["vlan_vid"] = decode_mask(13)
+        return fields
 
     @classmethod
     def _output_actions_decoders(cls):

@@ -3,7 +3,7 @@ import pytest
 
 from ovs_dbg.ofp import OFPFlow
 from ovs_dbg.kv import KeyValue
-from ovs_dbg.decoders import EthMask, IPMask
+from ovs_dbg.decoders import EthMask, IPMask, decode_mask
 
 
 @pytest.mark.parametrize(
@@ -165,6 +165,18 @@ from ovs_dbg.decoders import EthMask, IPMask
                             "eth_src": EthMask("01:00:00:00:00:00/01:00:00:00:00:00")
                         },
                         "dst": {"field": "eth_src"},
+                    },
+                )
+            ],
+        ),
+        (
+            "actions=set_field:0x10ff->vlan_vid",
+            [
+                KeyValue(
+                    "set_field",
+                    {
+                        "value": {"vlan_vid": decode_mask(13)("0x10ff")},
+                        "dst": {"field": "vlan_vid"},
                     },
                 )
             ],
