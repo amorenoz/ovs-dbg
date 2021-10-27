@@ -141,6 +141,29 @@ def hash_pallete(hue, saturation, value):
     return get_style
 
 
+def heat_pallete(min_value, max_value):
+    """Generates a color pallete based on the 5-color heat pallete so that
+    for each value between min and max a color is returned that represents it's
+    relative size
+    Args:
+        min_value (int): minimum value
+        max_value (int) maximum value
+    """
+    h_min = 0  # red
+    h_max = 220 / 360  # blue
+
+    def heat(value):
+        if max_value == min_value:
+            r, g, b = colorsys.hsv_to_rgb(h_max / 2, 1.0, 1.0)
+        else:
+            normalized = (int(value) - min_value) / (max_value - min_value)
+            hue = ((1 - normalized) + h_min) * (h_max - h_min)
+            r, g, b = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+        return Style(color=Color.from_rgb(r * 255, g * 255, b * 255))
+
+    return heat
+
+
 def print_context(console, opts):
     """
     Returns a printing context
