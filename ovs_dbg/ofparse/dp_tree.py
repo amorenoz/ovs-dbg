@@ -52,7 +52,7 @@ class FlowTree:
     root = None
 
     def __init__(self, flows=None):
-        self._flows = {}  # flow list indexed by recirc_id
+        self._flows = flows or {}  # flow list indexed by recirc_id
         self.root = self.root or TreeElem(is_root=True)
 
     def add(self, flow):

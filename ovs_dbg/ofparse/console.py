@@ -10,8 +10,24 @@ from rich.console import Console
 from rich.text import Text
 from rich.style import Style
 from rich.color import Color
+from rich.panel import Panel
+from rich.emoji import Emoji
 
 from ovs_dbg.ofparse.format import FlowFormatter, FlowBuffer, FlowStyle
+
+
+def file_header(name):
+    return Panel(
+        Text(
+            Emoji.replace(":scroll:")
+            + " "
+            + name
+            + " "
+            + Emoji.replace(":scroll:"),
+            style="bold",
+            justify="center",
+        )
+    )
 
 
 class ConsoleBuffer(FlowBuffer):

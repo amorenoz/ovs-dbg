@@ -10,6 +10,44 @@ It parses a list of OpenFlow commands (such as the ones that `ovs-ofproto dump-f
 `ovs-dpctl dump-flows` would generate) prints them back in the following formats
 
 
+-----
+Usage
+-----
+
+::
+
+    Usage: ofparse [OPTIONS] TYPE
+
+      OpenFlow Parse utility.
+
+      It parses openflow and datapath flows (such as the output of ovs-ofctl dump-
+      flows or ovs-appctl dpctl/dump-flows) and prints them in different formats.
+
+    Options:
+      -c, --config PATH     Use config file  [default: /home/amorenoz/code/ovs-
+                            dbg/ovs_dbg/ofparse/etc/ofparse.conf]
+      --style TEXT          Select style (defined in config file)
+      -i, --input TEXT      Read flows from specified filepath. If not provided,
+                            flows will be read from stdin. This option can be
+                            specified multiple times. Format [alias,]FILENAME.
+                            Where alias is a name that shall be used to refer to
+                            this FILENAME
+      -p, --paged           Page the result (uses $PAGER). If colors are not
+                            disabled you might need to enable colors on your
+                            PAGER, eg: export PAGER="less -r".  [default: False]
+      -f, --filter TEXT     Filter flows that match the filter expression. Run
+                            'ofparse filter'for a detailed description of the
+                            filtering syntax
+      -l, --highlight TEXT  Highlight flows that match the filter expression. Run
+                            'ofparse filter'for a detailed description of the
+                            filtering syntax
+      -h, --help            Show this message and exit.
+
+    Commands:
+      datapath  Process DPIF Flows
+      openflow  Process OpenFlow Flows
+
+
 -------------------
 JSON representation
 -------------------

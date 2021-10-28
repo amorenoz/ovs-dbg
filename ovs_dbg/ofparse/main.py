@@ -17,6 +17,29 @@ class Options(dict):
     pass
 
 
+def validate_input(ctx, param, value):
+    """Validate the "-i" option"""
+    result = list()
+    for input_str in value:
+        parts = input_str.strip().split(",")
+        if len(parts) == 2:
+            parts = tuple(parts)
+        elif len(parts) == 1:
+            parts = tuple(["Filename: " + parts[0], parts[0]])
+        else:
+            raise click.BadParameter(
+                "input filename should have the following format: "
+                "[alias,]FILENAME"
+            )
+
+        if not os.path.isfile(parts[1]):
+            raise click.BadParameter(
+                "input filename %s does not exist" % parts[1]
+            )
+        result.append(parts)
+    return result
+
+
 @click.group(
     subcommand_metavar="TYPE",
     context_settings=dict(help_option_names=["-h", "--help"]),
@@ -37,11 +60,15 @@ class Options(dict):
 )
 @click.option(
     "-i",
-    "-input",
+    "--input",
     "filename",
     help="Read flows from specified filepath. If not provided, flows will be"
-    " read from stdin",
+    " read from stdin. This option can be specified multiple times."
+    " Format [alias,]FILENAME. Where alias is a name that shall be used to"
+    " refer to this FILENAME",
+    multiple=True,
     type=click.Path(),
+    callback=validate_input,
 )
 @click.option(
     "-p",
@@ -73,12 +100,13 @@ def maincli(ctx, config, style, filename, paged, filter, highlight):
     """
     OpenFlow Parse utility.
 
-    It parses openflow flows (such as the output of ovs-ofctl 'dump-flows') and
-    prints them in different formats.
+    It parses openflow and datapath flows
+    (such as the output of ovs-ofctl dump-flows or ovs-appctl dpctl/dump-flows)
+    and prints them in different formats.
 
     """
     ctx.obj = Options()
-    ctx.obj["filename"] = filename or ""
+    ctx.obj["filename"] = filename or None
     ctx.obj["paged"] = paged
     if filter:
         try:
