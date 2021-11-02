@@ -17,7 +17,14 @@ vswitchd-dummy() {
   fi
   ) &
 
-  ovs-vswitchd --enable-dummy=override -vvconn -vnetdev_dummy  --no-chdir --pidfile  -vsyslog:off unix:${OVSDB_SOCKET}
+  if [ "$UID" -eq 0 ] || [ -z "${UID}" ]; then
+    docker_user=root
+  else
+    useradd new_user -u $UID
+    docker_user=new_user
+  fi
+
+  ovs-vswitchd --user ${docker_user} --enable-dummy=override -vvconn -vnetdev_dummy  --no-chdir --pidfile  -vsyslog:off unix:${OVSDB_SOCKET}
 
 }
 
@@ -43,10 +50,17 @@ ovsdb() {
 
   mkdir -p /usr/local/var/run/openvswitch/
 
-  ovsdb-server --remote=punix:${OVSDB_SOCKET} --remote=ptcp:6640 --pidfile=ovsdb-server.pid $DB_FILE
+  if [ "$UID" -eq 0 ] || [ -z "${UID}" ]; then
+    docker_user=root
+  else
+    useradd new_user -u $UID
+    chown -R new_user /usr/local/var/run/openvswitch/ /usr/local/etc/openvswitch/
+    docker_user=new_user
+  fi
+
+  ovsdb-server --user ${docker_user} --remote=punix:${OVSDB_SOCKET} --remote=ptcp:6640 --pidfile=ovsdb-server.pid $DB_FILE
 
 }
-
 cmd=${1:-""}
 case ${cmd} in
 "vswitchd-dummy")

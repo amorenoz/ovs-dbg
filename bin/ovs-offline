@@ -318,12 +318,13 @@ start_ovsdb() {
     local container_name=ovsdb-server-${name}
     local backup_file=${remote_var_run}/${name}.db
     local socket_file=${remote_var_run}/db.sock
+    local docker_caps="--cap-add=CAP_SETGID --cap-add=CAP_SETUID --cap-add=CAP_SETPCAP --cap-add=CAP_NET_BIND_SERVICE --cap-add=CAP_IPC_LOCK"
 
     docker kill ovsdb-server-${name} &>/dev/null || true
     docker rm ovsdb-server-${name} &>/dev/null || true
 
     echo "Starting container ovsdb-server-${name}"
-    docker run -d -e OVSDB_BACKUP=${backup_file} -e OVSDB_SOCKET=${socket_file} -v ${backup_local_file}:${backup_file} -v ${local_var_run}:${remote_var_run} --pid=host --name ovsdb-server-${name} ovs-dbg ovsdb
+    docker run -d -e OVSDB_BACKUP=${backup_file} ${docker_caps} -e UID=$(id -u) -e OVSDB_SOCKET=${socket_file} -v ${backup_local_file}:${backup_file} -v ${local_var_run}:${remote_var_run} --pid=host --name ovsdb-server-${name} ovs-dbg ovsdb
     sleep 3
 }
 
@@ -332,12 +333,12 @@ start_vswitchd() {
     local remote_var_run=/usr/local/var/run/openvswitch
     local socket_file=${remote_var_run}/db.sock
     local local_var_run=${VAR_RUN}/ovs
-
+    local docker_caps="--cap-add=CAP_SETGID --cap-add=CAP_SETUID --cap-add=CAP_SETPCAP --cap-add=IPC_LOCK --cap-add=NET_ADMIN --cap-add=NET_BROADCAST"
     docker kill ovs-vswitchd &>/dev/null || true
     docker rm ovs-vswitchd &>/dev/null || true
 
     echo "Starting container ovs-vswitchd"
-    docker run -d -e OVSDB_SOCKET=${socket_file} -e RESTORE_DIR="/root/restore_flows" -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --pid=host --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
+    docker run -d -e OVSDB_SOCKET=${socket_file} ${docker_caps} -e UID=$(id -u) -e RESTORE_DIR="/root/restore_flows" -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --pid=host --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
     sleep 3
 }
 
