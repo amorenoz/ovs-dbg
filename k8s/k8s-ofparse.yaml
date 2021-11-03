@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+    name: k8s-ofparse-account
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: list-nodes
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+    verbs:
+      - get
+      - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-ofparse-binding
+subjects:
+  - kind: ServiceAccount
+    name: k8s-ofparse-account
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: list-nodes
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Monitor pod
+apiVersion: v1
+kind: Pod
+metadata:
+  name: k8s-ofparse-main
+spec:
+  nodeSelector:
+    k8s.ovn.org/ovnkube-db: "true"
+  serviceAccountName: k8s-ofparse-account
+  hostNetwork: true
+  volumes:
+    - name: host-var-run-ovs
+      hostPath:
+        path: /var/run/openvswitch
+  containers:
+  - name: k8s-ofparse
+    image: quay.io/amorenoz/k8s-ofparse
+    #imagePullPolicy: Always
+    volumeMounts:
+      - mountPath: /var/run/openvswitch/
+        name: host-var-run-ovs
+    env:
+      - name: OVN_RUNDIR
+        value: "/var/run/openvswitch"
+      - name: OVS_RUNDIR
+        value: "/var/run/openvswitch"
+    command: ["/root/monitor.sh", "start"]
+
+---
+# Client daemonsets
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: k8s-ofparse-client
+spec:
+  selector:
+    matchLabels:
+      app: k8s-ofparse
+  template:
+    metadata:
+      labels:
+        app: k8s-ofparse
+        name: k8s-ofparse
+    spec:
+      hostNetwork: true
+      volumes:
+        - name: host-var-run-ovs
+          hostPath:
+            path: /var/run/openvswitch
+      containers:
+      - name: k8s-ofparse
+        image: quay.io/amorenoz/k8s-ofparse
+        #imagePullPolicy: Always
+        volumeMounts:
+          - mountPath: /var/run/openvswitch/
+            name: host-var-run-ovs
+        env:
+          - name: OVS_RUNDIR
+            value: "/var/run/openvswitch"
+        command: ["/root/monitor.sh", "client_start"]
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/root/monitor.sh", "client_stop"]
+

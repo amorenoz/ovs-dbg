@@ -12,6 +12,8 @@ This respository stores scripts and documentation to help debug OVS and OVN.
 
    lgrep
 
+   k8s-ofparse
+
 .. toctree::
    :maxdepth: 1
    :caption: Tutorials:
