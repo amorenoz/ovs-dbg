@@ -12,6 +12,12 @@ This respository stores scripts and documentation to help debug OVS and OVN.
 
    lgrep
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Tutorials:
+
+   offline_debugging
+
 Indices and tables
 ==================
 

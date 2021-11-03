@@ -1,3 +1,5 @@
+.. _ofparse-reference-label:
+
 =================================
 ofparse: Flow Parsing Utility
 =================================
