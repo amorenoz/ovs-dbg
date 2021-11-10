@@ -1,7 +1,7 @@
 import netaddr
 import pytest
 
-from ovs_dbg.ofp import OFPFlow
+from ovs_dbg.ofp import OFPFlowFactory
 from ovs_dbg.kv import KeyValue
 from ovs_dbg.decoders import EthMask, IPMask, decode_mask
 
@@ -381,7 +381,7 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
     ],
 )
 def test_act(input_string, expected):
-    ofp = OFPFlow.from_string(input_string)
+    ofp = OFPFlowFactory().from_string(input_string)
     actions = ofp.actions_kv
     for i in range(len(expected)):
         assert expected[i].key == actions[i].key
