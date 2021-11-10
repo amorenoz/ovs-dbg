@@ -10,11 +10,11 @@ Usage
 
 In general, the tool works in two steps. First you must **collect** the logs, flows etc, and then you **start** the offline debugging environment
 
-(Optional) Build the ovs-dbg container:
+(Optional) Build the ovs-dbg container. You can choose to specify the ovs-repo and commit to pull the ovs source code from using the -r and -c flags respectively (or by setting the OVS_DBG_REPO and OVS_DBG_COMMIT env variables).
 
 ::
 
-    ./bin/ovs-offline build
+    ./bin/ovs-offline build -r https://github.com/my_repo/ovs.git -c branch-2.15
 
 
 Collect data from a running kubernetes / Openshift cluster

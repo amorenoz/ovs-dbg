@@ -6,12 +6,14 @@ FROM quay.io/fedora/fedora:31-x86_64 as build
 RUN dnf -y install gcc make autoconf automake libtool diffutils file
 RUN dnf -y install libcap-ng-devel openssl-devel libatomic 
 
-ARG OVS_VERSION=v2.15.0
-ADD https://github.com/openvswitch/ovs/archive/${OVS_VERSION}.tar.gz /src/
+RUN dnf -y install git
+
+ARG OVS_REPO=https://github.com/openvswitch/ovs.git
+ARG OVS_COMMIT=branch-2.15
+RUN echo "Building ovs from ${OVS_REPO} at ${OVS_COMMIT}"
 
 WORKDIR /src
-RUN mkdir -p /src/ovs
-RUN tar --strip-components=1 -C ovs -xvf ${OVS_VERSION}.tar.gz
+RUN git clone ${OVS_REPO} && cd ovs && git checkout ${OVS_COMMIT}
 
 WORKDIR /src/ovs
 RUN ./boot.sh
