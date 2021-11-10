@@ -23,9 +23,10 @@ from ovs_dbg.ofparse.format import FlowStyle
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
 from ovs_dbg.ofparse.dp_graph import DatapathGraph
 from ovs_dbg.ofparse.dp_tree import FlowTree, FlowElem
-from ovs_dbg.odp import ODPFlow
+from ovs_dbg.odp import ODPFlow, ODPFlowFactory
 from ovs_dbg.filter import OFFilter
 
+factory = ODPFlowFactory()
 
 @maincli.group(subcommand_metavar="FORMAT")
 @click.pass_obj
@@ -38,7 +39,7 @@ def datapath(opts):
 @click.pass_obj
 def json(opts):
     """Print the flows in JSON format"""
-    return tojson(flow_factory=ODPFlow.from_string, opts=opts)
+    return tojson(flow_factory=factory.from_string, opts=opts)
 
 
 @datapath.command()
@@ -60,7 +61,7 @@ def pretty(opts, heat_map):
         flows.append(flow)
 
     process_flows(
-        flow_factory=ODPFlow.from_string,
+        flow_factory=factory.from_string,
         callback=callback,
         filename=opts.get("filename"),
         filter=opts.get("filter"),
@@ -111,7 +112,7 @@ def logic(opts, heat_map):
     console_tree = ConsoleTree(ofconsole, opts)
 
     process_flows(
-        flow_factory=ODPFlow.from_string,
+        flow_factory=factory.from_string,
         callback=console_tree.add,
         filename=opts.get("filename"),
     )
@@ -130,7 +131,7 @@ def html(opts):
     html_tree = HTMLTree(opts)
 
     process_flows(
-        flow_factory=ODPFlow.from_string,
+        flow_factory=factory.from_string,
         callback=html_tree.add,
         filename=opts.get("filename"),
     )
@@ -164,7 +165,7 @@ def graph(opts, html):
         recirc_flows[rid].append(flow)
 
     process_flows(
-        flow_factory=ODPFlow.from_string,
+        flow_factory=factory.from_string,
         callback=callback,
         filename=opts.get("filename"),
         filter=opts.get("filter"),

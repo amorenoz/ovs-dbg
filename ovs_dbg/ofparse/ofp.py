@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.style import Style
 from rich.color import Color
 
-from ovs_dbg.ofp import OFPFlow
+from ovs_dbg.ofp import OFPFlow, OFPFlowFactory
 from ovs_dbg.ofparse.main import maincli
 from ovs_dbg.ofparse.process import process_flows, tojson, pprint
 from ovs_dbg.ofparse.console import (
@@ -19,6 +19,9 @@ from ovs_dbg.ofparse.console import (
     print_context,
 )
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
+
+
+factory = OFPFlowFactory()
 
 # Try to make it easy to spot same cookies by printing them in different
 # colors
@@ -335,4 +338,4 @@ def create_ofp_flow(string, idx):
     """Create a OFPFlow"""
     if " reply " in string:
         return None
-    return OFPFlow.from_string(string, idx)
+    return factory.from_string(string, idx)

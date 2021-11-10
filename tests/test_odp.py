@@ -1,7 +1,7 @@
 import netaddr
 import pytest
 
-from ovs_dbg.odp import ODPFlow
+from ovs_dbg.odp import ODPFlowFactory
 from ovs_dbg.kv import KeyValue
 from ovs_dbg.decoders import EthMask, IPMask, Mask32, Mask16, Mask8, Mask64, Mask128
 
@@ -102,7 +102,7 @@ from ovs_dbg.decoders import EthMask, IPMask, Mask32, Mask16, Mask8, Mask64, Mas
     ],
 )
 def test_odp_fields(input_string, expected):
-    odp = ODPFlow.from_string(input_string)
+    odp = ODPFlowFactory().from_string(input_string)
     match = odp.match_kv
     for i in range(len(expected)):
         assert expected[i].key == match[i].key
@@ -486,7 +486,7 @@ def test_odp_fields(input_string, expected):
     ],
 )
 def test_odp_actions(input_string, expected):
-    odp = ODPFlow.from_string(input_string)
+    odp = ODPFlowFactory().from_string(input_string)
     actions = odp.actions_kv
     for i in range(len(expected)):
         assert expected[i].key == actions[i].key
