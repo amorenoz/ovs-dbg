@@ -98,14 +98,20 @@ class OFPFlowFactory:
         iparser = KVParser(self.info_decoders)
         iparser.parse(info)
         isection = Section(
-            name="info", pos=ofp_string.find(info), string=info, data=iparser.kv()
+            name="info",
+            pos=ofp_string.find(info),
+            string=info,
+            data=iparser.kv(),
         )
         sections.append(isection)
 
         mparser = KVParser(self.match_decoders)
         mparser.parse(match)
         msection = Section(
-            name="match", pos=ofp_string.find(match), string=match, data=mparser.kv()
+            name="match",
+            pos=ofp_string.find(match),
+            string=match,
+            data=mparser.kv(),
         )
         sections.append(msection)
 
@@ -343,7 +349,9 @@ class OFPFlowFactory:
                     ),
                 }
             ),
-            "clone": functools.partial(decode_exec, KVDecoders(action_decoders)),
+            "clone": functools.partial(
+                decode_exec, KVDecoders(action_decoders)
+            ),
         }
 
     @classmethod

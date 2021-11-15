@@ -51,7 +51,9 @@ def tojson(flow_factory, opts):
     def callback(flow):
         flows.append(flow)
 
-    process_flows(flow_factory, callback, opts.get("filename"), opts.get("filter"))
+    process_flows(
+        flow_factory, callback, opts.get("filename"), opts.get("filter")
+    )
 
     flow_json = json.dumps(
         [flow.dict() for flow in flows],
@@ -81,4 +83,6 @@ def pprint(flow_factory, opts):
         console.print_flow(flow, high)
 
     with print_context(console.console, opts):
-        process_flows(flow_factory, callback, opts.get("filename"), opts.get("filter"))
+        process_flows(
+            flow_factory, callback, opts.get("filename"), opts.get("filter")
+        )

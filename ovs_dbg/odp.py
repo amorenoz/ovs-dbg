@@ -77,12 +77,16 @@ class ODPFlowFactory:
         # If UFID present, parse it and
         ufid_pos = odp_string.find("ufid:")
         if ufid_pos >= 0:
-            ufid_string = odp_string[ufid_pos : (odp_string[ufid_pos:].find(",") + 1)]
+            ufid_string = odp_string[
+                ufid_pos : (odp_string[ufid_pos:].find(",") + 1)
+            ]
             ufid_parser = KVParser(KVDecoders({"ufid": decode_default}))
             ufid_parser.parse(ufid_string)
             if len(ufid_parser.kv()) != 1:
                 raise ValueError("malformed odp flow: {}", odp_string)
-            sections.append(Section("ufid", ufid_pos, ufid_string, ufid_parser.kv()))
+            sections.append(
+                Section("ufid", ufid_pos, ufid_string, ufid_parser.kv())
+            )
 
         action_pos = odp_string.find("actions:")
         if action_pos < 0:
@@ -107,14 +111,20 @@ class ODPFlowFactory:
         iparser = KVParser(KVDecoders(self.info_decoders))
         iparser.parse(info)
         isection = Section(
-            name="info", pos=odp_string.find(info), string=info, data=iparser.kv()
+            name="info",
+            pos=odp_string.find(info),
+            string=info,
+            data=iparser.kv(),
         )
         sections.append(isection)
 
         mparser = KVParser(KVDecoders(self.match_decoders))
         mparser.parse(match)
         msection = Section(
-            name="match", pos=odp_string.find(match), string=match, data=mparser.kv()
+            name="match",
+            pos=odp_string.find(match),
+            string=match,
+            data=mparser.kv(),
         )
         sections.append(msection)
 

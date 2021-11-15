@@ -3,7 +3,15 @@ import pytest
 
 from ovs_dbg.odp import ODPFlowFactory
 from ovs_dbg.kv import KeyValue
-from ovs_dbg.decoders import EthMask, IPMask, Mask32, Mask16, Mask8, Mask64, Mask128
+from ovs_dbg.decoders import (
+    EthMask,
+    IPMask,
+    Mask32,
+    Mask16,
+    Mask8,
+    Mask64,
+    Mask128,
+)
 
 
 @pytest.mark.parametrize(
@@ -248,8 +256,12 @@ def test_odp_fields(input_string, expected):
                         "nat": {
                             "type": "src",
                             "addrs": {
-                                "start": netaddr.IPAddress("fe80::20c:29ff:fe88:a18b"),
-                                "end": netaddr.IPAddress("fe80::20c:29ff:fe88:a18b"),
+                                "start": netaddr.IPAddress(
+                                    "fe80::20c:29ff:fe88:a18b"
+                                ),
+                                "end": netaddr.IPAddress(
+                                    "fe80::20c:29ff:fe88:a18b"
+                                ),
                             },
                             "random": True,
                         },
@@ -262,8 +274,12 @@ def test_odp_fields(input_string, expected):
                         "nat": {
                             "type": "src",
                             "addrs": {
-                                "start": netaddr.IPAddress("fe80::20c:29ff:fe88:1"),
-                                "end": netaddr.IPAddress("fe80::20c:29ff:fe88:a18b"),
+                                "start": netaddr.IPAddress(
+                                    "fe80::20c:29ff:fe88:1"
+                                ),
+                                "end": netaddr.IPAddress(
+                                    "fe80::20c:29ff:fe88:a18b"
+                                ),
                             },
                             "random": True,
                         },
@@ -276,8 +292,12 @@ def test_odp_fields(input_string, expected):
                         "nat": {
                             "type": "src",
                             "addrs": {
-                                "start": netaddr.IPAddress("fe80::20c:29ff:fe88:1"),
-                                "end": netaddr.IPAddress("fe80::20c:29ff:fe88:a18b"),
+                                "start": netaddr.IPAddress(
+                                    "fe80::20c:29ff:fe88:1"
+                                ),
+                                "end": netaddr.IPAddress(
+                                    "fe80::20c:29ff:fe88:a18b"
+                                ),
                             },
                             "ports": {
                                 "start": 255,
