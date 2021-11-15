@@ -5,7 +5,9 @@ import re
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate ofproto field decoders")
+    parser = argparse.ArgumentParser(
+        description="Generate ofproto field decoders"
+    )
     parser.add_argument(
         "-f",
         "--file",
@@ -76,7 +78,14 @@ import build.nroff
 line = ""
 
 # Maps from user-friendly version number to its protocol encoding.
-VERSION = {"1.0": 0x01, "1.1": 0x02, "1.2": 0x03, "1.3": 0x04, "1.4": 0x05, "1.5": 0x06}
+VERSION = {
+    "1.0": 0x01,
+    "1.1": 0x02,
+    "1.2": 0x03,
+    "1.3": 0x04,
+    "1.4": 0x05,
+    "1.5": 0x06,
+}
 VERSION_REVERSE = dict((v, k) for k, v in VERSION.items())
 
 TYPES = {
@@ -236,7 +245,8 @@ def parse_oxm(s, prefix, n_bytes):
     global match_types
 
     m = re.match(
-        "([A-Z0-9_]+)\(([0-9]+)\) since(?: OF(1\.[0-9]+) and)? v([12]\.[0-9]+)$", s
+        "([A-Z0-9_]+)\(([0-9]+)\) since(?: OF(1\.[0-9]+) and)? v([12]\.[0-9]+)$",
+        s,
     )
     if not m:
         fatal("%s: syntax error parsing %s" % (s, prefix))
@@ -286,7 +296,9 @@ def parse_field(mff, comment):
     f = {"mff": mff}
 
     # First line of comment is the field name.
-    m = re.match(r'"([^"]+)"(?:\s+\(aka "([^"]+)"\))?(?:\s+\(.*\))?\.', comment[0])
+    m = re.match(
+        r'"([^"]+)"(?:\s+\(aka "([^"]+)"\))?(?:\s+\(.*\))?\.', comment[0]
+    )
     if not m:
         fatal("%s lacks field name" % mff)
     f["name"], f["extra_name"] = m.groups()
@@ -318,7 +330,8 @@ def parse_field(mff, comment):
         m = re.match(r"([^:]+):\s+(.*)\.$", fline)
         if not m:
             fatal(
-                "%s: syntax error parsing key-value pair as part of %s" % (fline, mff)
+                "%s: syntax error parsing key-value pair as part of %s"
+                % (fline, mff)
             )
         key, value = m.groups()
         if key not in d:
@@ -329,7 +342,12 @@ def parse_field(mff, comment):
             fatal("%s: duplicate key" % key)
         d[key] = value
     for key, value in d.items():
-        if not value and key not in ("OF1.0", "OF1.1", "Prefix lookup member", "Notes"):
+        if not value and key not in (
+            "OF1.0",
+            "OF1.1",
+            "Prefix lookup member",
+            "Notes",
+        ):
             fatal("%s: missing %s" % (mff, key))
 
     m = re.match(r"([a-zA-Z0-9]+)(?: \(low ([0-9]+) bits\))?$", d["Type"])
@@ -705,7 +723,10 @@ l lx.
 
     body += ["Format:;%s\n" % f["formatting"]]
 
-    masks = {"MFM_NONE": "not maskable", "MFM_FULLY": "arbitrary bitwise masks"}
+    masks = {
+        "MFM_NONE": "not maskable",
+        "MFM_FULLY": "arbitrary bitwise masks",
+    }
     body += ["Masking:;%s\n" % masks[f["mask"]]]
     body += ["Prerequisites:;%s\n" % f["prereqs"]]
 
@@ -728,7 +749,9 @@ l lx.
 
     oxms = []
     for header, name, of_version_nr, ovs_version in [
-        x for x in sorted(f["OXM"], key=lambda x: x[2]) if is_standard_oxm(x[1])
+        x
+        for x in sorted(f["OXM"], key=lambda x: x[2])
+        if is_standard_oxm(x[1])
     ]:
         of_version = VERSION_REVERSE[of_version_nr]
         oxms += [
@@ -741,10 +764,13 @@ l lx.
 
     nxms = []
     for header, name, of_version_nr, ovs_version in [
-        x for x in sorted(f["OXM"], key=lambda x: x[2]) if not is_standard_oxm(x[1])
+        x
+        for x in sorted(f["OXM"], key=lambda x: x[2])
+        if not is_standard_oxm(x[1])
     ]:
         nxms += [
-            r"\fB%s\fR (%d) since Open vSwitch %s" % (name, header[2], ovs_version)
+            r"\fB%s\fR (%d) since Open vSwitch %s"
+            % (name, header[2], ovs_version)
         ]
     if not nxms:
         nxms = ["none"]

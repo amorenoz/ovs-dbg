@@ -15,55 +15,73 @@ odp_factory = ODPFlowFactory()
     [
         (
             "nw_src=192.168.1.1 && tcp_dst=80",
-            ofp_factory.from_string("nw_src=192.168.1.1,tcp_dst=80 actions=drop"),
+            ofp_factory.from_string(
+                "nw_src=192.168.1.1,tcp_dst=80 actions=drop"
+            ),
             True,
             ["nw_src", "tcp_dst"],
         ),
         (
             "nw_src=192.168.1.2 || tcp_dst=80",
-            ofp_factory.from_string("nw_src=192.168.1.1,tcp_dst=80 actions=drop"),
+            ofp_factory.from_string(
+                "nw_src=192.168.1.1,tcp_dst=80 actions=drop"
+            ),
             True,
             ["nw_src", "tcp_dst"],
         ),
         (
             "nw_src=192.168.1.1 || tcp_dst=90",
-            ofp_factory.from_string("nw_src=192.168.1.1,tcp_dst=80 actions=drop"),
+            ofp_factory.from_string(
+                "nw_src=192.168.1.1,tcp_dst=80 actions=drop"
+            ),
             True,
             ["nw_src", "tcp_dst"],
         ),
         (
             "nw_src=192.168.1.2 && tcp_dst=90",
-            ofp_factory.from_string("nw_src=192.168.1.1,tcp_dst=80 actions=drop"),
+            ofp_factory.from_string(
+                "nw_src=192.168.1.1,tcp_dst=80 actions=drop"
+            ),
             False,
             ["nw_src", "tcp_dst"],
         ),
         (
             "nw_src=192.168.1.1",
-            ofp_factory.from_string("nw_src=192.168.1.0/24,tcp_dst=80 actions=drop"),
+            ofp_factory.from_string(
+                "nw_src=192.168.1.0/24,tcp_dst=80 actions=drop"
+            ),
             False,
             ["nw_src"],
         ),
         (
             "nw_src~=192.168.1.1",
-            ofp_factory.from_string("nw_src=192.168.1.0/24,tcp_dst=80 actions=drop"),
+            ofp_factory.from_string(
+                "nw_src=192.168.1.0/24,tcp_dst=80 actions=drop"
+            ),
             True,
             ["nw_src"],
         ),
         (
             "nw_src~=192.168.1.1/30",
-            ofp_factory.from_string("nw_src=192.168.1.0/24,tcp_dst=80 actions=drop"),
+            ofp_factory.from_string(
+                "nw_src=192.168.1.0/24,tcp_dst=80 actions=drop"
+            ),
             True,
             ["nw_src"],
         ),
         (
             "nw_src~=192.168.1.0/16",
-            ofp_factory.from_string("nw_src=192.168.1.0/24,tcp_dst=80 actions=drop"),
+            ofp_factory.from_string(
+                "nw_src=192.168.1.0/24,tcp_dst=80 actions=drop"
+            ),
             False,
             ["nw_src"],
         ),
         (
             "nw_src~=192.168.1.0/16",
-            ofp_factory.from_string("nw_src=192.168.1.0/24,tcp_dst=80 actions=drop"),
+            ofp_factory.from_string(
+                "nw_src=192.168.1.0/24,tcp_dst=80 actions=drop"
+            ),
             False,
             ["nw_src"],
         ),

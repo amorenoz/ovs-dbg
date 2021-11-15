@@ -39,8 +39,8 @@ from ovs_dbg.ofp_act import (
 
 
 class OFPFlow(Flow):
-    """ OFPFLow represents an OpenFlow Flow
-    """
+    """OFPFLow represents an OpenFlow Flow"""
+
     def __init__(self, sections, orig="", id=None):
         """Constructor"""
         super(OFPFlow, self).__init__(sections, orig, id)
@@ -60,7 +60,7 @@ class OFPFlow(Flow):
 
 
 class OFPFlowFactory:
-    """OpenFlow Flow Factory is a class capable of creating OFPFLow objects """
+    """OpenFlow Flow Factory is a class capable of creating OFPFLow objects"""
 
     def __init__(self):
         self.info_decoders = self._info_decoders()
@@ -98,14 +98,20 @@ class OFPFlowFactory:
         iparser = KVParser(self.info_decoders)
         iparser.parse(info)
         isection = Section(
-            name="info", pos=ofp_string.find(info), string=info, data=iparser.kv()
+            name="info",
+            pos=ofp_string.find(info),
+            string=info,
+            data=iparser.kv(),
         )
         sections.append(isection)
 
         mparser = KVParser(self.match_decoders)
         mparser.parse(match)
         msection = Section(
-            name="match", pos=ofp_string.find(match), string=match, data=mparser.kv()
+            name="match",
+            pos=ofp_string.find(match),
+            string=match,
+            data=mparser.kv(),
         )
         sections.append(msection)
 
@@ -343,7 +349,9 @@ class OFPFlowFactory:
                     ),
                 }
             ),
-            "clone": functools.partial(decode_exec, KVDecoders(action_decoders)),
+            "clone": functools.partial(
+                decode_exec, KVDecoders(action_decoders)
+            ),
         }
 
     @classmethod

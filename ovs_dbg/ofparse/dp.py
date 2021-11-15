@@ -28,6 +28,7 @@ from ovs_dbg.filter import OFFilter
 
 factory = ODPFlowFactory()
 
+
 @maincli.group(subcommand_metavar="FORMAT")
 @click.pass_obj
 def datapath(opts):
@@ -71,7 +72,9 @@ def pretty(opts, heat_map):
     if heat_map and len(flows) > 0:
         for field in ["packets", "bytes"]:
             values = [f.info.get(field) or 0 for f in flows]
-            console.style.set_value_style(field, heat_pallete(min(values), max(values)))
+            console.style.set_value_style(
+                field, heat_pallete(min(values), max(values))
+            )
 
     for flow in flows:
         high = None
@@ -201,7 +204,9 @@ class ConsoleTree(FlowTree):
     class ConsoleElem(FlowElem):
         def __init__(self, flow=None, is_root=False):
             self.tree = None
-            super(ConsoleTree.ConsoleElem, self).__init__(flow, is_root=is_root)
+            super(ConsoleTree.ConsoleElem, self).__init__(
+                flow, is_root=is_root
+            )
 
     def __init__(self, console, opts):
         self.console = console

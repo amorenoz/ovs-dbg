@@ -37,7 +37,9 @@ class ListDecoders:
             value = self._decoders[index][1](value_str)
             return key, value
         except Exception as e:
-            raise ParseError("Failed to decode value_str %s: %s" % (value_str, str(e)))
+            raise ParseError(
+                "Failed to decode value_str %s: %s" % (value_str, str(e))
+            )
 
     @staticmethod
     def _default_decoder(index, value):

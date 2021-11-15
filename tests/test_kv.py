@@ -47,7 +47,10 @@ from ovs_dbg.kv import KVParser, KeyValue, KeyMetadata
         ),
         (
             ("value_to_reg(100)->someReg[10],foo:bar", None),
-            [KeyValue("value_to_reg", "(100)->someReg[10]"), KeyValue("foo", "bar")],
+            [
+                KeyValue("value_to_reg", "(100)->someReg[10]"),
+                KeyValue("foo", "bar"),
+            ],
         ),
     ],
 )

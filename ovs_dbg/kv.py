@@ -135,6 +135,7 @@ delim_pattern = re.compile(r"(\(|=|:|,|\n|\r|\t|$)")
 parenthesys_pattern = re.compile(r"(\(|\))")
 end_pattern = re.compile(r"( |,|\n|\r|\t)")
 
+
 class KVParser:
     """KVParser parses a string looking for key-value pairs.
 
@@ -210,7 +211,9 @@ class KVParser:
                 if level != 0:
                     raise ParseError(
                         "Error parsing string {}: "
-                        "Failed to find matching ')' in {}".format(string, rest)
+                        "Failed to find matching ')' in {}".format(
+                            string, rest
+                        )
                     )
 
                 value_str = rest[: index - 1]
@@ -237,7 +240,9 @@ class KVParser:
                 key, val = self._decoders.decode(keyword, value_str)
             except Exception as e:
                 raise ParseError(
-                    "Error parsing key-value ({}, {})".format(keyword, value_str)
+                    "Error parsing key-value ({}, {})".format(
+                        keyword, value_str
+                    )
                 ) from e
 
             meta = KeyMetadata(

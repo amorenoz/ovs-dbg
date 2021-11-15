@@ -131,7 +131,8 @@ def hash_pallete(hue, saturation, value):
     HSV_tuples = itertools.product(hue, saturation, value)
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)
     styles = [
-        Style(color=Color.from_rgb(r * 255, g * 255, b * 255)) for r, g, b in RGB_tuples
+        Style(color=Color.from_rgb(r * 255, g * 255, b * 255))
+        for r, g, b in RGB_tuples
     ]
 
     def get_style(string):

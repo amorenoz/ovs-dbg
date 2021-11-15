@@ -99,7 +99,11 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
                     {
                         "nsh": {
                             "md_type": 2,
-                            "tlv": {"class": 0x1000, "type": 10, "value": 0x12345678},
+                            "tlv": {
+                                "class": 0x1000,
+                                "type": 10,
+                                "value": 0x12345678,
+                            },
                         }
                     },
                 )
@@ -116,14 +120,22 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
         ),
         (
             "actions=load:0x001122334455->eth_src",
-            [KeyValue("load", {"value": 0x001122334455, "dst": {"field": "eth_src"}})],
+            [
+                KeyValue(
+                    "load",
+                    {"value": 0x001122334455, "dst": {"field": "eth_src"}},
+                )
+            ],
         ),
         (
             "actions=load:1->eth_src[1]",
             [
                 KeyValue(
                     "load",
-                    {"value": 1, "dst": {"field": "eth_src", "start": 1, "end": 1}},
+                    {
+                        "value": 1,
+                        "dst": {"field": "eth_src", "start": 1, "end": 1},
+                    },
                 )
             ],
         ),
@@ -162,7 +174,9 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
                     "set_field",
                     {
                         "value": {
-                            "eth_src": EthMask("01:00:00:00:00:00/01:00:00:00:00:00")
+                            "eth_src": EthMask(
+                                "01:00:00:00:00:00/01:00:00:00:00:00"
+                            )
                         },
                         "dst": {"field": "eth_src"},
                     },
@@ -222,7 +236,10 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
             [
                 KeyValue(
                     "check_pkt_larger",
-                    {"pkt_len": 100, "dst": {"field": "reg0", "start": 10, "end": 10}},
+                    {
+                        "pkt_len": 100,
+                        "dst": {"field": "reg0", "start": 10, "end": 10},
+                    },
                 ),
             ],
         ),
@@ -313,7 +330,11 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
                         {
                             "load": {
                                 "value": 1,
-                                "dst": {"field": "NXM_NX_REG10", "start": 7, "end": 7},
+                                "dst": {
+                                    "field": "NXM_NX_REG10",
+                                    "start": 7,
+                                    "end": 7,
+                                },
                             }
                         },
                     ],
@@ -335,26 +356,126 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
                     "clone",
                     [
                         {"ct_clear": True},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG11"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG12"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG13"}}},
-                        {"load": {"value": 29, "dst": {"field": "NXM_NX_REG13"}}},
-                        {"load": {"value": 31, "dst": {"field": "NXM_NX_REG11"}}},
-                        {"load": {"value": 28, "dst": {"field": "NXM_NX_REG12"}}},
-                        {"load": {"value": 17, "dst": {"field": "OXM_OF_METADATA"}}},
-                        {"load": {"value": 2, "dst": {"field": "NXM_NX_REG14"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG10"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG15"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG0"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG1"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG2"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG3"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG4"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG5"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG6"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG7"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG8"}}},
-                        {"load": {"value": 0, "dst": {"field": "NXM_NX_REG9"}}},
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG11"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG12"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG13"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 29,
+                                "dst": {"field": "NXM_NX_REG13"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 31,
+                                "dst": {"field": "NXM_NX_REG11"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 28,
+                                "dst": {"field": "NXM_NX_REG12"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 17,
+                                "dst": {"field": "OXM_OF_METADATA"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 2,
+                                "dst": {"field": "NXM_NX_REG14"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG10"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG15"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG0"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG1"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG2"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG3"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG4"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG5"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG6"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG7"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG8"},
+                            }
+                        },
+                        {
+                            "load": {
+                                "value": 0,
+                                "dst": {"field": "NXM_NX_REG9"},
+                            }
+                        },
                         {"resubmit": {"port": "", "table": 8}},
                     ],
                 )

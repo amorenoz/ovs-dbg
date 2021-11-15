@@ -19,7 +19,8 @@ class Options(dict):
 
 
 @click.group(
-    subcommand_metavar="TYPE", context_settings=dict(help_option_names=["-h", "--help"])
+    subcommand_metavar="TYPE",
+    context_settings=dict(help_option_names=["-h", "--help"]),
 )
 @click.option(
     "-c",

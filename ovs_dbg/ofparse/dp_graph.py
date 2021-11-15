@@ -14,7 +14,9 @@ class DatapathGraph:
     """
 
     node_styles = {
-        OFFilter("ct and (ct_state or ct_label or ct_mark)"): {"color": "#ff00ff"},
+        OFFilter("ct and (ct_state or ct_label or ct_mark)"): {
+            "color": "#ff00ff"
+        },
         OFFilter("ct_state or ct_label or ct_mark"): {"color": "#0000ff"},
         OFFilter("ct"): {"color": "#ff0000"},
     }
@@ -23,7 +25,9 @@ class DatapathGraph:
         self._flows = flows
 
         self._output_nodes = []
-        self._graph = graphviz.Digraph("DP flows", node_attr={"shape": "rectangle"})
+        self._graph = graphviz.Digraph(
+            "DP flows", node_attr={"shape": "rectangle"}
+        )
         self._graph.attr(compound="true")
         self._graph.attr(rankdir="LR")
 
@@ -67,12 +71,15 @@ class DatapathGraph:
             [
                 flow.section("info").string,
                 ",".join(flow.match.keys()),
-                "actions: " + ",".join(list(a.keys())[0] for a in flow.actions),
+                "actions: "
+                + ",".join(list(a.keys())[0] for a in flow.actions),
             ]
         )
         attr = (
             self.node_styles.get(
-                next(filter(lambda f: f.evaluate(flow), self.node_styles), None)
+                next(
+                    filter(lambda f: f.evaluate(flow), self.node_styles), None
+                )
             )
             or {}
         )
@@ -103,7 +110,14 @@ class DatapathGraph:
             sg.attr(label=label)
             # Create an invisible node so that we can point to subgraphs
             invis = self.invis_node_name(cluster_name)
-            sg.node(invis, color="white", len="0", shape="point", width="0", height="0")
+            sg.node(
+                invis,
+                color="white",
+                len="0",
+                shape="point",
+                width="0",
+                height="0",
+            )
             previous = None
             for flow in flows:
                 name = "Flow_{}".format(flow.id)
@@ -130,12 +144,18 @@ class DatapathGraph:
         for kv in flow.actions_kv:
             if kv.key == "check_pkt_len":
                 for subname, subvalue in kv.value.get("gt").items():
-                    created = self._set_next_node_action(name, subname, subvalue)
+                    created = self._set_next_node_action(
+                        name, subname, subvalue
+                    )
                 for subname, subvalue in kv.value.get("le").items():
-                    created = self._set_next_node_action(name, subname, subvalue)
+                    created = self._set_next_node_action(
+                        name, subname, subvalue
+                    )
             elif kv.key == "sample":
                 for subname, subvalue in kv.value.get("actions").items():
-                    created = self._set_next_node_action(name, subname, subvalue)
+                    created = self._set_next_node_action(
+                        name, subname, subvalue
+                    )
             else:
                 created = self._set_next_node_action(name, kv.key, kv.value)
 
@@ -174,7 +194,9 @@ class DatapathGraph:
             if action_name not in self._output_nodes:
                 self._graph.node(action_name, shape="Msquare", rank="sink")
                 self._output_nodes.append(action_name)
-                self._graph.edge(name, action_name, _attributes={"weight": "1"})
+                self._graph.edge(
+                    name, action_name, _attributes={"weight": "1"}
+                )
             return True
         return False
 
@@ -217,7 +239,9 @@ class DatapathGraph:
                     label = "input port: {}".format(inport)
 
                     with sg as parent:
-                        self._create_flow_cluster(cluster_name, label, flows, parent)
+                        self._create_flow_cluster(
+                            cluster_name, label, flows, parent
+                        )
 
                     # Make an Input node point to each subgraph
                     node_name = "input_{}".format(inport)

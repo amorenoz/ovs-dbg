@@ -74,7 +74,11 @@ class FlowStyle:
         delim_style_lookup = ["delim.highlighted"] if highlighted else []
         delim_style_lookup.extend(["delim", "default"])
         return next(
-            (self._styles.get(s) for s in delim_style_lookup if self._styles.get(s)),
+            (
+                self._styles.get(s)
+                for s in delim_style_lookup
+                if self._styles.get(s)
+            ),
             None,
         )
 
@@ -85,12 +89,18 @@ class FlowStyle:
         key = kv.meta.kstring
 
         key_style_lookup = (
-            ["key.highlighted.%s" % key, "key.highlighted"] if highlighted else []
+            ["key.highlighted.%s" % key, "key.highlighted"]
+            if highlighted
+            else []
         )
         key_style_lookup.extend(["key.%s" % key, "key", "default"])
 
         style = next(
-            (self._styles.get(s) for s in key_style_lookup if self._styles.get(s)),
+            (
+                self._styles.get(s)
+                for s in key_style_lookup
+                if self._styles.get(s)
+            ),
             None,
         )
         if callable(style):
@@ -119,7 +129,11 @@ class FlowStyle:
         )
 
         style = next(
-            (self._styles.get(s) for s in value_style_lookup if self._styles.get(s)),
+            (
+                self._styles.get(s)
+                for s in value_style_lookup
+                if self._styles.get(s)
+            ),
             None,
         )
         if callable(style):
@@ -205,7 +219,11 @@ class FlowFormatter:
                 buf, kv, style_obj=style_obj, highlighted=highlighted
             )
 
-            end = kv_list[i + 1].meta.kpos if i < (len(kv_list) - 1) else len(full_str)
+            end = (
+                kv_list[i + 1].meta.kpos
+                if i < (len(kv_list) - 1)
+                else len(full_str)
+            )
 
             buf.append_extra(
                 full_str[(kv.meta.kpos + written) : end].rstrip("\n\r"),
@@ -228,7 +246,9 @@ class FlowFormatter:
         """
         ret = 0
         key = kv.meta.kstring
-        is_highlighted = key in [k.key for k in highlighted] if highlighted else False
+        is_highlighted = (
+            key in [k.key for k in highlighted] if highlighted else False
+        )
 
         key_style = style_obj.get_key_style(kv, is_highlighted)
         buf.append_key(kv, key_style)  # format value

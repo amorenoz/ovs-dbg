@@ -47,7 +47,9 @@ class HTMLBuffer(FlowBuffer):
             style (HTMLStyle): the style to use
         """
         href = style.anchor_gen(kv) if (style and style.anchor_gen) else ""
-        return self._append(kv.meta.kstring, style.color if style else "", href)
+        return self._append(
+            kv.meta.kstring, style.color if style else "", href
+        )
 
     def append_delim(self, kv, style):
         """Append a delimiter
@@ -65,7 +67,9 @@ class HTMLBuffer(FlowBuffer):
             style (HTMLStyle): the style to use
         """
         href = style.anchor_gen(kv) if (style and style.anchor_gen) else ""
-        return self._append(kv.meta.end_delim, style.color if style else "", href)
+        return self._append(
+            kv.meta.end_delim, style.color if style else "", href
+        )
 
     def append_value(self, kv, style):
         """Append a value
@@ -74,7 +78,9 @@ class HTMLBuffer(FlowBuffer):
             style (HTMLStyle): the style to use
         """
         href = style.anchor_gen(kv) if (style and style.anchor_gen) else ""
-        return self._append(kv.meta.vstring, style.color if style else "", href)
+        return self._append(
+            kv.meta.vstring, style.color if style else "", href
+        )
 
     def append_extra(self, extra, style):
         """Append extra string
@@ -101,7 +107,9 @@ class HTMLFormatter(FlowFormatter):
 
     def __init__(self, opts=None):
         super(HTMLFormatter, self).__init__()
-        self.style = self._style_from_opts(opts, "html", HTMLStyle) or FlowStyle()
+        self.style = (
+            self._style_from_opts(opts, "html", HTMLStyle) or FlowStyle()
+        )
         self.style.set_value_style(
             "resubmit",
             HTMLStyle(

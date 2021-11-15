@@ -5,7 +5,12 @@ import netaddr
 import functools
 
 from ovs_dbg.kv import nested_kv_decoder, KVDecoders, KeyValue, KVParser
-from ovs_dbg.decoders import decode_default, decode_time, decode_flag, decode_int
+from ovs_dbg.decoders import (
+    decode_default,
+    decode_time,
+    decode_flag,
+    decode_int,
+)
 from ovs_dbg.fields import field_decoders
 
 

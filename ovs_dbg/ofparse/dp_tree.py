@@ -96,7 +96,8 @@ class FlowTree:
             flows, key=lambda x: x.info.get("packets") or 0, reverse=True
         ):
             next_recirc = next(
-                (kv.value for kv in flow.actions_kv if kv.key == "recirc"), None
+                (kv.value for kv in flow.actions_kv if kv.key == "recirc"),
+                None,
             )
 
             elem = self._new_elem(flow, parent)

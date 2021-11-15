@@ -58,12 +58,20 @@ class Flow(object):
         self._orig = orig
         self._id = id
         for section in sections:
-            setattr(self, section.name, self.section(section.name).format_data())
-            setattr(self, "{}_kv".format(section.name), self.section(section.name).data)
+            setattr(
+                self, section.name, self.section(section.name).format_data()
+            )
+            setattr(
+                self,
+                "{}_kv".format(section.name),
+                self.section(section.name).data,
+            )
 
     def section(self, name):
         """Return the section by name"""
-        return next((sect for sect in self._sections if sect.name == name), None)
+        return next(
+            (sect for sect in self._sections if sect.name == name), None
+        )
 
     @property
     def id(self):

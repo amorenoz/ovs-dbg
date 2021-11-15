@@ -5,7 +5,13 @@ import netaddr
 from functools import reduce
 from operator import and_, or_
 
-from ovs_dbg.decoders import decode_default, decode_int, Decoder, IPMask, EthMask
+from ovs_dbg.decoders import (
+    decode_default,
+    decode_int,
+    Decoder,
+    IPMask,
+    EthMask,
+)
 
 from ovs_dbg.fields import field_decoders
 
@@ -24,11 +30,15 @@ class EvaluationResult:
 
     def __and__(self, other):
         """Logical and operation"""
-        return EvaluationResult(self.result and other.result, *self.kv, *other.kv)
+        return EvaluationResult(
+            self.result and other.result, *self.kv, *other.kv
+        )
 
     def __or__(self, other):
         """Logical or operation"""
-        return EvaluationResult(self.result or other.result, *self.kv, *other.kv)
+        return EvaluationResult(
+            self.result or other.result, *self.kv, *other.kv
+        )
 
     def __invert__(self):
         """Logical not operation"""
