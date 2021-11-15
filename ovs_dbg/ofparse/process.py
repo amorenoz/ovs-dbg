@@ -3,7 +3,6 @@
 import sys
 import json
 
-from ovs_dbg.ofp import OFPFlow
 from ovs_dbg.decoders import FlowEncoder
 from ovs_dbg.ofparse.console import ConsoleFormatter, print_context
 

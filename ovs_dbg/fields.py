@@ -1,6 +1,5 @@
 # This file is auto-generated. Do not edit
 
-import functools
 from ovs_dbg import decoders
 
 field_decoders = {

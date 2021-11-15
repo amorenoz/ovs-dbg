@@ -1,8 +1,6 @@
 """ Defines the Flow class
 """
 
-from ovs_dbg.kv import KeyValue
-
 
 class Section(object):
     """A section within a Flow

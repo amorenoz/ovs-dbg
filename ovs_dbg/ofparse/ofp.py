@@ -1,16 +1,11 @@
-import sys
-import itertools
 import click
-import colorsys
 from rich.tree import Tree
 from rich.text import Text
 from rich.console import Console
-from rich.style import Style
-from rich.color import Color
 
-from ovs_dbg.ofp import OFPFlow, OFPFlowFactory
+from ovs_dbg.ofp import OFPFlowFactory
 from ovs_dbg.ofparse.main import maincli
-from ovs_dbg.ofparse.process import process_flows, tojson, pprint
+from ovs_dbg.ofparse.process import process_flows, tojson
 from ovs_dbg.ofparse.console import (
     ConsoleBuffer,
     ConsoleFormatter,
@@ -170,7 +165,8 @@ def logic(opts, show_flows, cookie_flag, heat_map):
 
         def equal_match_action_kvs(self, other):
             """
-            Compares the logical flow's match action key-values with the other's
+            Compares the logical flow's match action key-values with the
+            other's
             Args:
                 other (LFlow): The other LFlow to compare against
 

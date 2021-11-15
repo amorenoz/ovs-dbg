@@ -10,7 +10,8 @@ class DatapathGraph:
     graphviz graphs
 
     Args:
-        flows(dict[int, list(Flow)]): Dictionary of lists of flows indexed by recirc_id
+        flows(dict[int, list(Flow)]): Dictionary of lists of flows indexed by
+            recirc_id
     """
 
     node_styles = {
@@ -122,8 +123,8 @@ class DatapathGraph:
             for flow in flows:
                 name = "Flow_{}".format(flow.id)
                 sg.node(**self._flow_node(flow, name))
-                # Connect to previous so that dot rendering places them one after
-                # the other
+                # Connect to previous so that dot rendering places them one
+                # after the other
                 if previous:
                     sg.edge(previous, name, color="white")
                 else:

@@ -244,7 +244,7 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
             ],
         ),
         (
-            "actions=pop_queue,set_tunnel:0x10,set_tunnel64:0x65000,set_queue=3",
+            "actions=pop_queue,set_tunnel:0x10,set_tunnel64:0x65000,set_queue=3",  # noqa: E501
             [
                 KeyValue("pop_queue", True),
                 KeyValue("set_tunnel", 0x10),
@@ -253,7 +253,7 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
             ],
         ),
         (
-            "actions=ct(zone=10,table=2,nat(snat=192.168.0.0-192.168.0.200:1000-2000,random))",
+            "actions=ct(zone=10,table=2,nat(snat=192.168.0.0-192.168.0.200:1000-2000,random))",  # noqa: E501
             [
                 KeyValue(
                     "ct",
@@ -277,7 +277,7 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
             ],
         ),
         (
-            "actions=ct(commit,zone=NXM_NX_REG13[0..15],table=2,exec(load:0->NXM_NX_CT_LABEL[0]))",
+            "actions=ct(commit,zone=NXM_NX_REG13[0..15],table=2,exec(load:0->NXM_NX_CT_LABEL[0]))",  # noqa: E501
             [
                 KeyValue(
                     "ct",
@@ -306,7 +306,7 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
             ],
         ),
         (
-            "actions=load:0x1->NXM_NX_REG10[7],learn(table=69,delete_learned,cookie=0xda6f52b0,OXM_OF_METADATA[],eth_type=0x800,NXM_OF_IP_SRC[],ip_dst=172.30.204.105,nw_proto=6,NXM_OF_TCP_SRC[]=NXM_OF_TCP_DST[],load:0x1->NXM_NX_REG10[7])",
+            "actions=load:0x1->NXM_NX_REG10[7],learn(table=69,delete_learned,cookie=0xda6f52b0,OXM_OF_METADATA[],eth_type=0x800,NXM_OF_IP_SRC[],ip_dst=172.30.204.105,nw_proto=6,NXM_OF_TCP_SRC[]=NXM_OF_TCP_DST[],load:0x1->NXM_NX_REG10[7])",  # noqa: E501
             [
                 KeyValue(
                     "load",
@@ -350,7 +350,7 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
             ],
         ),
         (
-            "actions=clone(ct_clear,load:0->NXM_NX_REG11[],load:0->NXM_NX_REG12[],load:0->NXM_NX_REG13[],load:0x1d->NXM_NX_REG13[],load:0x1f->NXM_NX_REG11[],load:0x1c->NXM_NX_REG12[],load:0x11->OXM_OF_METADATA[],load:0x2->NXM_NX_REG14[],load:0->NXM_NX_REG10[],load:0->NXM_NX_REG15[],load:0->NXM_NX_REG0[],load:0->NXM_NX_REG1[],load:0->NXM_NX_REG2[],load:0->NXM_NX_REG3[],load:0->NXM_NX_REG4[],load:0->NXM_NX_REG5[],load:0->NXM_NX_REG6[],load:0->NXM_NX_REG7[],load:0->NXM_NX_REG8[],load:0->NXM_NX_REG9[],resubmit(,8))",
+            "actions=clone(ct_clear,load:0->NXM_NX_REG11[],load:0->NXM_NX_REG12[],load:0->NXM_NX_REG13[],load:0x1d->NXM_NX_REG13[],load:0x1f->NXM_NX_REG11[],load:0x1c->NXM_NX_REG12[],load:0x11->OXM_OF_METADATA[],load:0x2->NXM_NX_REG14[],load:0->NXM_NX_REG10[],load:0->NXM_NX_REG15[],load:0->NXM_NX_REG0[],load:0->NXM_NX_REG1[],load:0->NXM_NX_REG2[],load:0->NXM_NX_REG3[],load:0->NXM_NX_REG4[],load:0->NXM_NX_REG5[],load:0->NXM_NX_REG6[],load:0->NXM_NX_REG7[],load:0->NXM_NX_REG8[],load:0->NXM_NX_REG9[],resubmit(,8))",  # noqa: E501
             [
                 KeyValue(
                     "clone",
@@ -482,7 +482,7 @@ from ovs_dbg.decoders import EthMask, IPMask, decode_mask
             ],
         ),
         (
-            "actions=conjunction(1234, 1/2),note:00.00.11.22.33.ff,sample(probability=123,collector_set_id=0x123,obs_domain_id=0x123,obs_point_id=0x123,sampling_port=inport0,ingress)",
+            "actions=conjunction(1234, 1/2),note:00.00.11.22.33.ff,sample(probability=123,collector_set_id=0x123,obs_domain_id=0x123,obs_point_id=0x123,sampling_port=inport0,ingress)",  # noqa: E501
             [
                 KeyValue("conjunction", {"id": 1234, "k": 1, "n": 2}),
                 KeyValue("note", "00.00.11.22.33.ff"),
