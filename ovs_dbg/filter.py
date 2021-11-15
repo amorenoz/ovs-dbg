@@ -13,15 +13,13 @@ from ovs_dbg.decoders import (
     EthMask,
 )
 
-from ovs_dbg.fields import field_decoders
-
 
 class EvaluationResult:
     """An EvaluationResult is the result of an evaluation. It contains the
     boolean result and the list of key-values that were evaluated
 
-    Note that since boolean operations (and, not, or) are based only on __bool__
-    we use bitwise alternatives (&, ||, ~)
+    Note that since boolean operations (and, not, or) are based only on
+    __bool__ we use bitwise alternatives (&, ||, ~)
     """
 
     def __init__(self, result, *kv):

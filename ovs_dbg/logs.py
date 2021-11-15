@@ -9,10 +9,10 @@ class OVSLog:
 
     The logs have the following standard format:
 
-    2016-03-08T02:10:01.155Z|01417|vlog|INFO|opened log file /var/log/openvswitch/ovs-vswitchd.log
-    2016-03-08T02:20:05.425Z|01418|connmgr|INFO|br0<->unix: 1 flow_mods in the last 0 s (1 adds)
-    2016-03-08T02:20:10.160Z|01419|connmgr|INFO|br0<->unix: 1 flow_mods in the last 0 s (1 deletes)
-    2016-03-08T11:30:52.206Z|00013|fatal_signal|WARN|terminating with signal 15 (Terminated)
+    2016-03-08T02:10:01.155Z|01417|vlog|INFO|opened log file ...
+    2016-03-08T02:20:05.425Z|01418|connmgr|INFO|br0<->unix: 1 flow_mods ...
+    2016-03-08T02:20:10.160Z|01419|connmgr|INFO|br0<->unix: 1 flow_mods ...
+    2016-03-08T11:30:52.206Z|00013|fatal_signal|WARN|terminating with ...
 
     Attributes:
         timestamp: the UTC time stamp

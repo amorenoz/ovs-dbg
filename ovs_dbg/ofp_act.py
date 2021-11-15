@@ -1,7 +1,6 @@
 """ Defines decoders for openflow actions
 """
 
-import netaddr
 import functools
 
 from ovs_dbg.kv import nested_kv_decoder, KVDecoders, KeyValue, KVParser

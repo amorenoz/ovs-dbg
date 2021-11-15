@@ -152,8 +152,10 @@ class FlowFormatter:
 
         Args:
             opts (dict): Options dictionary
-            opts_key (str): The options style key to extract (e.g: console or html)
-            style_constructor(callable): A callable that creates a derived style object
+            opts_key (str): The options style key to extract
+                (e.g: console or html)
+            style_constructor(callable): A callable that creates a derived
+                style object
         """
         if not opts or not opts.get("style"):
             return None
@@ -213,8 +215,7 @@ class FlowFormatter:
             style_obj (FlowStyle): a FlowStyle object to use
             highlighted (list): Optional; list of KeyValues to highlight
         """
-        for i in range(len(kv_list)):
-            kv = kv_list[i]
+        for i, kv in enumerate(kv_list):
             written = self.format_kv(
                 buf, kv, style_obj=style_obj, highlighted=highlighted
             )

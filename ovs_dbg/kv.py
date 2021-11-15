@@ -277,5 +277,6 @@ def decode_nested_kv(decoders, value):
 
 
 def nested_kv_decoder(decoders=None):
-    """Helper function that creates a nested kv decoder with given KVDecoders"""
+    """Helper function that creates a nested kv decoder with given
+    KVDecoders"""
     return functools.partial(decode_nested_kv, decoders)
