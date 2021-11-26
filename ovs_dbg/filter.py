@@ -5,17 +5,21 @@ import netaddr
 from functools import reduce
 from operator import and_, or_
 
-from ovs_dbg.decoders import decode_default, decode_int, Decoder, IPMask, EthMask
-
-from ovs_dbg.fields import field_decoders
+from ovs_dbg.decoders import (
+    decode_default,
+    decode_int,
+    Decoder,
+    IPMask,
+    EthMask,
+)
 
 
 class EvaluationResult:
     """An EvaluationResult is the result of an evaluation. It contains the
     boolean result and the list of key-values that were evaluated
 
-    Note that since boolean operations (and, not, or) are based only on __bool__
-    we use bitwise alternatives (&, ||, ~)
+    Note that since boolean operations (and, not, or) are based only on
+    __bool__ we use bitwise alternatives (&, ||, ~)
     """
 
     def __init__(self, result, *kv):
@@ -24,11 +28,15 @@ class EvaluationResult:
 
     def __and__(self, other):
         """Logical and operation"""
-        return EvaluationResult(self.result and other.result, *self.kv, *other.kv)
+        return EvaluationResult(
+            self.result and other.result, *self.kv, *other.kv
+        )
 
     def __or__(self, other):
         """Logical or operation"""
-        return EvaluationResult(self.result or other.result, *self.kv, *other.kv)
+        return EvaluationResult(
+            self.result or other.result, *self.kv, *other.kv
+        )
 
     def __invert__(self):
         """Logical not operation"""

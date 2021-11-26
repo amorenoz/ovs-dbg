@@ -29,3 +29,5 @@ jobs:
         run: pipenv run python -m pytest
       - name: Check format
         run: pipenv run python -m black --check --diff .
+      - name: Run flake8
+        run: find -iname "*.py" | xargs python -m flake8

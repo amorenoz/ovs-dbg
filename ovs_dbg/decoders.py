@@ -5,7 +5,6 @@ A decoder is generally a callable that accepts a string and returns the value
 object
 """
 
-import functools
 import json
 import netaddr
 import re
@@ -90,7 +89,9 @@ class IntMask(Decoder):
 
         if self._value.bit_length() > self.size:
             raise ValueError(
-                "Integer value {} is bigger than size {}".format(self._value, self.size)
+                "Integer value {} is bigger than size {}".format(
+                    self._value, self.size
+                )
             )
 
     @property
@@ -362,7 +363,8 @@ class IPMask(Decoder):
 
 
 def decode_free_output(value):
-    """Decodes the output value when found free (without the 'output' keyword)"""
+    """Decodes the output value when found free
+    (without the 'output' keyword)"""
     try:
         return "output", {"port": int(value)}
     except ValueError:
@@ -420,7 +422,10 @@ def decode_ip_port_range(value):
         }
     }
     if port_start:
-        result["ports"] = {"start": int(port_start), "end": int(port_end or port_start)}
+        result["ports"] = {
+            "start": int(port_start),
+            "end": int(port_end or port_start),
+        }
 
     return result
 

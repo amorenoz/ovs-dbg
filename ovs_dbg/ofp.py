@@ -1,11 +1,9 @@
 """ Defines the parsers needed to parse ofproto flows
 """
 
-from dataclasses import dataclass
 import functools
-import re
 
-from ovs_dbg.kv import KVParser, KVDecoders, ParseError, nested_kv_decoder
+from ovs_dbg.kv import KVParser, KVDecoders, nested_kv_decoder
 from ovs_dbg.fields import field_decoders
 from ovs_dbg.flow import Flow, Section
 from ovs_dbg.list import ListDecoders, nested_list_decoder
@@ -84,13 +82,13 @@ class OFPFlowFactory:
         sections = list()
         parts = ofp_string.split("actions=")
         if len(parts) != 2:
-            raise ValueError("malformed ofproto flow: {}", ofp_string)
+            raise ValueError("malformed ofproto flow: %s" % ofp_string)
 
         actions = parts[1]
 
         field_parts = parts[0].rstrip(" ").rpartition(" ")
         if len(field_parts) != 3:
-            raise ValueError("malformed ofproto flow: {}", ofp_string)
+            raise ValueError("malformed ofproto flow: %s" % ofp_string)
 
         info = field_parts[0]
         match = field_parts[2]
@@ -98,14 +96,20 @@ class OFPFlowFactory:
         iparser = KVParser(self.info_decoders)
         iparser.parse(info)
         isection = Section(
-            name="info", pos=ofp_string.find(info), string=info, data=iparser.kv()
+            name="info",
+            pos=ofp_string.find(info),
+            string=info,
+            data=iparser.kv(),
         )
         sections.append(isection)
 
         mparser = KVParser(self.match_decoders)
         mparser.parse(match)
         msection = Section(
-            name="match", pos=ofp_string.find(match), string=match, data=mparser.kv()
+            name="match",
+            pos=ofp_string.find(match),
+            string=match,
+            data=mparser.kv(),
         )
         sections.append(msection)
 
@@ -327,7 +331,8 @@ class OFPFlowFactory:
         """Generate the decoders for clone actions
 
         Args:
-            action_decoders (dict): The decoders of the supported nested actions
+            action_decoders (dict): The decoders of the supported nested
+                actions
         """
         return {
             "learn": decode_learn(
@@ -343,7 +348,9 @@ class OFPFlowFactory:
                     ),
                 }
             ),
-            "clone": functools.partial(decode_exec, KVDecoders(action_decoders)),
+            "clone": functools.partial(
+                decode_exec, KVDecoders(action_decoders)
+            ),
         }
 
     @classmethod

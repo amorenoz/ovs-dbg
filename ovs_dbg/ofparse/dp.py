@@ -1,17 +1,11 @@
-import sys
 import click
-import colorsys
-import graphviz
-import itertools
 
 from rich.tree import Tree
 from rich.text import Text
-from rich.console import Console
 from rich.style import Style
-from rich.color import Color
 
 from ovs_dbg.ofparse.main import maincli
-from ovs_dbg.ofparse.process import process_flows, tojson, pprint
+from ovs_dbg.ofparse.process import process_flows, tojson
 from ovs_dbg.ofparse.console import (
     ConsoleFormatter,
     ConsoleBuffer,
@@ -19,12 +13,10 @@ from ovs_dbg.ofparse.console import (
     hash_pallete,
     heat_pallete,
 )
-from ovs_dbg.ofparse.format import FlowStyle
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
 from ovs_dbg.ofparse.dp_graph import DatapathGraph
 from ovs_dbg.ofparse.dp_tree import FlowTree, FlowElem
-from ovs_dbg.odp import ODPFlow, ODPFlowFactory
-from ovs_dbg.filter import OFFilter
+from ovs_dbg.odp import ODPFlowFactory
 
 factory = ODPFlowFactory()
 
@@ -72,7 +64,9 @@ def pretty(opts, heat_map):
     if heat_map and len(flows) > 0:
         for field in ["packets", "bytes"]:
             values = [f.info.get(field) or 0 for f in flows]
-            console.style.set_value_style(field, heat_pallete(min(values), max(values)))
+            console.style.set_value_style(
+                field, heat_pallete(min(values), max(values))
+            )
 
     for flow in flows:
         high = None
@@ -154,7 +148,8 @@ def html(opts):
 )
 @click.pass_obj
 def graph(opts, html):
-    """Print the flows in an graphviz (.dot) format showing the relationship of recirc_ids"""
+    """Print the flows in an graphviz (.dot) format showing the relationship
+    of recirc_ids"""
 
     recirc_flows = {}
 
@@ -202,7 +197,9 @@ class ConsoleTree(FlowTree):
     class ConsoleElem(FlowElem):
         def __init__(self, flow=None, is_root=False):
             self.tree = None
-            super(ConsoleTree.ConsoleElem, self).__init__(flow, is_root=is_root)
+            super(ConsoleTree.ConsoleElem, self).__init__(
+                flow, is_root=is_root
+            )
 
     def __init__(self, console, opts):
         self.console = console
@@ -370,7 +367,7 @@ class HTMLTree(FlowTree):
       }
       window.onhashchange = locationHashChanged;
     </script>
-    """
+    """  # noqa: E501
 
     class HTMLTreeElem(FlowElem):
         """An element within the HTML Tree,
@@ -394,15 +391,14 @@ class HTMLTree(FlowTree):
             """
             html_obj = "<div>"
             if self.flow:
-                html_obj += """
-            <input id="collapsible_{item}" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
-            <label for="collapsible_{item}" class="lbl-toggle lbl-toggle-flow">Flow {id}</label>
-            """.format(
-                    item=item, id=self.flow.id
-                )
-                html_obj += '<div class="flow collapsible-content" id="flow_{id}" onfocus="onFlowClick(this)" onclick="onFlowClick(this)" >'.format(
-                    id=self.flow.id
-                )
+                html_text = """
+<input id="collapsible_{item}" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
+<label for="collapsible_{item}" class="lbl-toggle lbl-toggle-flow">Flow {id}</label>
+            """  # noqa: E501
+                html_obj += format(html_text, item=item, id=self.flow.id)
+
+                html_text = '<div class="flow collapsible-content" id="flow_{id}" onfocus="onFlowClick(this)" onclick="onFlowClick(this)" >'  # noqa: E501
+                html_obj += html_text.format(id=self.flow.id)
                 buf = HTMLBuffer()
                 highlighted = None
                 if self._opts.get("highlight"):
@@ -444,9 +440,9 @@ class HTMLTree(FlowTree):
         html_obj = (
             self.html_header
             + """
-        <input id="collapsible_main" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
-        <label for="collapsible_main" class="lbl-toggle lbl-toggle-main">Flow Table</label>
-        """
+<input id="collapsible_main" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
+<label for="collapsible_main" class="lbl-toggle lbl-toggle-main">Flow Table</label>
+        """  # noqa: E501
         )
 
         html_obj += "<div id=flow_list>"

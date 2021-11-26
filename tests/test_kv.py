@@ -1,6 +1,6 @@
 import pytest
 
-from ovs_dbg.kv import KVParser, KeyValue, KeyMetadata
+from ovs_dbg.kv import KVParser, KeyValue
 
 
 @pytest.mark.parametrize(
@@ -8,7 +8,7 @@ from ovs_dbg.kv import KVParser, KeyValue, KeyMetadata
     [
         (
             (
-                "cookie=0x0, duration=147566.365s, table=0, n_packets=39, n_bytes=2574, idle_age=65534, hard_age=65534",
+                "cookie=0x0, duration=147566.365s, table=0, n_packets=39, n_bytes=2574, idle_age=65534, hard_age=65534",  # noqa: E501
                 None,
             ),
             [
@@ -23,7 +23,7 @@ from ovs_dbg.kv import KVParser, KeyValue, KeyMetadata
         ),
         (
             (
-                "load:0x4->NXM_NX_REG13[],load:0x9->NXM_NX_REG11[],load:0x8->NXM_NX_REG12[],load:0x1->OXM_OF_METADATA[],load:0x1->NXM_NX_REG14[],mod_dl_src:0a:58:a9:fe:00:02,resubmit(,8)",
+                "load:0x4->NXM_NX_REG13[],load:0x9->NXM_NX_REG11[],load:0x8->NXM_NX_REG12[],load:0x1->OXM_OF_METADATA[],load:0x1->NXM_NX_REG14[],mod_dl_src:0a:58:a9:fe:00:02,resubmit(,8)",  # noqa: E501
                 None,
             ),
             [
@@ -47,7 +47,10 @@ from ovs_dbg.kv import KVParser, KeyValue, KeyMetadata
         ),
         (
             ("value_to_reg(100)->someReg[10],foo:bar", None),
-            [KeyValue("value_to_reg", "(100)->someReg[10]"), KeyValue("foo", "bar")],
+            [
+                KeyValue("value_to_reg", "(100)->someReg[10]"),
+                KeyValue("foo", "bar"),
+            ],
         ),
     ],
 )

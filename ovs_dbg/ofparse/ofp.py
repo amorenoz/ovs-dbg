@@ -1,16 +1,11 @@
-import sys
-import itertools
 import click
-import colorsys
 from rich.tree import Tree
 from rich.text import Text
 from rich.console import Console
-from rich.style import Style
-from rich.color import Color
 
-from ovs_dbg.ofp import OFPFlow, OFPFlowFactory
+from ovs_dbg.ofp import OFPFlowFactory
 from ovs_dbg.ofparse.main import maincli
-from ovs_dbg.ofparse.process import process_flows, tojson, pprint
+from ovs_dbg.ofparse.process import process_flows, tojson
 from ovs_dbg.ofparse.console import (
     ConsoleBuffer,
     ConsoleFormatter,
@@ -75,7 +70,9 @@ def pretty(opts, heat_map):
     if heat_map and len(flows) > 0:
         for field in ["n_packets", "n_bytes"]:
             values = [f.info.get(field) or 0 for f in flows]
-            console.style.set_value_style(field, heat_pallete(min(values), max(values)))
+            console.style.set_value_style(
+                field, heat_pallete(min(values), max(values))
+            )
 
     for flow in flows:
         high = None
@@ -140,12 +137,18 @@ def logic(opts, show_flows, cookie_flag, heat_map):
         """
 
         def __init__(self, flow, match_action_keys=[], match_cookie=False):
-            self.cookie = flow.info.get("cookie") or 0 if match_cookie else None
+            self.cookie = (
+                flow.info.get("cookie") or 0 if match_cookie else None
+            )
             self.priority = flow.match.get("priority") or 0
             self.match_keys = tuple([kv.key for kv in flow.match_kv])
 
             self.action_keys = tuple(
-                [kv.key for kv in flow.actions_kv if kv.key not in match_action_keys]
+                [
+                    kv.key
+                    for kv in flow.actions_kv
+                    if kv.key not in match_action_keys
+                ]
             )
             self.match_action_kvs = [
                 kv for kv in flow.actions_kv if kv.key in match_action_keys
@@ -162,7 +165,8 @@ def logic(opts, show_flows, cookie_flag, heat_map):
 
         def equal_match_action_kvs(self, other):
             """
-            Compares the logical flow's match action key-values with the other's
+            Compares the logical flow's match action key-values with the
+            other's
             Args:
                 other (LFlow): The other LFlow to compare against
 
@@ -212,7 +216,9 @@ def logic(opts, show_flows, cookie_flag, heat_map):
                     style=cookie_style_gen(str(self.cookie)),
                 )
 
-            buf.append_extra("priority={} ".format(self.priority), style="steel_blue")
+            buf.append_extra(
+                "priority={} ".format(self.priority), style="steel_blue"
+            )
             buf.append_extra(",".join(self.match_keys), style="steel_blue")
             buf.append_extra("  --->  ", style="bold magenta")
             buf.append_extra(",".join(lflow.action_keys), style="steel_blue")
@@ -276,7 +282,9 @@ def logic(opts, show_flows, cookie_flag, heat_map):
             buf = ConsoleBuffer(Text())
 
             lflow.format(buf)
-            buf.append_extra(" ( x {} )".format(len(flows)), style="dark_olive_green3")
+            buf.append_extra(
+                " ( x {} )".format(len(flows)), style="dark_olive_green3"
+            )
             lflow_tree = table_tree.add(buf.text)
 
             if show_flows:
@@ -316,7 +324,9 @@ def html(opts):
 
     html_obj = "<div id=flow_list>"
     for table, flows in tables.items():
-        html_obj += "<h2 id=table_{table}> Table {table}</h2>".format(table=table)
+        html_obj += "<h2 id=table_{table}> Table {table}</h2>".format(
+            table=table
+        )
         html_obj += "<ul id=table_{}_flow_list>".format(table)
         for flow in flows:
             html_obj += "<li id=flow_{}>".format(flow.id)

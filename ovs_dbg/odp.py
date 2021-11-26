@@ -2,14 +2,12 @@
 """
 import re
 from functools import partial
-from dataclasses import dataclass
 
 from ovs_dbg.flow import Flow, Section
 
 from ovs_dbg.kv import (
     KVParser,
     KVDecoders,
-    ParseError,
     nested_kv_decoder,
     decode_nested_kv,
 )
@@ -27,15 +25,14 @@ from ovs_dbg.decoders import (
     EthMask,
     decode_free_output,
     decode_flag,
-    decode_ip_port_range,
     decode_nat,
 )
 
 
 class ODPFlow(Flow):
-    def __init__(self, sections, raw="", id=None):
+    def __init__(self, sections, raw="", id_=None):
         """Constructor"""
-        super(ODPFlow, self).__init__(sections, raw, id)
+        super(ODPFlow, self).__init__(sections, raw, id_)
 
     def __str__(self):
         if self._orig:
@@ -77,16 +74,20 @@ class ODPFlowFactory:
         # If UFID present, parse it and
         ufid_pos = odp_string.find("ufid:")
         if ufid_pos >= 0:
-            ufid_string = odp_string[ufid_pos : (odp_string[ufid_pos:].find(",") + 1)]
+            ufid_string = odp_string[
+                ufid_pos : (odp_string[ufid_pos:].find(",") + 1)
+            ]
             ufid_parser = KVParser(KVDecoders({"ufid": decode_default}))
             ufid_parser.parse(ufid_string)
             if len(ufid_parser.kv()) != 1:
-                raise ValueError("malformed odp flow: {}", odp_string)
-            sections.append(Section("ufid", ufid_pos, ufid_string, ufid_parser.kv()))
+                raise ValueError("malformed odp flow: %s" % odp_string)
+            sections.append(
+                Section("ufid", ufid_pos, ufid_string, ufid_parser.kv())
+            )
 
         action_pos = odp_string.find("actions:")
         if action_pos < 0:
-            raise ValueError("malformed odp flow: {}", odp_string)
+            raise ValueError("malformed odp flow: %s" % odp_string)
 
         # rest of the string is between ufid and actions
         rest = odp_string[
@@ -99,7 +100,7 @@ class ODPFlowFactory:
         field_parts = rest.lstrip(" ").partition(" ")
 
         if len(field_parts) != 3:
-            raise ValueError("malformed odp flow: {}", odp_string)
+            raise ValueError("malformed odp flow: %s" % odp_string)
 
         match = field_parts[0]
         info = field_parts[2]
@@ -107,14 +108,20 @@ class ODPFlowFactory:
         iparser = KVParser(KVDecoders(self.info_decoders))
         iparser.parse(info)
         isection = Section(
-            name="info", pos=odp_string.find(info), string=info, data=iparser.kv()
+            name="info",
+            pos=odp_string.find(info),
+            string=info,
+            data=iparser.kv(),
         )
         sections.append(isection)
 
         mparser = KVParser(KVDecoders(self.match_decoders))
         mparser.parse(match)
         msection = Section(
-            name="match", pos=odp_string.find(match), string=match, data=mparser.kv()
+            name="match",
+            pos=odp_string.find(match),
+            string=match,
+            data=mparser.kv(),
         )
         sections.append(msection)
 
@@ -258,7 +265,6 @@ class ODPFlowFactory:
 
         return {
             **_decoders,
-            # "clone": nested_kv_decoder(KVDecoders(_decoders)),
             "sample": nested_kv_decoder(
                 KVDecoders(
                     {
@@ -463,11 +469,11 @@ class ODPFlowFactory:
                         "erspan": nested_kv_decoder(
                             KVDecoders(
                                 {
-                                    "ver": decode_int,
-                                    "idx": decode_int,
+                                    "ver": Mask8,
+                                    "idx": Mask32,
                                     "sid": decode_int,
-                                    "dir": decode_int,
-                                    "hwid": decode_int,
+                                    "dir": Mask8,
+                                    "hwid": Mask8,
                                 }
                             )
                         ),
@@ -477,8 +483,8 @@ class ODPFlowFactory:
                                     "gbp": nested_kv_decoder(
                                         KVDecoders(
                                             {
-                                                "id": decode_int,
-                                                "flags": decode_int,
+                                                "id": Mask16,
+                                                "flags": Mask8,
                                             }
                                         )
                                     )
@@ -649,8 +655,8 @@ class ODPFlowFactory:
 
 def decode_geneve(mask, value):
     """
-    Decode geneve options. Used for both tnl_push(header(geneve(options()))) action
-    and tunnel(geneve()) match.
+    Decode geneve options. Used for both tnl_push(header(geneve(options())))
+    action and tunnel(geneve()) match.
 
     It has the following format:
 

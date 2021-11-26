@@ -1,6 +1,5 @@
 import click
 import os.path
-import sys
 import configparser
 
 from ovs_dbg.filter import OFFilter
@@ -19,7 +18,8 @@ class Options(dict):
 
 
 @click.group(
-    subcommand_metavar="TYPE", context_settings=dict(help_option_names=["-h", "--help"])
+    subcommand_metavar="TYPE",
+    context_settings=dict(help_option_names=["-h", "--help"]),
 )
 @click.option(
     "-c",
@@ -63,8 +63,8 @@ class Options(dict):
 @click.option(
     "-l",
     "--highlight",
-    help="Highlight flows that match the filter expression. Run 'ofparse filter'"
-    "for a detailed description of the filtering syntax",
+    help="Highlight flows that match the filter expression."
+    " Run 'ofparse filter' for a detailed description of the filtering syntax",
     type=str,
     show_default=False,
 )
@@ -108,7 +108,7 @@ def filter(ctx):
     Filter Syntax
     *************
 
-        [! | not ] {key}[[.subkey[.subkey]..] [= | > | < | ~=] {value})] [&& | || | or | and | not ] ...
+     [! | not ] {key}[[.subkey]...] [OPERATOR] {value})] [LOGICAL OPERATOR] ...
 
     \b
     Comparison operators are:

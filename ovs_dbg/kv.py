@@ -211,7 +211,9 @@ class KVParser:
                 if level != 0:
                     raise ParseError(
                         "Error parsing string {}: "
-                        "Failed to find matching ')' in {}".format(string, rest)
+                        "Failed to find matching ')' in {}".format(
+                            string, rest
+                        )
                     )
 
                 value_str = rest[: index - 1]
@@ -238,7 +240,9 @@ class KVParser:
                 key, val = self._decoders.decode(keyword, value_str)
             except Exception as e:
                 raise ParseError(
-                    "Error parsing key-value ({}, {})".format(keyword, value_str)
+                    "Error parsing key-value ({}, {})".format(
+                        keyword, value_str
+                    )
                 ) from e
 
             meta = KeyMetadata(
@@ -273,5 +277,6 @@ def decode_nested_kv(decoders, value):
 
 
 def nested_kv_decoder(decoders=None):
-    """Helper function that creates a nested kv decoder with given KVDecoders"""
+    """Helper function that creates a nested kv decoder with given
+    KVDecoders"""
     return functools.partial(decode_nested_kv, decoders)
