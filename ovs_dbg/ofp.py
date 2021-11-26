@@ -79,6 +79,9 @@ class OFPFlowFactory:
         :return: an OFPFlow with the content of the flow string
         :rtype: OFPFlow
         """
+        if " reply " in ofp_string:
+            return None
+
         sections = list()
         parts = ofp_string.split("actions=")
         if len(parts) != 2:

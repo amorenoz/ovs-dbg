@@ -5,13 +5,19 @@ from rich.text import Text
 from rich.style import Style
 
 from ovs_dbg.ofparse.main import maincli
-from ovs_dbg.ofparse.process import process_flows, tojson
+
+from ovs_dbg.ofparse.process import (
+    FlowProcessor,
+    JSONProcessor,
+    ConsoleProcessor,
+)
 from ovs_dbg.ofparse.console import (
     ConsoleFormatter,
     ConsoleBuffer,
     print_context,
     hash_pallete,
     heat_pallete,
+    file_header,
 )
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
 from ovs_dbg.ofparse.dp_graph import DatapathGraph
@@ -32,7 +38,9 @@ def datapath(opts):
 @click.pass_obj
 def json(opts):
     """Print the flows in JSON format"""
-    return tojson(flow_factory=factory.from_string, opts=opts)
+    proc = JSONProcessor(opts, factory)
+    proc.process()
+    print(proc.json_string())
 
 
 @datapath.command()
@@ -47,35 +55,11 @@ def json(opts):
 @click.pass_obj
 def pretty(opts, heat_map):
     """Print the flows with some style"""
-    flows = list()
-
-    def callback(flow):
-        """Parse the flows and sort them by table"""
-        flows.append(flow)
-
-    process_flows(
-        flow_factory=factory.from_string,
-        callback=callback,
-        filename=opts.get("filename"),
-        filter=opts.get("filter"),
+    proc = ConsoleProcessor(
+        opts, factory, heat_map=["packets", "bytes"] if heat_map else []
     )
-
-    console = ConsoleFormatter(opts)
-    if heat_map and len(flows) > 0:
-        for field in ["packets", "bytes"]:
-            values = [f.info.get(field) or 0 for f in flows]
-            console.style.set_value_style(
-                field, heat_pallete(min(values), max(values))
-            )
-
-    for flow in flows:
-        high = None
-        if opts.get("highlight"):
-            result = opts.get("highlight").evaluate(flow)
-            if result:
-                high = result.kv
-        with print_context(console.console, opts):
-            console.print_flow(flow, high)
+    proc.process()
+    proc.print()
 
 
 @datapath.command()
@@ -90,51 +74,18 @@ def pretty(opts, heat_map):
 @click.pass_obj
 def logic(opts, heat_map):
     """Print the flows in a tree based on the 'recirc_id'"""
-    ofconsole = ConsoleFormatter(opts)
-
-    # Generate a color pallete for cookies
-    recirc_style_gen = hash_pallete(
-        hue=[x / 50 for x in range(0, 50)], saturation=[0.7], value=[0.8]
-    )
-
-    style = ofconsole.style
-    style.set_default_value_style(Style(color="bright_black"))
-    style.set_key_style("output", Style(color="green"))
-    style.set_value_style("output", Style(color="green"))
-    style.set_value_style("recirc", recirc_style_gen)
-    style.set_value_style("recirc_id", recirc_style_gen)
-
-    console_tree = ConsoleTree(ofconsole, opts)
-
-    process_flows(
-        flow_factory=factory.from_string,
-        callback=console_tree.add,
-        filename=opts.get("filename"),
-    )
-
-    console_tree.build()
-    if opts.get("filter"):
-        console_tree.filter(opts.get("filter"))
-    console_tree.print(heat_map)
+    processor = ConsoleTreeProcessor(opts, factory)
+    processor.process()
+    processor.print(heat_map)
 
 
 @datapath.command()
 @click.pass_obj
 def html(opts):
     """Print the flows in an HTML list sorted by recirc_id"""
-
-    html_tree = HTMLTree(opts)
-
-    process_flows(
-        flow_factory=factory.from_string,
-        callback=html_tree.add,
-        filename=opts.get("filename"),
-    )
-
-    html_tree.build()
-    if opts.get("filter"):
-        html_tree.filter(opts.get("filter"))
-    print(html_tree.render())
+    processor = HtmlTreeProcessor(opts, factory)
+    processor.process()
+    processor.print()
 
 
 @datapath.command()
@@ -150,40 +101,84 @@ def html(opts):
 def graph(opts, html):
     """Print the flows in an graphviz (.dot) format showing the relationship
     of recirc_ids"""
+    if len(opts.get("filename")) > 1:
+        raise click.BadParameter("Graph format only supports one input file")
 
-    recirc_flows = {}
+    processor = GraphProcessor(opts, factory)
+    processor.process()
+    processor.print(html)
 
-    def callback(flow):
-        """Parse the flows and sort them by table"""
+
+class GraphProcessor(FlowProcessor):
+    def __init__(self, opts, factory):
+        super().__init__(opts, factory)
+
+    def start_file(self, name, filename):
+        self.recirc_flows = {}
+
+    def process_flow(self, flow, name):
         rid = flow.match.get("recirc_id") or 0
-        if not recirc_flows.get(rid):
-            recirc_flows[rid] = list()
-        recirc_flows[rid].append(flow)
+        if not self.recirc_flows.get(rid):
+            self.recirc_flows[rid] = list()
+        self.recirc_flows[rid].append(flow)
 
-    process_flows(
-        flow_factory=factory.from_string,
-        callback=callback,
-        filename=opts.get("filename"),
-        filter=opts.get("filter"),
-    )
+    def print(self, html):
+        dpg = DatapathGraph(self.recirc_flows)
+        if not html:
+            print(dpg.source())
+            return
 
-    dpg = DatapathGraph(recirc_flows)
+        html_obj = ""
+        html_obj += "<h1> Flow Graph </h1>"
+        html_obj += "<div width=400px height=300px>"
+        svg = dpg.pipe(format="svg")
+        html_obj += svg.decode("utf-8")
+        html_obj += "</div>"
+        html_tree = HTMLTree("graph", self.opts, self.recirc_flows)
+        html_tree.build()
+        html_obj += html_tree.render()
 
-    if not html:
-        print(dpg.source())
-        return
+        print(html_obj)
 
-    html_obj = ""
-    html_obj += "<h1> Flow Graph </h1>"
-    html_obj += "<div width=400px height=300px>"
-    svg = dpg.pipe(format="svg")
-    html_obj += svg.decode("utf-8")
-    html_obj += "</div>"
 
-    html_tree = HTMLTree(opts, recirc_flows)
-    html_obj += html_tree.render()
+class ConsoleTreeProcessor(FlowProcessor):
+    def __init__(self, opts, factory):
+        super().__init__(opts, factory)
+        self.data = dict()
+        self.ofconsole = ConsoleFormatter(self.opts)
 
-    print(html_obj)
+        # Generate a color pallete for cookies
+        recirc_style_gen = hash_pallete(
+            hue=[x / 50 for x in range(0, 50)], saturation=[0.7], value=[0.8]
+        )
+
+        style = self.ofconsole.style
+        style.set_default_value_style(Style(color="bright_black"))
+        style.set_key_style("output", Style(color="green"))
+        style.set_value_style("output", Style(color="green"))
+        style.set_value_style("recirc", recirc_style_gen)
+        style.set_value_style("recirc_id", recirc_style_gen)
+
+    def start_file(self, name, filename):
+        self.tree = ConsoleTree(self.ofconsole, self.opts)
+
+    def process_flow(self, flow, name):
+        self.tree.add(flow)
+
+    def process(self):
+        super().process(False)
+
+    def stop_file(self, name, filename):
+        self.data[name] = self.tree
+
+    def print(self, heat_map):
+        for name, tree in self.data.items():
+            self.ofconsole.console.print("\n")
+            self.ofconsole.console.print(file_header(name))
+            tree.build()
+            if self.opts.get("filter"):
+                tree.filter(self.opts.get("filter"))
+            tree.print(heat_map)
 
 
 class ConsoleTree(FlowTree):
@@ -244,6 +239,36 @@ class ConsoleTree(FlowTree):
         self.traverse(self._append_to_tree)
         with print_context(self.console.console, self.opts):
             self.console.console.print(self.root.tree)
+
+
+class HtmlTreeProcessor(FlowProcessor):
+    def __init__(self, opts, factory):
+        super().__init__(opts, factory)
+        self.data = dict()
+
+    def start_file(self, name, filename):
+        self.tree = HTMLTree(name, self.opts)
+
+    def process_flow(self, flow, name):
+        self.tree.add(flow)
+
+    def process(self):
+        super().process(False)
+
+    def stop_file(self, name, filename):
+        self.data[name] = self.tree
+
+    def print(self):
+        html_obj = ""
+        for name, tree in self.data.items():
+            html_obj += "<div>"
+            html_obj += "<h2>{}</h2>".format(name)
+            tree.build()
+            if self.opts.get("filter"):
+                tree.filter(self.opts.get("filter"))
+            html_obj += tree.render()
+            html_obj += "</div>"
+        print(html_obj)
 
 
 class HTMLTree(FlowTree):
@@ -375,7 +400,8 @@ class HTMLTree(FlowTree):
         append()
         """
 
-        def __init__(self, flow=None, opts=None):
+        def __init__(self, parent_name, flow=None, opts=None):
+            self._parent_name = parent_name
             self._formatter = HTMLFormatter(opts)
             self._opts = opts
             super(HTMLTree.HTMLTreeElem, self).__init__(flow)
@@ -389,13 +415,16 @@ class HTMLTree(FlowTree):
                 (html_obj, items) tuple where html_obj is the html string and
                 items is the number of subitems rendered in total
             """
+            parent_name = self._parent_name.replace(" ", "_")
             html_obj = "<div>"
             if self.flow:
                 html_text = """
-<input id="collapsible_{item}" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
-<label for="collapsible_{item}" class="lbl-toggle lbl-toggle-flow">Flow {id}</label>
+<input id="collapsible_{name}_{item}" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
+<label for="collapsible_{name}_{item}" class="lbl-toggle lbl-toggle-flow">Flow {id}</label>
             """  # noqa: E501
-                html_obj += format(html_text, item=item, id=self.flow.id)
+                html_obj += html_text.format(
+                    item=item, id=self.flow.id, name=parent_name
+                )
 
                 html_text = '<div class="flow collapsible-content" id="flow_{id}" onfocus="onFlowClick(this)" onclick="onFlowClick(this)" >'  # noqa: E501
                 html_obj += html_text.format(id=self.flow.id)
@@ -423,29 +452,26 @@ class HTMLTree(FlowTree):
             html_obj += "</div>"
             return html_obj, item
 
-    def __init__(self, opts, flows=None):
+    def __init__(self, name, opts, flows=None):
         self.opts = opts
-        self.root = self.HTMLTreeElem(flow=None, opts=self.opts)
+        self.name = name
+        self.root = self.HTMLTreeElem("", flow=None, opts=self.opts)
         super(HTMLTree, self).__init__(flows)
 
     def _new_elem(self, flow, _):
         """Override _new_elem to provide HTMLTreeElems"""
-        return self.HTMLTreeElem(flow, self.opts)
+        return self.HTMLTreeElem(self.name, flow, self.opts)
 
     def render(self):
         """Render the Tree in HTML
         Returns:
             an html string representing the element
         """
-        html_obj = (
-            self.html_header
-            + """
-<input id="collapsible_main" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
-<label for="collapsible_main" class="lbl-toggle lbl-toggle-main">Flow Table</label>
-        """  # noqa: E501
-        )
-
-        html_obj += "<div id=flow_list>"
+        name = self.name.replace(" ", "_")
+        html_text = """<input id="collapsible_main-{name}" class="toggle" type="checkbox" onclick="toggle_checkbox(this)" checked>
+<label for="collapsible_main-{name}" class="lbl-toggle lbl-toggle-main">Flow Table</label>"""  # noqa: E501
+        html_obj = self.html_header + html_text.format(name=name)
+        html_obj += "<div id=flow_list-{name}>".format(name=name)
         (html_elem, items) = self.root.render()
         html_obj += html_elem
         html_obj += "</div>"

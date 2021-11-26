@@ -110,13 +110,6 @@ class HTMLFormatter(FlowFormatter):
         self.style = (
             self._style_from_opts(opts, "html", HTMLStyle) or FlowStyle()
         )
-        self.style.set_value_style(
-            "resubmit",
-            HTMLStyle(
-                self.style.get("value.resubmit"),
-                anchor_gen=lambda x: "#table_{}".format(x.value["table"]),
-            ),
-        )
 
     def format_flow(self, buf, flow, highlighted=None):
         """
