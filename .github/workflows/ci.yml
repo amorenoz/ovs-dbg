@@ -30,4 +30,4 @@ jobs:
       - name: Check format
         run: pipenv run python -m black --check --diff .
       - name: Run flake8
-        run: find -iname "*.py" | xargs python -m flake8
+        run: find ovs_dbg -iname "*.py" | xargs pipenv run python -m flake8
