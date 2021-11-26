@@ -131,6 +131,9 @@ class LogicFlowProcessor(FlowProcessor):
         super().__init__(opts, factory)
         self.data = dict()
         self.match_cookie = match_cookie
+        self.ovn_detrace = (
+            OVNDetrace(opts) if opts.get("ovn_detrace_flag") else None
+        )
 
     def start_file(self, name, filename):
         self.tables = dict()
@@ -188,6 +191,17 @@ class LogicFlowProcessor(FlowProcessor):
                         reverse=True,
                     ):
                         flows = table[lflow]
+                        ovn_info = None
+                        if self.ovn_detrace:
+                            ovn_info = self.ovn_detrace.get_ovn_info(
+                                lflow.cookie
+                            )
+                            if self.opts.get("ovn_filter"):
+                                ovn_regexp = re.compile(
+                                    self.opts.get("ovn_filter")
+                                )
+                                if not ovn_regexp.search(ovn_info):
+                                    continue
 
                         buf = ConsoleBuffer(Text())
 
@@ -197,6 +211,12 @@ class LogicFlowProcessor(FlowProcessor):
                             style="dark_olive_green3",
                         )
                         lflow_tree = table_tree.add(buf.text)
+
+                        if ovn_info:
+                            ovn = lflow_tree.add("OVN Info")
+                            for part in ovn_info.split("\n"):
+                                if part.strip():
+                                    ovn.add(part.strip())
 
                         if show_flows:
                             for flow in flows:
