@@ -131,6 +131,11 @@ class KVDecoders:
         return key, True
 
 
+delim_pattern = re.compile(r"(\(|=|:|,|\n|\r|\t|$)")
+parenthesys_pattern = re.compile(r"(\(|\))")
+end_pattern = re.compile(r"( |,|\n|\r|\t)")
+
+
 class KVParser:
     """KVParser parses a string looking for key-value pairs.
 
@@ -168,7 +173,7 @@ class KVParser:
                 kpos += 1
                 continue
 
-            split_parts = re.split(r"(\(|=|:|,|\n|\r|\t|$)", string[kpos:], 1)
+            split_parts = delim_pattern.split(string[kpos:], 1)
             # the delimiter should be included in the returned list
             if len(split_parts) < 3:
                 break
@@ -185,7 +190,7 @@ class KVParser:
             # If the delimiter is ':' or '=', the end of the value is the end
             # of the string or a ', '
             if delimiter in ("=", ":"):
-                value_parts = re.split(r"( |,|\n|\r|\t)", rest, 1)
+                value_parts = end_pattern.split(rest, 1)
                 value_str = value_parts[0] if len(value_parts) == 3 else rest
                 next_kpos = vpos + len(value_str)
 
@@ -193,7 +198,7 @@ class KVParser:
                 # Find the next ')'
                 level = 1
                 index = 0
-                value_parts = re.split(r"(\(|\))", rest)
+                value_parts = parenthesys_pattern.split(rest)
                 for val in value_parts:
                     if val == "(":
                         level += 1

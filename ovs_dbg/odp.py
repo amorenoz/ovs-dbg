@@ -33,14 +33,33 @@ from ovs_dbg.decoders import (
 
 
 class ODPFlow(Flow):
-    """Datapath Flow"""
-
     def __init__(self, sections, raw="", id=None):
         """Constructor"""
         super(ODPFlow, self).__init__(sections, raw, id)
 
-    @classmethod
-    def from_string(cls, odp_string, id=None):
+    def __str__(self):
+        if self._orig:
+            return self._orig
+        else:
+            return self.to_string()
+
+    def to_string(self):
+        """Print a text representation of the flow"""
+        string = "Info: {}\n" + self.info
+        string += "Match : {}\n" + self.match
+        string += "Actions: {}\n " + self.actions
+        return string
+
+
+class ODPFlowFactory:
+    """Datapath Flow"""
+
+    def __init__(self):
+        self.info_decoders = self._info_decoders()
+        self.match_decoders = self._match_decoders()
+        self.action_decoders = self._action_decoders()
+
+    def from_string(self, odp_string, id=None):
         """Parse a odp flow string
 
         The string is expected to have the follwoing format:
@@ -85,22 +104,23 @@ class ODPFlow(Flow):
         match = field_parts[0]
         info = field_parts[2]
 
-        info_decoders = cls._info_decoders()
-        iparser = KVParser(KVDecoders(info_decoders))
+        iparser = KVParser(KVDecoders(self.info_decoders))
         iparser.parse(info)
         isection = Section(
             name="info", pos=odp_string.find(info), string=info, data=iparser.kv()
         )
         sections.append(isection)
 
-        mparser = cls._match_parser()
+        mparser = KVParser(KVDecoders(self.match_decoders))
         mparser.parse(match)
         msection = Section(
             name="match", pos=odp_string.find(match), string=match, data=mparser.kv()
         )
         sections.append(msection)
 
-        aparser = cls._action_parser()
+        aparser = KVParser(
+            KVDecoders(self.action_decoders, default_free=decode_free_output)
+        )
         aparser.parse(actions)
         asection = Section(
             name="actions",
@@ -111,10 +131,10 @@ class ODPFlow(Flow):
         )
         sections.append(asection)
 
-        return cls(sections, odp_string, id)
+        return ODPFlow(sections, odp_string, id)
 
     @classmethod
-    def _action_parser(cls):
+    def _action_decoders(cls):
         _decoders = {
             "drop": decode_flag,
             "lb_output": decode_int,
@@ -236,47 +256,42 @@ class ODPFlow(Flow):
             KVDecoders(decoders=_decoders, default_free=decode_free_output)
         )
 
-        return KVParser(
-            KVDecoders(
-                decoders={
-                    **_decoders,
-                    # "clone": nested_kv_decoder(KVDecoders(_decoders)),
-                    "sample": nested_kv_decoder(
-                        KVDecoders(
-                            {
-                                "sample": (lambda x: float(x.strip("%"))),
-                                "actions": nested_kv_decoder(
-                                    KVDecoders(
-                                        decoders=_decoders,
-                                        default_free=decode_free_output,
-                                    )
-                                ),
-                            }
-                        )
-                    ),
-                    "check_pkt_len": nested_kv_decoder(
-                        KVDecoders(
-                            {
-                                "size": decode_int,
-                                "gt": nested_kv_decoder(
-                                    KVDecoders(
-                                        decoders=_decoders,
-                                        default_free=decode_free_output,
-                                    )
-                                ),
-                                "le": nested_kv_decoder(
-                                    KVDecoders(
-                                        decoders=_decoders,
-                                        default_free=decode_free_output,
-                                    )
-                                ),
-                            }
-                        )
-                    ),
-                },
-                default_free=decode_free_output,
-            )
-        )
+        return {
+            **_decoders,
+            # "clone": nested_kv_decoder(KVDecoders(_decoders)),
+            "sample": nested_kv_decoder(
+                KVDecoders(
+                    {
+                        "sample": (lambda x: float(x.strip("%"))),
+                        "actions": nested_kv_decoder(
+                            KVDecoders(
+                                decoders=_decoders,
+                                default_free=decode_free_output,
+                            )
+                        ),
+                    }
+                )
+            ),
+            "check_pkt_len": nested_kv_decoder(
+                KVDecoders(
+                    {
+                        "size": decode_int,
+                        "gt": nested_kv_decoder(
+                            KVDecoders(
+                                decoders=_decoders,
+                                default_free=decode_free_output,
+                            )
+                        ),
+                        "le": nested_kv_decoder(
+                            KVDecoders(
+                                decoders=_decoders,
+                                default_free=decode_free_output,
+                            )
+                        ),
+                    }
+                )
+            ),
+        }
 
     @classmethod
     def _tnl_action_decoder(cls):
@@ -394,15 +409,11 @@ class ODPFlow(Flow):
         }
 
     @classmethod
-    def _match_parser(cls):
-        return KVParser(
-            KVDecoders(
-                {
-                    **cls._field_decoders(),
-                    "encap": nested_kv_decoder(KVDecoders(cls._field_decoders())),
-                }
-            )
-        )
+    def _match_decoders(cls):
+        return {
+            **cls._field_decoders(),
+            "encap": nested_kv_decoder(KVDecoders(cls._field_decoders())),
+        }
 
     @classmethod
     def _field_decoders(cls):

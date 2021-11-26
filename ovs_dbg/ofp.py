@@ -39,14 +39,37 @@ from ovs_dbg.ofp_act import (
 
 
 class OFPFlow(Flow):
-    """OpenFlow Flow"""
+    """OFPFLow represents an OpenFlow Flow"""
 
     def __init__(self, sections, orig="", id=None):
         """Constructor"""
         super(OFPFlow, self).__init__(sections, orig, id)
 
-    @classmethod
-    def from_string(cls, ofp_string, id=None):
+    def __str__(self):
+        if self._orig:
+            return self._orig
+        else:
+            return self.to_string()
+
+    def to_string(self):
+        """Print a text representation of the flow"""
+        string = "Info: {}\n" + self.info
+        string += "Match : {}\n" + self.match
+        string += "Actions: {}\n " + self.actions
+        return string
+
+
+class OFPFlowFactory:
+    """OpenFlow Flow Factory is a class capable of creating OFPFLow objects"""
+
+    def __init__(self):
+        self.info_decoders = self._info_decoders()
+        self.match_decoders = KVDecoders(
+            {**self._field_decoders(), **self._flow_match_decoders()}
+        )
+        self.act_decoders = self._act_decoders()
+
+    def from_string(self, ofp_string, id=None):
         """Parse a ofproto flow string
 
         The string is expected to have the follwoing format:
@@ -72,26 +95,21 @@ class OFPFlow(Flow):
         info = field_parts[0]
         match = field_parts[2]
 
-        info_decoders = cls._info_decoders()
-        iparser = KVParser(info_decoders)
+        iparser = KVParser(self.info_decoders)
         iparser.parse(info)
         isection = Section(
             name="info", pos=ofp_string.find(info), string=info, data=iparser.kv()
         )
         sections.append(isection)
 
-        match_decoders = KVDecoders(
-            {**cls._field_decoders(), **cls._flow_match_decoders()}
-        )
-        mparser = KVParser(match_decoders)
+        mparser = KVParser(self.match_decoders)
         mparser.parse(match)
         msection = Section(
             name="match", pos=ofp_string.find(match), string=match, data=mparser.kv()
         )
         sections.append(msection)
 
-        act_decoders = cls._act_decoders()
-        aparser = KVParser(act_decoders)
+        aparser = KVParser(self.act_decoders)
         aparser.parse(actions)
         asection = Section(
             name="actions",
@@ -102,7 +120,7 @@ class OFPFlow(Flow):
         )
         sections.append(asection)
 
-        return cls(sections, ofp_string, id)
+        return OFPFlow(sections, ofp_string, id)
 
     @classmethod
     def _info_decoders(cls):
@@ -370,16 +388,3 @@ class OFPFlow(Flow):
         clone_actions = cls._clone_actions_decoders(actions)
         actions.update(clone_actions)
         return KVDecoders(actions, default_free=decode_free_output)
-
-    def __str__(self):
-        if self._orig:
-            return self._orig
-        else:
-            return self.to_string()
-
-    def to_string(self):
-        """Print a text representation of the flow"""
-        string = "Info: {}\n" + self.info
-        string += "Match : {}\n" + self.match
-        string += "Actions: {}\n " + self.actions
-        return string
