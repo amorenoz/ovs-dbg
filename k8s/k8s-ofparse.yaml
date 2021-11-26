@@ -45,7 +45,7 @@ spec:
         path: /var/run/openvswitch
   containers:
   - name: k8s-ofparse
-    image: quay.io/amorenoz/k8s-ofparse
+    image: quay.io/amorenoz/k8s-ofparse-devel
     #imagePullPolicy: Always
     volumeMounts:
       - mountPath: /var/run/openvswitch/
@@ -80,7 +80,7 @@ spec:
             path: /var/run/openvswitch
       containers:
       - name: k8s-ofparse
-        image: quay.io/amorenoz/k8s-ofparse
+        image: quay.io/amorenoz/k8s-ofparse-devel
         #imagePullPolicy: Always
         volumeMounts:
           - mountPath: /var/run/openvswitch/

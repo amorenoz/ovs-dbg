@@ -1,0 +1,64 @@
+FROM quay.io/fedora/fedora:33-x86_64 as builder
+
+ARG OVN_REPO=https://github.com/ovn-org/ovn.git
+ARG OVN_BRANCH=main
+ARG OVS_REPO=https://github.com/openvswitch/ovs.git
+ARG OVS_BRANCH=master
+
+RUN dnf upgrade -y && dnf install --best --refresh -y --setopt=tsflags=nodocs \
+	python3-pyyaml python3-pip bind-utils procps-ng openssl numactl-libs firewalld-filesystem \
+        libpcap hostname kubernetes-client python3-openvswitch python3-pyOpenSSL  \
+        iptables iproute jq iputils strace socat\
+	@'Development Tools' rpm-build dnf-plugins-core kmod && \
+	dnf clean all && rm -rf /var/cache/dnf/*
+
+
+WORKDIR /root
+RUN git clone $OVS_REPO
+
+#Build OVS dependency
+WORKDIR /root/ovs
+RUN git fetch && git checkout $OVS_BRANCH && git log -n 1
+RUN sed -e 's/@VERSION@/0.0.1/' rhel/openvswitch-fedora.spec.in > /tmp/ovs.spec
+RUN dnf builddep /tmp/ovs.spec -y
+RUN rm -f /tmp/ovs.spec
+
+#Build OVS binaries and install
+RUN echo "Building OVS rpm"
+RUN ./boot.sh
+RUN ./configure --prefix=/usr --localstatedir=/var --sysconfdir=/etc --enable-ssl
+RUN make rpm-fedora
+
+#Clone OVN Source Code
+WORKDIR /root
+RUN git clone $OVN_REPO
+
+#Build OVN binaries and install
+WORKDIR /root/ovn/
+RUN git fetch && git checkout $OVN_BRANCH && git log -n 1
+RUN ./boot.sh
+RUN ./configure --prefix=/usr --localstatedir=/var --sysconfdir=/etc --with-ovs-source=/root/ovs/
+RUN make rpm-fedora
+
+
+FROM quay.io/fedora/fedora:33-x86_64
+COPY --from=builder /root/ovn/rpm/rpmbuild/RPMS /root/ovn-rpmbuild
+COPY --from=builder /root/ovs/rpm/rpmbuild/RPMS /root/ovs-rpmbuild
+
+RUN dnf upgrade -y && dnf install --best --refresh -y --setopt=tsflags=nodocs \
+	python3-pyyaml python3-pip jq findutils grep git hostname kubernetes-client && \
+	dnf clean all && rm -rf /var/cache/dnf/*
+
+RUN find /root/ovs-rpmbuild -name "*.rpm" | grep -v src | xargs dnf install -y
+RUN find /root/ovn-rpmbuild -name "*.rpm" | grep -v src | xargs dnf install -y
+
+# Install ovs-dbg
+ADD . /root/ovs-dbg
+WORKDIR /root/ovs-dbg
+RUN python3 -m pip install .
+
+WORKDIR /root
+RUN rm -rf /root/ovs /root/ovn
+
+ADD containers/k8s-ofparse/monitor.sh /root/
+ENTRYPOINT ["/root/monitor.sh"]
