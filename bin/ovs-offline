@@ -93,7 +93,11 @@ do_build() {
                 local cache_arg=--no-cache
         esac
     done
-    ${CONTAINER_CMD} build --build-arg OVS_REPO=${OVS_REPO} --build-arg OVS_COMMIT=${OVS_COMMIT} -t ovs-dbg -f ${CONTAINER_PATH}/Dockerfile ${CONTAINER_PATH} ${cache_arg-}
+    if test -f "${CONTAINER_PATH}/Dockerfile"; then
+        ${CONTAINER_CMD} build --build-arg OVS_REPO=${OVS_REPO} --build-arg OVS_COMMIT=${OVS_COMMIT} -t ovs-dbg -f ${CONTAINER_PATH}/Dockerfile ${CONTAINER_PATH} ${cache_arg-}
+    else
+        error "Cannot build the container locally. You may need to execute the script directly via \"/<GIT-REPO-PATH>/ovs-dbg/bin/ovs-offline build\". Instead, quay.io/amorenoz/ovs-dbg will be used by default."
+    fi
 }
 
 do_stop() {
