@@ -361,6 +361,11 @@ start_vswitchd() {
 }
 
 do_start() {
+    # Ensure ovs-offline collect ovs or ovn has been run
+    if [ ! "$(ls -A ${WORKDIR}/restore_flows 2> /dev/null)" ] && [ ! "$(ls -A ${WORKDIR}/db/ 2> /dev/null)" ]; then
+        error "Restoration data not found in ${WORKDIR}. Please run ovs-offline collect-... first"
+    fi
+
     set_container_cmd
     # Ensure ovs-dbg image is present
     ${CONTAINER_CMD} inspect ovs-dbg 2>&1 >/dev/null || (
