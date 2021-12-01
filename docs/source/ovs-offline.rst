@@ -82,6 +82,8 @@ Once you start, the tool will print the commands that are available for offline 
 
 You can run OVS/OVN commands directly on your offline environment by sourcing the generated script.
 
+(Optional) ovs-offline works with both docker (default) and podman containers. It will automatically detect which is available on your system. To override the default behavior and run with podman containers, use the -p option.
+
 ::
 
     source /tmp/ovs-offline/bin/activate
@@ -100,4 +102,4 @@ Requirements
 ------------
 
 
-- docker
+- docker or podman
