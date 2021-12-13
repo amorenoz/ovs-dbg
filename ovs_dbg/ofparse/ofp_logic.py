@@ -4,7 +4,6 @@ import re
 
 from rich.tree import Tree
 from rich.text import Text
-from rich.console import Console
 
 from ovs_dbg.ofparse.process import FlowProcessor
 from ovs_dbg.ofparse.console import (
@@ -160,10 +159,8 @@ class LogicFlowProcessor(FlowProcessor):
         self.tables[table][lflow].append(flow)
 
     def print(self, show_flows, heat_map):
-        console = Console(
-            color_system=None if self.opts["style"] is None else "256"
-        )
-        formatter = ConsoleFormatter(opts=self.opts, console=console)
+        formatter = ConsoleFormatter(opts=self.opts)
+        console = formatter.console
         with print_context(console, self.opts):
             for name, tables in self.data.items():
                 console.print("\n")
@@ -305,10 +302,8 @@ class CookieProcessor(FlowProcessor):
         self.cookies[cookie][table].append(flow)
 
     def print(self):
-        console = Console(
-            color_system=None if self.opts["style"] is None else "256"
-        )
-        ofconsole = ConsoleFormatter(opts=self.opts, console=console)
+        ofconsole = ConsoleFormatter(opts=self.opts)
+        console = ofconsole.console
         with print_context(console, self.opts):
             for name, cookies in self.data.items():
                 console.print("\n")

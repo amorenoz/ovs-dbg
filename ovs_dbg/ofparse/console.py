@@ -104,7 +104,11 @@ class ConsoleFormatter(FlowFormatter):
     def __init__(self, opts=None, console=None, **kwargs):
         super(ConsoleFormatter, self).__init__()
         style = self.style_from_opts(opts)
-        self.console = console or Console(no_color=(style is None), **kwargs)
+        self.console = console or Console(
+            no_color=(style is None),
+            color_system=(None if not style else "256"),
+            **kwargs
+        )
         self.style = style or FlowStyle()
 
     def style_from_opts(self, opts):
