@@ -40,7 +40,7 @@ monitor() {
 #!/bin/bash
 
 OFPARSE_ARGS="$ofparse_args"
-exec ofparse \$OFPARSE_ARGS "\$@"
+exec ovs-ofparse \$OFPARSE_ARGS "\$@"
 EOF
     chmod +x /usr/local/bin/k8s-ovs-ofparse
 
