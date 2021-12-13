@@ -53,6 +53,10 @@ spec:
     env:
       - name: OVN_RUNDIR
         value: "/var/run/openvswitch"
+      - name: OVN_NB_DB
+        value: "unix:/var/run/openvswitch/ovnnb_db.sock"
+      - name: OVN_SB_DB
+        value: "unix:/var/run/openvswitch/ovnsb_db.sock"
       - name: OVS_RUNDIR
         value: "/var/run/openvswitch"
     command: ["/root/monitor.sh", "start"]
