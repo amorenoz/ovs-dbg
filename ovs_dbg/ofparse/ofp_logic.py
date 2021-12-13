@@ -1,3 +1,7 @@
+import sys
+import io
+import re
+
 from rich.tree import Tree
 from rich.text import Text
 from rich.console import Console
@@ -127,6 +131,9 @@ class LogicFlowProcessor(FlowProcessor):
         super().__init__(opts, factory)
         self.data = dict()
         self.match_cookie = match_cookie
+        self.ovn_detrace = (
+            OVNDetrace(opts) if opts.get("ovn_detrace_flag") else None
+        )
 
     def start_file(self, name, filename):
         self.tables = dict()
@@ -184,6 +191,17 @@ class LogicFlowProcessor(FlowProcessor):
                         reverse=True,
                     ):
                         flows = table[lflow]
+                        ovn_info = None
+                        if self.ovn_detrace:
+                            ovn_info = self.ovn_detrace.get_ovn_info(
+                                lflow.cookie
+                            )
+                            if self.opts.get("ovn_filter"):
+                                ovn_regexp = re.compile(
+                                    self.opts.get("ovn_filter")
+                                )
+                                if not ovn_regexp.search(ovn_info):
+                                    continue
 
                         buf = ConsoleBuffer(Text())
 
@@ -193,6 +211,12 @@ class LogicFlowProcessor(FlowProcessor):
                             style="dark_olive_green3",
                         )
                         lflow_tree = table_tree.add(buf.text)
+
+                        if ovn_info:
+                            ovn = lflow_tree.add("OVN Info")
+                            for part in ovn_info.split("\n"):
+                                if part.strip():
+                                    ovn.add(part.strip())
 
                         if show_flows:
                             for flow in flows:
@@ -207,4 +231,117 @@ class LogicFlowProcessor(FlowProcessor):
                                 formatter.format_flow(buf, flow, highlighted)
                                 lflow_tree.add(buf.text)
 
+                console.print(tree)
+
+
+class OVNDetrace(object):
+    def __init__(self, opts):
+        if not opts.get("ovn_detrace_flag"):
+            raise Exception("Cannot initialize OVN Detrace connection")
+
+        if opts.get("ovn_detrace_path"):
+            sys.path.append(opts.get("ovn_detrace_path"))
+
+        import ovn_detrace
+
+        class FakePrinter(ovn_detrace.Printer):
+            def __init__(self):
+                self.buff = io.StringIO()
+
+            def print_p(self, msg):
+                print("  * ", msg, file=self.buff)
+
+            def print_h(self, msg):
+                print("   * ", msg, file=self.buff)
+
+            def clear(self):
+                self.buff = io.StringIO()
+
+        self.ovn_detrace = ovn_detrace
+        self.ovnnb_conn = ovn_detrace.OVSDB(
+            opts.get("ovnnb_db"), "OVN_Northbound"
+        )
+        self.ovnsb_conn = ovn_detrace.OVSDB(
+            opts.get("ovnsb_db"), "OVN_Southbound"
+        )
+        self.ovn_printer = FakePrinter()
+        self.cookie_handlers = ovn_detrace.get_cookie_handlers(
+            self.ovnnb_conn, self.ovnsb_conn, self.ovn_printer
+        )
+
+    def get_ovn_info(self, cookie):
+        self.ovn_printer.clear()
+        self.ovn_detrace.print_record_from_cookie(
+            self.ovnsb_conn, self.cookie_handlers, "{:x}".format(cookie)
+        )
+        return self.ovn_printer.buff.getvalue()
+
+
+class CookieProcessor(FlowProcessor):
+    """Processor that sorts flows into tables and cookies"""
+
+    def __init__(self, opts, factory):
+        super().__init__(opts, factory)
+        self.data = dict()
+        self.ovn_detrace = (
+            OVNDetrace(opts) if opts.get("ovn_detrace_flag") else None
+        )
+
+    def start_file(self, name, filename):
+        self.cookies = dict()
+
+    def stop_file(self, name, filename):
+        self.data[name] = self.cookies
+
+    def process_flow(self, flow, name):
+        """Sort the flows by table and logical flow"""
+        cookie = flow.info.get("cookie") or 0
+        if not self.cookies.get(cookie):
+            self.cookies[cookie] = dict()
+
+        table = flow.info.get("table") or 0
+        if not self.cookies[cookie].get(table):
+            self.cookies[cookie][table] = list()
+        self.cookies[cookie][table].append(flow)
+
+    def print(self):
+        console = Console(
+            color_system=None if self.opts["style"] is None else "256"
+        )
+        ofconsole = ConsoleFormatter(opts=self.opts, console=console)
+        with print_context(console, self.opts):
+            for name, cookies in self.data.items():
+                console.print("\n")
+                console.print(file_header(name))
+                tree = Tree("Ofproto Cookie Tree")
+
+                for cookie, tables in cookies.items():
+                    ovn_info = None
+                    if self.ovn_detrace:
+                        ovn_info = self.ovn_detrace.get_ovn_info(cookie)
+                        if self.opts.get("ovn_filter"):
+                            ovn_regexp = re.compile(
+                                self.opts.get("ovn_filter")
+                            )
+                            if not ovn_regexp.search(ovn_info):
+                                continue
+
+                    cookie_tree = tree.add(
+                        "** Cookie {} **".format(hex(cookie))
+                    )
+                    if ovn_info:
+                        ovn = cookie_tree.add("OVN Info")
+                        for part in ovn_info.split("\n"):
+                            if part.strip():
+                                ovn.add(part.strip())
+
+                    tables_tree = cookie_tree.add("Tables")
+                    for table, flows in tables.items():
+                        table_tree = tables_tree.add(
+                            "* Table {} * ".format(table)
+                        )
+                        for flow in flows:
+                            buf = ConsoleBuffer(Text())
+                            ofconsole.format_flow(buf, flow)
+                            table_tree.add(buf.text)
                 console.print(tree)

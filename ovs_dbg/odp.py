@@ -196,7 +196,7 @@ class ODPFlowFactory:
                         ),
                         "userdata": decode_default,
                         "actions": decode_flag,
-                        "tunnel_out_port": decode_int,
+                        "tunnel_out_port": decode_default,
                         "push_eth": nested_kv_decoder(
                             KVDecoders(
                                 {

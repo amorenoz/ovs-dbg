@@ -151,13 +151,16 @@ Openflow parsing
 
 The openflow flow parsing supports this extra formats:
 
-**Logic**: To print the logical representation of a flow run:
+Logic format
+************
+
+**logic**: To print the logical representation of a flow run:
 
 ::
 
     ofparse openflow logic
 
-(run `ofparse --help` for more details)
+(run `ofparse openflow logic --help` for more details)
 
 
 When printing a logical representation of a flow list, flows are grouped into *logical flows* that:
@@ -166,6 +169,50 @@ When printing a logical representation of a flow list, flows are grouped into *l
 - match on the same fields (regardless of the match value)
 - execute the same actions (regardless of the actions' arguments, except for resubmit and output)
 - Optionally, the *cookie* can be counted as part of the logical flow as well (*--cookie*)
+
+Flows are sorted by table and then by logical flow:
+
+
+::
+
+    TABLE 1
+     -> logial flow ( x n )
+       -> flow 1
+       -> flow 2
+       ...
+	
+
+Cookie format
+*************
+Use **cookie** format to sort the flows by cookie and then by table
+
+::
+
+    Cookie 0xa
+     -> TABLE 1
+       -> flow 1
+       -> flow 2
+       ...
+    -> TABLE 2
+    ...
+
+
+ovn-detrace integration
+***********************
+Both **cookie** and **logic** formats support integration with OVN, in particular with ovn-detrace
+utility.
+
+You will need a recent OVN version that contains a specific `ovn-detrace patch`_ as well as locally
+accesible OVN Northbound and OVN Southbound ovsdb-server instances running.
+
+If you have all that, you can enable ovn-detrace support and ofparse will use ovn-detrace to
+extract the OVN information for each cookie and print it alogside the Openflow flows.
+
+See help for more information:
+
+::
+
+    ofparse openflow cookie --help
 
 
 HTML representation
@@ -349,3 +396,4 @@ Note filtering is typically applied before the range is calculated.
 .. _ovs-actions: http://www.openvswitch.org/support/dist-docs/ovs-actions.7.html
 .. _ovs-fields: http://www.openvswitch.org/support/dist-docs/ovs-fields.7.html
 .. _ovs-ofctl: http://www.openvswitch.org/support/dist-docs/ovs-ofctl.8.txt
+.. _`ovn-detrace patch`: https://github.com/ovn-org/ovn/commit/d659b6538b00bd72aeca1fc5dd3a3c337ac53f37
