@@ -18,13 +18,13 @@ From the git checkout
     eval "$(ovs-dbg-complete)"
 
 # Available tools
-## ofparse
+## ovs-ofparse
 
 `ofparse` parses the output of commands such as `ovs-ofproto dump-flows` and
 prints the files in different outputs including json and html. It suports
 formatting and filtering.
 
-    ofparse --help
+    ovs-ofparse --help
 
 ## ovs-lgrep
 

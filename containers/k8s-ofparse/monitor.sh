@@ -36,17 +36,17 @@ monitor() {
         ofparse_args="$ofparse_args -i ${node_name},${file}"
     done
 
-    cat > /usr/local/bin/k8s-ofparse <<EOF
+    cat > /usr/local/bin/k8s-ovs-ofparse <<EOF
 #!/bin/bash
 
 OFPARSE_ARGS="$ofparse_args"
 exec ofparse \$OFPARSE_ARGS "\$@"
 EOF
-    chmod +x /usr/local/bin/k8s-ofparse
+    chmod +x /usr/local/bin/k8s-ovs-ofparse
 
     cat > /etc/motd <<EOF
 ==============================
-        k8s-ofparse
+        k8s-ovs-ofparse
 ==============================
 
 The flows from the following nodes are being synchronized into files ({Node Name} ==> {File Path}):
@@ -59,7 +59,7 @@ EOF
     cat >> /etc/motd <<EOF
 
 You can use "ofparse -i {filename} ..." to look at any individual node
-Also, you can use "k8s-ofparse ..." to look at all the nodes
+Also, you can use "k8s-ovs-ofparse ..." to look at all the nodes
 
 Please report bugs or RFEs to https://github.com/amorenoz/ovs-dbg
 
@@ -69,7 +69,7 @@ EOF
     echo '[ ! -z "$TERM" -a -r /etc/motd ] && cat /etc/motd' >> /root/.bashrc
     echo 'export PAGER="less -r"' >> /root/.bashrc
     echo 'eval "$(ovs-dbg-complete)"' >> /root/.bashrc
-    echo 'eval "complete -o nosort -F _ofparse_completion k8s-ofparse"' >> /root/.bashrc # apply same autocomplete to k8s-ofparse
+    echo 'eval "complete -o nosort -F _ofparse_completion k8s-ovs-ofparse"' >> /root/.bashrc # apply same autocomplete to k8s-ofparse
 
     while sleep 15; do
         for node in "${!nodes[@]}"; do
