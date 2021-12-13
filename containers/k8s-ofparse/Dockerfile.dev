@@ -7,8 +7,7 @@ ARG OVS_BRANCH=master
 
 RUN dnf upgrade -y && dnf install --best --refresh -y --setopt=tsflags=nodocs \
 	python3-pyyaml python3-pip bind-utils procps-ng openssl numactl-libs firewalld-filesystem \
-        libpcap hostname kubernetes-client python3-openvswitch python3-pyOpenSSL  \
-        iptables iproute jq iputils strace socat\
+        libpcap hostname python3-pyOpenSSL  \
 	@'Development Tools' rpm-build dnf-plugins-core kmod && \
 	dnf clean all && rm -rf /var/cache/dnf/*
 
