@@ -53,8 +53,8 @@ def json(opts):
     help="Create heat-map with packet and byte counters",
 )
 @click.pass_obj
-def pretty(opts, heat_map):
-    """Print the flows with some style"""
+def console(opts, heat_map):
+    """Print the flows in the console with some style"""
     proc = ConsoleProcessor(
         opts, factory, heat_map=["packets", "bytes"] if heat_map else []
     )

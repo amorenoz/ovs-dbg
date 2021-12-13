@@ -1,6 +1,6 @@
-===============================================
-k8s-ofparse: Online flow analysis in Kubernetes
-===============================================
+===================================================
+k8s-ovs-ofparse: Online flow analysis in Kubernetes
+===================================================
 
 k8s-ofparse is essentially a container a Kubernetes deployment manifest.
 
@@ -61,7 +61,7 @@ Usage
      - ovn-worker  ==>  /tmp/k8s-ofparse/ovn-worker.flows
 
     You can use "ofparse -i {filename} ..." to look at any individual node
-    Also, you can use "k8s-ofparse ..." to look at all the nodes
+    Also, you can use "k8s-ovs-ofparse ..." to look at all the nodes
 
     Please report bugs or RFEs to https://github.com/amorenoz/ovs-dbg
 
