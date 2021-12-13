@@ -17,14 +17,18 @@ vswitchd-dummy() {
   fi
   ) &
 
-  if [ "$UID" -eq 0 ] || [ -z "${UID}" ]; then
-    docker_user=root
-  else
-    useradd new_user -u $UID
-    docker_user=new_user
+  if [ "${CONTAINER_TYPE}" == docker ]; then
+    if [ "$UID" -eq 0 ] || [ -z "${UID}" ]; then
+      container_user=root
+    else
+      useradd new_user -u $UID
+      chown -R new_user /usr/local/var/run/openvswitch/
+      container_user=new_user
+    fi
+    user_opt="--user ${container_user}"
   fi
 
-  ovs-vswitchd --user ${docker_user} --enable-dummy=override -vvconn -vnetdev_dummy  --no-chdir --pidfile  -vsyslog:off unix:${OVSDB_SOCKET}
+  ovs-vswitchd ${user_opt-} --enable-dummy=override -vvconn -vnetdev_dummy  --no-chdir --pidfile  -vsyslog:off unix:${OVSDB_SOCKET}
 
 }
 
@@ -50,15 +54,17 @@ ovsdb() {
 
   mkdir -p /usr/local/var/run/openvswitch/
 
-  if [ "$UID" -eq 0 ] || [ -z "${UID}" ]; then
-    docker_user=root
-  else
-    useradd new_user -u $UID
-    chown -R new_user /usr/local/var/run/openvswitch/ /usr/local/etc/openvswitch/
-    docker_user=new_user
+  if [ "${CONTAINER_TYPE}" == docker ]; then
+    if [ "$UID" -eq 0 ] || [ -z "${UID}" ]; then
+      container_user=root
+    else
+      useradd new_user -u $UID
+      chown -R new_user /usr/local/var/run/openvswitch/ /usr/local/etc/openvswitch/
+      container_user=new_user
+    fi
   fi
 
-  ovsdb-server --user ${docker_user} --remote=punix:${OVSDB_SOCKET} --remote=ptcp:6640 --pidfile=ovsdb-server.pid $DB_FILE
+  ovsdb-server ${user_opt-} --remote=punix:${OVSDB_SOCKET} --remote=ptcp:6640 --pidfile=ovsdb-server.pid $DB_FILE
 
 }
 cmd=${1:-""}

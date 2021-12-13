@@ -11,6 +11,7 @@ VAR_RUN=${WORKDIR}/var-run
 SOS_DIR=${WORKDIR}/sos_report
 SOS_CMD_DIR=${SOS_DIR}/sos_commands/openvswitch/
 SOURCE_DIR=${WORKDIR}/bin
+CONTAINER_CMD=docker
 
 
 declare -A open_flow_protocols=(
@@ -53,6 +54,7 @@ usage() {
     echo "  -h:     Print help"
     echo "  -w:     Set working directory. Also configurable via OVS_DBG_WORKDIR env var. Default: /tmp/ovs-offline-dbg"
     echo "  -d:     Set debug mode"
+    echo "  -p:     Manage containers using podman (default: Docker)"
 }
 
 error() {
@@ -60,22 +62,36 @@ error() {
     exit 1
 }
 
+set_container_cmd() {
+    # Use docker by default. If docker is not installed, or podman-docker is being used, use podman instead
+    if [ ! -x "$(command -v docker)" ] || cat $(command -v docker) | grep "Emulate Docker CLI using podman" &>/dev/null; then
+        if [ -x "$(command -v podman)" ]; then
+            CONTAINER_CMD=podman
+        else
+            error "docker and/or podman must be installed to run ovs-offline"
+        fi
+    fi
+    echo "running $CONTAINER_CMD"
+}
+
 do_build() {
-    docker build -t ovs-dbg -f ${CONTAINER_PATH}/Dockerfile ${CONTAINER_PATH}
+    set_container_cmd
+    ${CONTAINER_CMD} build -t ovs-dbg -f ${CONTAINER_PATH}/Dockerfile ${CONTAINER_PATH}
 }
 
 do_stop() {
+    set_container_cmd
     if ! [ -z "${OVS_OFFLINE_ENV-}" ]; then
         error "Cannot stop, ovs-offline env is still active. Run \"deactivate\" and try again"
     fi
-    docker kill ovs-vswitchd &>/dev/null || true
-    docker rm ovs-vswitchd &>/dev/null || true
-    docker kill ovsdb-server-ovs &>/dev/null || true
-    docker rm ovsdb-server-ovs &>/dev/null || true
-    docker kill ovsdb-server-ovn_nb &>/dev/null || true
-    docker rm ovsdb-server-ovn_nb &>/dev/null || true
-    docker kill ovsdb-server-ovn_sb &>/dev/null || true
-    docker rm ovsdb-server-ovn_sb &>/dev/null || true
+    ${CONTAINER_CMD} kill ovs-vswitchd &>/dev/null || true
+    ${CONTAINER_CMD} rm ovs-vswitchd &>/dev/null || true
+    ${CONTAINER_CMD} kill ovsdb-server-ovs &>/dev/null || true
+    ${CONTAINER_CMD} rm ovsdb-server-ovs &>/dev/null || true
+    ${CONTAINER_CMD} kill ovsdb-server-ovn_nb &>/dev/null || true
+    ${CONTAINER_CMD} rm ovsdb-server-ovn_nb &>/dev/null || true
+    ${CONTAINER_CMD} kill ovsdb-server-ovn_sb &>/dev/null || true
+    ${CONTAINER_CMD} rm ovsdb-server-ovn_sb &>/dev/null || true
     rm -rf ${WORKDIR}
 }
 
@@ -314,17 +330,18 @@ start_ovsdb() {
 
     local remote_var_run=/usr/local/var/run/openvswitch
     local local_var_run=${VAR_RUN}/${name}
+    mkdir ${local_var_run}
 
     local container_name=ovsdb-server-${name}
     local backup_file=${remote_var_run}/${name}.db
     local socket_file=${remote_var_run}/db.sock
-    local docker_caps="--cap-add=CAP_SETGID --cap-add=CAP_SETUID --cap-add=CAP_SETPCAP --cap-add=CAP_NET_BIND_SERVICE --cap-add=CAP_IPC_LOCK"
+    local caps="--cap-add=CAP_SETGID --cap-add=CAP_SETUID --cap-add=CAP_SETPCAP --cap-add=CAP_NET_BIND_SERVICE --cap-add=CAP_IPC_LOCK"
 
-    docker kill ovsdb-server-${name} &>/dev/null || true
-    docker rm ovsdb-server-${name} &>/dev/null || true
+    ${CONTAINER_CMD} kill ovsdb-server-${name} &>/dev/null || true
+    ${CONTAINER_CMD} rm ovsdb-server-${name} &>/dev/null || true
 
     echo "Starting container ovsdb-server-${name}"
-    docker run -d -e OVSDB_BACKUP=${backup_file} ${docker_caps} -e UID=$(id -u) -e OVSDB_SOCKET=${socket_file} -v ${backup_local_file}:${backup_file} -v ${local_var_run}:${remote_var_run} --pid=host --name ovsdb-server-${name} ovs-dbg ovsdb
+    ${CONTAINER_CMD} run -d -e OVSDB_BACKUP=${backup_file} ${caps} -e UID=$(id -u) -e OVSDB_SOCKET=${socket_file} -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${backup_local_file}:${backup_file} -v ${local_var_run}:${remote_var_run} --pid=host --name ovsdb-server-${name} ovs-dbg ovsdb
     sleep 3
 }
 
@@ -333,20 +350,22 @@ start_vswitchd() {
     local remote_var_run=/usr/local/var/run/openvswitch
     local socket_file=${remote_var_run}/db.sock
     local local_var_run=${VAR_RUN}/ovs
-    local docker_caps="--cap-add=CAP_SETGID --cap-add=CAP_SETUID --cap-add=CAP_SETPCAP --cap-add=IPC_LOCK --cap-add=NET_ADMIN --cap-add=NET_BROADCAST"
-    docker kill ovs-vswitchd &>/dev/null || true
-    docker rm ovs-vswitchd &>/dev/null || true
+    mkdir -p ${local_var_run}
+    local caps="--cap-add=CAP_SETGID --cap-add=CAP_SETUID --cap-add=CAP_SETPCAP --cap-add=IPC_LOCK --cap-add=NET_ADMIN --cap-add=NET_BROADCAST"
+    ${CONTAINER_CMD} kill ovs-vswitchd &>/dev/null || true
+    ${CONTAINER_CMD} rm ovs-vswitchd &>/dev/null || true
 
     echo "Starting container ovs-vswitchd"
-    docker run -d -e OVSDB_SOCKET=${socket_file} ${docker_caps} -e UID=$(id -u) -e RESTORE_DIR="/root/restore_flows" -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --pid=host --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
+    ${CONTAINER_CMD} run -d -e OVSDB_SOCKET=${socket_file} ${caps} -e UID=$(id -u) -e RESTORE_DIR="/root/restore_flows" -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --pid=host --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
     sleep 3
 }
 
 do_start() {
+    set_container_cmd
     # Ensure ovs-dbg image is present
-    docker inspect ovs-dbg 2>&1 >/dev/null || (
+    ${CONTAINER_CMD} inspect ovs-dbg 2>&1 >/dev/null || (
         echo "Failed to find a local container named ovs-dbg. Pulling from quay.io/amorenoz/ovs-dbg"
-        docker pull quay.io/amorenoz/ovs-dbg && docker tag quay.io/amorenoz/ovs-dbg ovs-dbg
+        ${CONTAINER_CMD} pull quay.io/amorenoz/ovs-dbg && ${CONTAINER_CMD} tag quay.io/amorenoz/ovs-dbg ovs-dbg
     )
 
     for db_type in $(ls -x ${WORKDIR}/db); do
@@ -505,7 +524,7 @@ print_tools() {
     echo "    source ${SOURCE_DIR}/activate"
 }
 
-while getopts ":hdw:" opt; do
+while getopts ":hd:w:p" opt; do
     case ${opt} in
         h)
             usage
@@ -517,6 +536,9 @@ while getopts ":hdw:" opt; do
             ;;
         d)
             set -x
+            ;;
+        p)
+            CONTAINER_CMD=podman
             ;;
     esac
 done

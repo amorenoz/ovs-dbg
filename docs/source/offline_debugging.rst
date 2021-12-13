@@ -75,7 +75,7 @@ You can verify these files have been collected by looking in the working directo
 
 There is a chance you will see an error message indicating that the database file conf.db was not found in the expected locations. In this case, you can locate and collect the database manually: :ref:`manually_recreate_label-name`
 
-The final step is to run ovs-offline start, which will spin up your local set up in docker containers and configure them using the files that have been collected.
+The final step is to run ovs-offline start, which will spin up your local set up in containers and configure them using the files that have been collected.
 
 ::
 
