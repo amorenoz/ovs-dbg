@@ -12,6 +12,8 @@ SOS_DIR=${WORKDIR}/sos_report
 SOS_CMD_DIR=${SOS_DIR}/sos_commands/openvswitch/
 SOURCE_DIR=${WORKDIR}/bin
 CONTAINER_CMD=docker
+OVS_REPO=${OVS_DBG_REPO:-https://github.com/openvswitch/ovs.git}
+OVS_COMMIT=${OVS_DBG_COMMIT:-branch-2.15}
 
 
 declare -A open_flow_protocols=(
@@ -30,6 +32,10 @@ usage() {
     echo ""
     echo "Basic commands:"
     echo "  build                Builds the needed container images"
+    echo "    Options":
+    echo "       -r:    Set ovs git-repo to clone source code from. Also configurable via OVS_DBG_REPO env var.  Default: ${OVS_REPO}"
+    echo "       -c:    Set commit/branch to git checkout. Also configurable via OVS_DBG_COMMIT env var.         Default: ${OVS_COMMIT}"
+    echo "       -n:    Build without using cache (i.e. to rebuild a repo/branch with new changes)"
     echo ""
     echo "  start                Starts an offline debugging session service. Data must have been previously collected in the working directory"
     echo ""
@@ -52,7 +58,7 @@ usage() {
     echo ""
     echo "Generic options"
     echo "  -h:     Print help"
-    echo "  -w:     Set working directory. Also configurable via OVS_DBG_WORKDIR env var. Default: /tmp/ovs-offline-dbg"
+    echo "  -w:     Set working directory. Also configurable via OVS_DBG_WORKDIR env var. Default: /tmp/ovs-offline"
     echo "  -d:     Set debug mode"
     echo "  -p:     Manage containers using podman (default: Docker)"
 }
@@ -71,12 +77,23 @@ set_container_cmd() {
             error "docker and/or podman must be installed to run ovs-offline"
         fi
     fi
-    echo "running $CONTAINER_CMD"
 }
 
 do_build() {
     set_container_cmd
-    ${CONTAINER_CMD} build -t ovs-dbg -f ${CONTAINER_PATH}/Dockerfile ${CONTAINER_PATH}
+    while getopts "r:c:n" opt; do
+        case ${opt} in
+            r)
+                OVS_REPO=$OPTARG
+                ;;
+            c)
+                OVS_COMMIT=$OPTARG
+                ;;
+            n)
+                local cache_arg=--no-cache
+        esac
+    done
+    ${CONTAINER_CMD} build --build-arg OVS_REPO=${OVS_REPO} --build-arg OVS_COMMIT=${OVS_COMMIT} -t ovs-dbg -f ${CONTAINER_PATH}/Dockerfile ${CONTAINER_PATH} ${cache_arg-}
 }
 
 do_stop() {
