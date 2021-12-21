@@ -95,16 +95,41 @@ class FlowTree:
         for flow in sorted(
             flows, key=lambda x: x.info.get("packets") or 0, reverse=True
         ):
-            next_recirc = next(
-                (kv.value for kv in flow.actions_kv if kv.key == "recirc"),
-                None,
-            )
+            next_recirc = self._get_next_recirc(flow)
 
             elem = self._new_elem(flow, parent)
             parent.append(elem)
 
             if next_recirc:
                 self._build(elem, next_recirc)
+
+    def _get_next_recirc(self, flow):
+        """Get the next recirc_id from a list of actions or None if not found.
+
+        The recirc_id is obtained from actions such as recirc, but also
+        complex actions such as check_pkt_len and sample
+        """
+
+        def find_in_dict(actions_dict):
+            return next(
+                (v for k, v in actions_dict.items() if k == "recirc"),
+                None,
+            )
+
+        for action in flow.actions_kv:
+            if action.key == "recirc":
+                return action.value
+            if action.key == "check_pkt_len":
+                recirc = find_in_dict(action.value.get("gt"))
+                if recirc:
+                    return recirc
+                recirc = find_in_dict(action.value.get("le"))
+                if recirc:
+                    return recirc
+            if action.key == "sample":
+                return find_in_dict(action.value.get("actions"))
+
+        return None
 
     def _new_elem(self, flow, parent):
         """Creates a new TreeElem
