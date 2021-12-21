@@ -62,7 +62,6 @@ class ListParser:
         self._decoders = decoders or ListDecoders()
         self._keyval = list()
         delims = delims or [","]
-        delims.append("$")
         self._regexp = r"({})".format("|".join(delims))
 
     def kv(self):
@@ -84,7 +83,7 @@ class ListParser:
         index = 0
         while kpos < len(string) and string[kpos] != "\n":
             split_parts = re.split(self._regexp, string[kpos:], 1)
-            if len(split_parts) < 3:
+            if len(split_parts) == 0:
                 break
 
             value_str = split_parts[0]

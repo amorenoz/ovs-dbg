@@ -131,7 +131,7 @@ class KVDecoders:
         return key, True
 
 
-delim_pattern = re.compile(r"(\(|=|:|,|\n|\r|\t|$)")
+delim_pattern = re.compile(r"(\(|=|:|,|\n|\r|\t)")
 parenthesys_pattern = re.compile(r"(\(|\))")
 end_pattern = re.compile(r"( |,|\n|\r|\t)")
 
@@ -168,19 +168,27 @@ class KVParser:
         """
         kpos = 0
         while kpos < len(string) and string[kpos] != "\n":
-            # strip string
+            keyword = ""
+            delimiter = ""
+            rest = ""
+
             if string[kpos] == "," or string[kpos] == " ":
                 kpos += 1
                 continue
 
             split_parts = delim_pattern.split(string[kpos:], 1)
-            # the delimiter should be included in the returned list
-            if len(split_parts) < 3:
+
+            if len(split_parts) == 0:
                 break
 
             keyword = split_parts[0]
-            delimiter = split_parts[1]
-            rest = split_parts[2]
+
+            if len(split_parts) == 3:
+                # The delimiter should be included in the returned list.
+                # If not at the end of the line, we should have 3
+                # parts [keyword, delimiter, rest].
+                delimiter = split_parts[1]
+                rest = split_parts[2]
 
             value_str = ""
             vpos = kpos + len(keyword) + 1

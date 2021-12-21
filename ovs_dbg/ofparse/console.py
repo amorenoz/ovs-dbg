@@ -207,4 +207,6 @@ def print_context(console, opts):
 
         return console.pager(styles=with_style)
 
-    return contextlib.nullcontext()
+    # python > 3.7 has nullcontext for a dummy context but in order to support
+    # python 3.6, use suppress() as a null context
+    return contextlib.suppress()
