@@ -68,6 +68,8 @@ class ODPFlowFactory:
         Returns:
             an ODPFlow instance
         """
+        if "flow-dump from pmd on cpu core" in odp_string:
+            return None
 
         sections = []
 
