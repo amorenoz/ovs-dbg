@@ -240,7 +240,7 @@ class ODPFlowFactory:
                 )
             ),
             "pop_nsh": decode_flag,
-            "tnl_pop": decode_int,
+            "tnl_pop": decode_default,
             "ct_clear": decode_flag,
             "ct": nested_kv_decoder(
                 KVDecoders(
