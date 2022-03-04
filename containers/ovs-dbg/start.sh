@@ -62,6 +62,7 @@ ovsdb() {
       chown -R new_user /usr/local/var/run/openvswitch/ /usr/local/etc/openvswitch/
       container_user=new_user
     fi
+    user_opt="--user ${container_user}"
   fi
 
   ovsdb-server ${user_opt-} --remote=punix:${OVSDB_SOCKET} --remote=ptcp:6640 --pidfile=ovsdb-server.pid $DB_FILE

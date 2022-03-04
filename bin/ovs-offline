@@ -377,7 +377,7 @@ start_vswitchd() {
     ${CONTAINER_CMD} rm ovs-vswitchd &>/dev/null || true
 
     echo "Starting container ovs-vswitchd"
-    ${CONTAINER_CMD} run -d -e OVSDB_SOCKET=${socket_file} ${caps} -e UID=$(id -u) -e RESTORE_DIR="/root/restore_flows" -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --pid=host --name ovs-vswitchd --rm ovs-dbg vswitchd-dummy
+    ${CONTAINER_CMD} run -d -e OVSDB_SOCKET=${socket_file} ${caps} -e UID=$(id -u) -e RESTORE_DIR="/root/restore_flows" -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --pid=host --name ovs-vswitchd ovs-dbg vswitchd-dummy
     sleep 3
 }
 
@@ -550,7 +550,7 @@ print_tools() {
     echo "    source ${SOURCE_DIR}/activate"
 }
 
-while getopts ":hd:w:p" opt; do
+while getopts ":hdw:p" opt; do
     case ${opt} in
         h)
             usage
