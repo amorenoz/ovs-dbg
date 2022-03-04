@@ -305,7 +305,7 @@ class ODPFlowFactory:
             "tnl_push": nested_kv_decoder(
                 KVDecoders(
                     {
-                        "tnl_port": decode_int,
+                        "tnl_port": decode_default,
                         "header": nested_kv_decoder(
                             KVDecoders(
                                 {
@@ -398,7 +398,7 @@ class ODPFlowFactory:
                                 }
                             )
                         ),
-                        "out_port": decode_int,
+                        "out_port": decode_default,
                     }
                 )
             )
