@@ -30,7 +30,7 @@ COPY --from=build /usr/local/etc/openvswitch /usr/local/etc/openvswitch
 COPY --from=build /usr/local/share/openvswitch /usr/local/share/openvswitch
 COPY --from=build /usr/local/lib/lib* /usr/local/lib/
 
-RUN dnf install -y libatomic openssl gdb
+RUN dnf install -y libatomic openssl gdb jq
 
 RUN mkdir -p /usr/local/var/run/openvswitch
 

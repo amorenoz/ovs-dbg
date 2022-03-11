@@ -28,6 +28,13 @@ vswitchd-dummy() {
     user_opt="--user ${container_user}"
   fi
 
+  # Replace DPDK netdevs with dummy ones
+  for netdev in dpdk dpdkvhostuser dpdkvhostuserclient; do
+    for iface in $(ovs-vsctl --format json --columns=_uuid find Interface type=${netdev} | jq -r '.data[][0][1]'); do
+        ovs-vsctl --no-wait set Interface $iface type=dummy;
+    done
+  done
+
   ovs-vswitchd ${user_opt-} --enable-dummy=override -vvconn -vnetdev_dummy  --no-chdir --pidfile  -vsyslog:off unix:${OVSDB_SOCKET}
 
 }
