@@ -103,7 +103,7 @@ do_build() {
 do_stop() {
     set_container_cmd
     if ! [ -z "${OVS_OFFLINE_ENV-}" ]; then
-        error "Cannot stop, ovs-offline env is still active. Run \"deactivate\" and try again"
+        error "Cannot stop, ovs-offline env is still active. Run \"ovs-offline-deactivate\" and try again"
     fi
     ${CONTAINER_CMD} kill ovs-vswitchd &>/dev/null || true
     ${CONTAINER_CMD} rm ovs-vswitchd &>/dev/null || true
@@ -338,31 +338,33 @@ do_collect-sos-ovs() {
         echo "ovs-ofctl -O $flow_version replace-flows ${br} \
                     \"\$CURR_DIR/ovs-ofctl_-O_${flow_version}_dump-flows_${br}\" ${bundle}" >> ${save_dir}/restore.sh
     done
-
-    mkdir -p $VAR_RUN
 }
 
 start_ovsdb() {
     # run ovsdb-server
     # $1 : database_type (directory within $WORKDIR/db)
     local name=$1
+    local remote_var_run
+    if [ $name == "ovs" ] ; then
+       remote_var_run=/usr/local/var/run/openvswitch
+    else
+       remote_var_run=/var/run/ovn
+    fi
     local db_file=$(ls -x ${WORKDIR}/db/${name} | tail -1)
     local backup_local_file=${WORKDIR}/db/${name}/${db_file}
 
-    local remote_var_run=/usr/local/var/run/openvswitch
     local local_var_run=${VAR_RUN}/${name}
     mkdir ${local_var_run}
 
     local container_name=ovsdb-server-${name}
     local backup_file=${remote_var_run}/${name}.db
-    local socket_file=${remote_var_run}/db.sock
     local caps="--cap-add=CAP_SETGID --cap-add=CAP_SETUID --cap-add=CAP_SETPCAP --cap-add=CAP_NET_BIND_SERVICE --cap-add=CAP_IPC_LOCK"
 
     ${CONTAINER_CMD} kill ovsdb-server-${name} &>/dev/null || true
     ${CONTAINER_CMD} rm ovsdb-server-${name} &>/dev/null || true
 
     echo "Starting container ovsdb-server-${name}"
-    ${CONTAINER_CMD} run -d -e OVSDB_BACKUP=${backup_file} ${caps} -e UID=$(id -u) -e OVSDB_SOCKET=${socket_file} -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${backup_local_file}:${backup_file} -v ${local_var_run}:${remote_var_run} --pid=host --name ovsdb-server-${name} ovs-dbg ovsdb
+    ${CONTAINER_CMD} run -d -e OVSDB_BACKUP=${backup_file} ${caps} -e UID=$(id -u) -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${backup_local_file}:${backup_file} -v ${local_var_run}:${remote_var_run} --pid=host --name ovsdb-server-${name} ovs-dbg ovsdb-${name}
     sleep 3
 }
 
@@ -394,6 +396,7 @@ do_start() {
         ${CONTAINER_CMD} pull quay.io/amorenoz/ovs-dbg && ${CONTAINER_CMD} tag quay.io/amorenoz/ovs-dbg ovs-dbg
     )
 
+    mkdir -p $VAR_RUN
     for db_type in $(ls -x ${WORKDIR}/db); do
         start_ovsdb ${db_type}
         if [ ${db_type} == "ovs" ]; then
@@ -411,7 +414,10 @@ if [ "\${BASH_SOURCE-}" = "\$0" ]; then
     exit 33
 fi
 
-deactivate() {
+declare -a ovs_offline_aliased
+declare -A ovs_offline_cmds
+
+ovs-offline-deactivate() {
     if ! [ -z "\${OLD_PS1+_}" ] ; then
         PS1="\$OLD_PS1"
         export PS1
@@ -426,7 +432,10 @@ deactivate() {
             unset \${env}
         fi
     done
-    unset -f deactivate
+    for cmd in \${ovs_offline_aliased[@]}; do
+        unalias \$cmd
+    done
+    unset ovs_offline_aliased
     unset OVS_OFFLINE_ENV
 }
 
@@ -435,6 +444,25 @@ if [ -z "\${OVS_OFFLINE_ENV}" ] ; then
     PS1="(`basename ovs-offline`) \${PS1-}"
     export PS1
 fi
+
+ovs_offline_cmds[ovsdb-server-ovs]="ovs-vsctl"
+ovs_offline_cmds[ovs-vswitchd]="ovs-ofctl ovs-appctl"
+ovs_offline_cmds[ovsdb-server-ovn_nb]="ovn-nbctl"
+ovs_offline_cmds[ovsdb-server-ovn_sb]="ovn-sbctl"
+
+# Alias ovs commands if needed.
+unset command_not_found_handle
+for container in "\${!ovs_offline_cmds[@]}"; do
+    if ${CONTAINER_CMD} inspect \$container &> /dev/null; then
+        for cmd in \${ovs_offline_cmds[\$container]}; do
+            if ! \$(\$cmd --version &> /dev/null); then
+                alias \$cmd="${CONTAINER_CMD} exec -it \$container \$cmd"
+                ovs_offline_aliased+=(\$cmd)
+            fi
+        done
+    fi
+done
+
 echo "* You can now run the following offline commands directly:"
 if [ ! -z \${OVS_RUNDIR} ] && [ -z "\${OVS_OFFLINE_ENV}" ]; then
   OLD_OVS_RUNDIR=\$OVS_RUNDIR
@@ -493,7 +521,7 @@ EOF
     fi
     cat <<EOF >> ${SOURCE_DIR}/activate
 echo "* You can restore your previous environment with: "
-echo "      deactivate"
+echo "      ovs-offline-deactivate"
 export OVS_OFFLINE_ENV="true"
 EOF
 }

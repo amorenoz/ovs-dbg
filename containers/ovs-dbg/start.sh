@@ -39,24 +39,57 @@ vswitchd-dummy() {
 
 }
 
+ovn-sb() {
+  OVS_OFFLINE_VAR_RUN=${OVS_OFFLINE_VAR_RUN:-/var/run/ovn/}
+  OVSDB_SOCKET=$OVS_OFFLINE_VAR_RUN/ovnsb_db.sock
+  OVSDB_PIDFILE=$OVS_OFFLINE_VAR_RUN/ovnsb_db.pid
+  #OVSDB_CTRL_SOCK=$OVS_OFFLINE_VAR_RUN/ovnsb_db.ctl
+  OVSDB_BACKUP=${OVSDB_BACKUP:-${OVS_OFFLINE_VAR_RUN}/ovn_sb.db}
+  OVSDB_REMOTE=ptcp:6642
+  OVSDB_FILE=/usr/local/etc/openvswitch/ovn_sb.db
+  mkdir -p /etc/openvswitch
+
+  do_ovsdb
+}
+
+ovn-nb() {
+  OVS_OFFLINE_VAR_RUN=${OVS_OFFLINE_VAR_RUN:-/var/run/ovn/}
+  OVSDB_SOCKET=$OVS_OFFLINE_VAR_RUN/ovnnb_db.sock
+  OVSDB_PIDFILE=$OVS_OFFLINE_VAR_RUN/ovnnb_db.pid
+  #OVSDB_CTRL_SOCK=$OVS_OFFLINE_VAR_RUN/ovnnb_db.ctl
+  OVSDB_BACKUP=${OVSDB_BACKUP:-${OVS_OFFLINE_VAR_RUN}/ovn_nb.db}
+  OVSDB_REMOTE=ptcp:6641
+  OVSDB_FILE=/usr/local/etc/openvswitch/ovn_nb.db
+
+  do_ovsdb
+}
+
 ovsdb() {
-  OVSDB_BACKUP=${OVSDB_BACKUP:-/usr/local/var/run/openvswitch/conf.db}
-  local filename=$(basename ${OVSDB_BACKUP})
-  OVSDB_SOCKET=${OVSDB_SOCKET:-/usr/local/var/run/openvswitch/db.sock}
+  OVS_OFFLINE_VAR_RUN=${OVS_OFFLINE_VAR_RUN:-/usr/local/var/run/openvswitch/}
+  OVSDB_SOCKET=$OVS_OFFLINE_VAR_RUN/db.sock
+  OVSDB_PIDFILE=$OVS_OFFLINE_VAR_RUN/ovsdb-server.pid
+  #OVSDB_CTRL_SOCK=$OVS_OFFLINE_VAR_RUN/ovnnb_db.ctl
+  OVSDB_BACKUP=${OVSDB_BACKUP:-${OVS_OFFLINE_VAR_RUN}/conf.db}
+  OVSDB_REMOTE=ptcp:6640
+  OVSDB_FILE=/usr/local/etc/openvswitch/conf.db
+
+  do_ovsdb
+}
+
+do_ovsdb() {
   echo "=============== ovsdb-server ==============="
   echo "OVSDB_BACKUP=$OVSDB_BACKUP"
-  DB_FILE=/usr/local/etc/openvswitch/${filename}
 
   if [ -f ${OVSDB_BACKUP} ]; then
           echo "Using backup DB file at $OVSDB_BACKUP"
 
           echo "Making a standalone DB if needed"
-          ovsdb-tool cluster-to-standalone $DB_FILE $OVSDB_BACKUP || cp $OVSDB_BACKUP $DB_FILE
+          ovsdb-tool cluster-to-standalone $OVSDB_FILE $OVSDB_BACKUP || cp $OVSDB_BACKUP $OVSDB_FILE
           echo "Compacting DB"
-          ovsdb-tool compact $DB_FILE
+          ovsdb-tool compact $OVSDB_FILE
   else
           echo "Creating new DB"
-          ovsdb-tool create $DB_FILE  /usr/local/share/openvswitch/vswitch.ovsschema
+          ovsdb-tool create $OVSDB_FILE  /usr/local/share/openvswitch/vswitch.ovsschema
   fi
 
   mkdir -p /usr/local/var/run/openvswitch/
@@ -72,7 +105,7 @@ ovsdb() {
     user_opt="--user ${container_user}"
   fi
 
-  ovsdb-server ${user_opt-} --remote=punix:${OVSDB_SOCKET} --remote=ptcp:6640 --pidfile=ovsdb-server.pid $DB_FILE
+  ovsdb-server ${user_opt-} --remote=punix:${OVSDB_SOCKET} --remote=${OVSDB_REMOTE} --pidfile=${OVSDB_PIDFILE} $OVSDB_FILE
 
 }
 cmd=${1:-""}
@@ -80,8 +113,14 @@ case ${cmd} in
 "vswitchd-dummy")
   vswitchd-dummy
   ;;
-"ovsdb")
+"ovsdb-ovs")
   ovsdb
+  ;;
+"ovsdb-ovn_nb")
+  ovn-nb
+  ;;
+"ovsdb-ovn_sb")
+  ovn-sb
   ;;
 "sleep")
   sleep infinity 
