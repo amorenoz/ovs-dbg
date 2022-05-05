@@ -70,7 +70,7 @@ class OFPFlowFactory:
     def from_string(self, ofp_string, id=None):
         """Parse a ofproto flow string
 
-        The string is expected to have the follwoing format:
+        The string is expected to have the following format:
             [flow data] [match] actions=[actions]
 
         :param ofp_string: a ofproto string as dumped by ovs-ofctl tool
