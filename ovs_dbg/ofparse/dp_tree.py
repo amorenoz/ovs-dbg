@@ -21,7 +21,7 @@ class FlowElem(TreeElem):
         is_root (bool): Optional; whether this is the root elemen
     """
 
-    def __init__(self, flow, children=None, is_root=None):
+    def __init__(self, flow, children=None, is_root=False):
         self.flow = flow
         super(FlowElem, self).__init__(children, is_root)
 
@@ -46,14 +46,16 @@ class FlowTree:
     on recirculation ids
 
     Args:
-        flows (list[ODPFlow]: Optional, initial list of flows
+        flows (list[ODPFlow]): Optional, initial list of flows
+        root (TreeElem): Optional, root of the tree.
     """
 
-    root = None
-
-    def __init__(self, flows=None):
-        self._flows = flows or {}  # flow list indexed by recirc_id
-        self.root = self.root or TreeElem(is_root=True)
+    def __init__(self, flows=None, root=TreeElem(is_root=True)):
+        self._flows = {}
+        self.root = root
+        if flows:
+            for flow in flows:
+                self.add(flow)
 
     def add(self, flow):
         """Add a flow"""
@@ -70,7 +72,7 @@ class FlowTree:
         """Traverses the tree calling callback on each element
         callback: callable that accepts two TreeElem, the current one being
             traversed and its parent
-            func callback(elem parent):
+            func callback(elem, parent):
                 ...
             Note parent can be None if it's the first element
         """
@@ -95,43 +97,46 @@ class FlowTree:
         for flow in sorted(
             flows, key=lambda x: x.info.get("packets") or 0, reverse=True
         ):
-            next_recirc = self._get_next_recirc(flow)
+            next_recircs = self._get_next_recirc(flow)
 
             elem = self._new_elem(flow, parent)
             parent.append(elem)
 
-            if next_recirc:
+            for next_recirc in next_recircs:
                 self._build(elem, next_recirc)
 
     def _get_next_recirc(self, flow):
-        """Get the next recirc_id from a list of actions or None if not found.
+        """Get the next recirc_ids from a Flow.
 
         The recirc_id is obtained from actions such as recirc, but also
         complex actions such as check_pkt_len and sample
+        Args:
+            flow (ODPFlow): flow to get the recirc_id from.
+        Returns:
+            set of next recirculation ids.
         """
-
+        # Helper function to find a recirc in a dictionary of actions.
         def find_in_dict(actions_dict):
-            return next(
-                (v for k, v in actions_dict.items() if k == "recirc"),
-                None,
-            )
+            recircs = []
+            for action, value in actions_dict.items():
+                if action == "recirc":
+                    recircs.append(value)
+                elif action == "check_pkt_len":
+                    recircs.extend(find_in_dict(value.get("gt")))
+                    recircs.extend(find_in_dict(value.get("le")))
+                elif action == "clone":
+                    recircs.extend(find_in_dict(value))
+                elif action == "sample":
+                    recircs.extend(find_in_dict(value.get("actions")))
+            return recircs
 
-        for action in flow.actions_kv:
-            if action.key == "recirc":
-                return action.value
-            if action.key == "check_pkt_len":
-                recirc = find_in_dict(action.value.get("gt"))
-                if recirc:
-                    return recirc
-                recirc = find_in_dict(action.value.get("le"))
-                if recirc:
-                    return recirc
-            if action.key == "sample":
-                return find_in_dict(action.value.get("actions"))
+        recircs = []
+        for actions in flow.actions:
+            recircs.extend(find_in_dict(actions))
 
-        return None
+        return set(recircs)
 
-    def _new_elem(self, flow, parent):
+    def _new_elem(self, flow, _):
         """Creates a new TreeElem
         Default implementation is to create a FlowElem. Derived classes can
         override this method to return any derived TreeElem

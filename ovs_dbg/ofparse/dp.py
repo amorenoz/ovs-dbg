@@ -198,9 +198,8 @@ class ConsoleTree(FlowTree):
 
     def __init__(self, console, opts):
         self.console = console
-        self.root = self.ConsoleElem(is_root=True)
         self.opts = opts
-        super(ConsoleTree, self).__init__()
+        super(ConsoleTree, self).__init__(root=self.ConsoleElem(is_root=True))
 
     def _new_elem(self, flow, _):
         """Override _new_elem to provide ConsoleElems"""
@@ -455,8 +454,9 @@ class HTMLTree(FlowTree):
     def __init__(self, name, opts, flows=None):
         self.opts = opts
         self.name = name
-        self.root = self.HTMLTreeElem("", flow=None, opts=self.opts)
-        super(HTMLTree, self).__init__(flows)
+        super(HTMLTree, self).__init__(
+            flows, self.HTMLTreeElem("", flow=None, opts=self.opts)
+        )
 
     def _new_elem(self, flow, _):
         """Override _new_elem to provide HTMLTreeElems"""
@@ -472,7 +472,7 @@ class HTMLTree(FlowTree):
 <label for="collapsible_main-{name}" class="lbl-toggle lbl-toggle-main">Flow Table</label>"""  # noqa: E501
         html_obj = self.html_header + html_text.format(name=name)
         html_obj += "<div id=flow_list-{name}>".format(name=name)
-        (html_elem, items) = self.root.render()
+        (html_elem, _) = self.root.render()
         html_obj += html_elem
         html_obj += "</div>"
         return html_obj
