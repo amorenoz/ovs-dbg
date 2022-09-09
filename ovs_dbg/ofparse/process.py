@@ -4,7 +4,7 @@ import sys
 import json
 import click
 
-from ovs_dbg.decoders import FlowEncoder
+from ovs.flow.decoders import FlowEncoder
 from ovs_dbg.ofparse.console import (
     ConsoleFormatter,
     print_context,
@@ -62,7 +62,7 @@ class FlowProcessor(object):
 
         Returns a Flow
         """
-        return self.factory.from_string(line, idx)
+        return self.factory(line, idx)
 
     def process_flow(self, flow, name):
         """Called for built flow (after filtering)
@@ -115,7 +115,11 @@ class FlowProcessor(object):
                 if line:
                     flow = self.create_flow(line, idx)
                     idx += 1
-                    if not flow or (filt and not filt.evaluate(flow)):
+                    if (
+                        not flow
+                        or not getattr(flow, "_sections", None)
+                        or (filt and not filt.evaluate(flow))
+                    ):
                         continue
                     self.process_flow(flow, "stdin")
             self.stop_file("stdin", "stdin")

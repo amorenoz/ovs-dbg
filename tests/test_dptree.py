@@ -1,7 +1,7 @@
 import pytest
 
 from ovs_dbg.ofparse.dp_tree import FlowTree
-from ovs_dbg.odp import ODPFlowFactory
+from ovs.flow.odp import ODPFlow
 
 
 def test_odp_tree_nested():
@@ -14,7 +14,7 @@ def test_odp_tree_nested():
     recirc_id(0x0) actions:clone(recirc(0x2)),check_pkt_len(size=200,gt(recirc(0x1)),le(recirc(0x3))),recirc(0x4),sample(sample=15%,actions(clone(recirc(0x5)),recirc(0x6)),recirc(0x6)))"""
     flows = []
     for line in dump.splitlines():
-        flows.append(ODPFlowFactory().from_string(line))
+        flows.append(ODPFlow(line))
 
     ft = FlowTree(flows)
     ft.build()

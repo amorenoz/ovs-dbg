@@ -1,7 +1,7 @@
 import click
 import os
 
-from ovs_dbg.ofp import OFPFlowFactory
+from ovs.flow.ofp import OFPFlow
 from ovs_dbg.ofparse.ofp_logic import LogicFlowProcessor, CookieProcessor
 from ovs_dbg.ofparse.main import maincli
 from ovs_dbg.ofparse.process import (
@@ -11,7 +11,11 @@ from ovs_dbg.ofparse.process import (
 )
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter, HTMLStyle
 
-factory = OFPFlowFactory()
+
+def create_ofp_flow(string, idx):
+    if " reply " in string:
+        return None
+    return OFPFlow(string, idx)
 
 
 @maincli.group(subcommand_metavar="FORMAT")
@@ -25,7 +29,7 @@ def openflow(opts):
 @click.pass_obj
 def json(opts):
     """Print the flows in JSON format"""
-    proc = JSONProcessor(opts, factory)
+    proc = JSONProcessor(opts, create_ofp_flow)
     proc.process()
     print(proc.json_string())
 
@@ -43,7 +47,9 @@ def json(opts):
 def console(opts, heat_map):
     """Print the flows in the console with some style"""
     proc = ConsoleProcessor(
-        opts, factory, heat_map=["n_packets", "n_bytes"] if heat_map else []
+        opts,
+        create_ofp_flow,
+        heat_map=["n_packets", "n_bytes"] if heat_map else [],
     )
     proc.process()
     proc.print()
@@ -154,7 +160,7 @@ def logic(
     if opts.get("ovn_detrace_flag"):
         cookie_flag = True
 
-    processor = LogicFlowProcessor(opts, factory, cookie_flag)
+    processor = LogicFlowProcessor(opts, create_ofp_flow, cookie_flag)
     processor.process()
     processor.print(show_flows, heat_map)
 
@@ -222,7 +228,7 @@ class HTMLProcessor(FlowProcessor):
 @click.pass_obj
 def html(opts):
     """Print the flows in an HTML list"""
-    processor = HTMLProcessor(opts, factory)
+    processor = HTMLProcessor(opts, create_ofp_flow)
     processor.process()
     print(processor.html())
 
@@ -277,6 +283,6 @@ def cookie(
     if ovn_detrace_flag:
         opts["ovn_detrace_flag"] = True
 
-    processor = CookieProcessor(opts, factory)
+    processor = CookieProcessor(opts, create_ofp_flow)
     processor.process()
     processor.print()

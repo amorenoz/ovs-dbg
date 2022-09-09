@@ -3,7 +3,7 @@
 
 """The setup script."""
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 
 with open("README.md") as readme_file:
     readme = readme_file.read()
@@ -47,7 +47,9 @@ setup(
     include_package_data=True,
     keywords="ovs_dbg",
     name="ovs_dbg",
-    packages=find_packages(include=["ovs_dbg", "ovs_dbg.ofparse"]),
+    packages=find_namespace_packages(
+        include=["ovs_dbg", "ovs_dbg.ofparse", "ovs_dbg.vendor.ovs.flow"]
+    ),
     setup_requires=setup_requirements,
     scripts=[
         "bin/ovs-ofparse",

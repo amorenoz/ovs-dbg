@@ -22,9 +22,9 @@ from ovs_dbg.ofparse.console import (
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
 from ovs_dbg.ofparse.dp_graph import DatapathGraph
 from ovs_dbg.ofparse.dp_tree import FlowTree, FlowElem
-from ovs_dbg.odp import ODPFlowFactory
+from ovs.flow.odp import ODPFlow
 
-factory = ODPFlowFactory()
+factory = ODPFlow
 
 
 @maincli.group(subcommand_metavar="FORMAT")

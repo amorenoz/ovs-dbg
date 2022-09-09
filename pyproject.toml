@@ -13,3 +13,4 @@ write_to = "ovs_dbg/_version.py"
 
 [tool.black]
 line-length = 79
+exclude="ovs"

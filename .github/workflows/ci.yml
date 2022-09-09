@@ -29,9 +29,11 @@ jobs:
       - name: Install dependencies
         run: |
           pipenv install --dev --pre
+      - name: Install vendored ovs
+        run: ./prepare.sh
       - name: Run tests with pytest
         run: pipenv run python -m pytest
       - name: Check format
         run: pipenv run python -m black --check --diff .
       - name: Run flake8
-        run: find ovs_dbg -iname "*.py" | xargs pipenv run python -m flake8
+        run: pipenv run python -m flake8 ovs_dbg --exclude vendor

@@ -2,7 +2,7 @@ import click
 import os.path
 import configparser
 
-from ovs_dbg.filter import OFFilter
+from ovs.flow.filter import OFFilter
 from pkg_resources import resource_filename
 
 _default_config_file = "ofparse.conf"

@@ -1,7 +1,7 @@
 """ Defines a Datapath Graph based on graphviz
 """
 import graphviz
-from ovs_dbg.filter import OFFilter
+from ovs.flow.filter import OFFilter
 
 
 class DatapathGraph:

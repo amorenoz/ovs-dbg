@@ -4,10 +4,11 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-netaddr = "*"
 click = ">=8.0.0"
 rich = "*"
 graphviz = "*"
+netaddr = "*"
+pyparsing = "*"
 
 [dev-packages]
 sphinx = "*"
