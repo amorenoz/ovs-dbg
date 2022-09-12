@@ -921,11 +921,11 @@ ovs\-fields \- protocol header fields in OpenFlow and Open vSwitch
 
         # Life is easier with nroff if we don't try to feed it Unicode.
         # Fortunately, we only use a few characters outside the ASCII range.
-        oline = oline.replace(u"\u2208", r"\[mo]")
-        oline = oline.replace(u"\u2260", r"\[!=]")
-        oline = oline.replace(u"\u2264", r"\[<=]")
-        oline = oline.replace(u"\u2265", r"\[>=]")
-        oline = oline.replace(u"\u00d7", r"\[mu]")
+        oline = oline.replace("\u2208", r"\[mo]")
+        oline = oline.replace("\u2260", r"\[!=]")
+        oline = oline.replace("\u2264", r"\[<=]")
+        oline = oline.replace("\u2265", r"\[>=]")
+        oline = oline.replace("\u00d7", r"\[mu]")
         if len(oline):
             output += [oline]
 

@@ -85,7 +85,7 @@ class IntMask(Decoder):
                 )
         else:
             self._value = int(parts[0], 0)
-            self._mask = 2 ** self.size - 1
+            self._mask = 2**self.size - 1
 
         if self._value.bit_length() > self.size:
             raise ValueError(
@@ -103,7 +103,7 @@ class IntMask(Decoder):
         return self._mask
 
     def max_mask(self):
-        return 2 ** self.size - 1
+        return 2**self.size - 1
 
     def fully(self):
         """Returns if it's fully masked"""
