@@ -7,6 +7,7 @@ name = "pypi"
 netaddr = "*"
 click = ">=8.0.0"
 rich = "*"
+graphviz = "*"
 
 [dev-packages]
 sphinx = "*"
