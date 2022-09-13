@@ -153,11 +153,12 @@ class ConsoleTreeProcessor(FlowProcessor):
         )
 
         style = self.ofconsole.style
-        style.set_default_value_style(Style(color="bright_black"))
-        style.set_key_style("output", Style(color="green"))
-        style.set_value_style("output", Style(color="green"))
-        style.set_value_style("recirc", recirc_style_gen)
-        style.set_value_style("recirc_id", recirc_style_gen)
+        if style:
+            style.set_default_value_style(Style(color="bright_black"))
+            style.set_key_style("output", Style(color="green"))
+            style.set_value_style("output", Style(color="green"))
+            style.set_value_style("recirc", recirc_style_gen)
+            style.set_value_style("recirc_id", recirc_style_gen)
 
     def start_file(self, name, filename):
         self.tree = ConsoleTree(self.ofconsole, self.opts)

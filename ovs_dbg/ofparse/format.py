@@ -192,7 +192,9 @@ class FlowFormatter:
             highlighted (list): Optional; list of KeyValues to highlight
         """
         last_printed_pos = 0
-        style_obj = style_obj or FlowStyle()
+        if not style_obj:
+            buf.append_extra(flow.orig.strip(), None)
+            return
 
         for section in sorted(flow.sections, key=lambda x: x.pos):
             buf.append_extra(
@@ -204,7 +206,9 @@ class FlowFormatter:
             )
             last_printed_pos = section.pos + len(section.string)
 
-    def format_kv_list(self, buf, kv_list, full_str, style_obj, highlighted):
+    def format_kv_list(
+        self, buf, kv_list, full_str, style_obj=FlowStyle(), highlighted=None
+    ):
         """
         Format a KeyValue List
 
@@ -231,7 +235,7 @@ class FlowFormatter:
                 style=style_obj.get("default"),
             )
 
-    def format_kv(self, buf, kv, style_obj, highlighted=None):
+    def format_kv(self, buf, kv, style_obj=None, highlighted=None):
         """Format a KeyValue
 
         A formatted keyvalue has the following parts:
@@ -247,6 +251,16 @@ class FlowFormatter:
         """
         ret = 0
         key = kv.meta.kstring
+        if not style_obj:
+            kvstring = "{}{}{}{}".format(
+                kv.meta.kstring,
+                kv.meta.delim,
+                kv.meta.vstring,
+                kv.meta.end_delim or "",
+            ).strip()
+            buf.append_extra(kvstring, None)
+            return len(kvstring)
+
         is_highlighted = (
             key in [k.key for k in highlighted] if highlighted else False
         )

@@ -5,7 +5,6 @@ import re
 from rich.tree import Tree
 from rich.text import Text
 
-from ovs_dbg.ofparse.process import FlowProcessor
 from ovs_dbg.ofparse.console import (
     ConsoleFormatter,
     ConsoleBuffer,
@@ -14,6 +13,7 @@ from ovs_dbg.ofparse.console import (
     heat_pallete,
     print_context,
 )
+from ovs_dbg.ofparse.process import FlowProcessor
 
 # Try to make it easy to spot same cookies by printing them in different
 # colors

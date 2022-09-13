@@ -52,42 +52,42 @@ class ConsoleBuffer(FlowBuffer):
         return self._text.append(string, style)
 
     def append_key(self, kv, style):
-        """Append a key
+        """Append a key.
         Args:
-            kv (KeyValue): the KeyValue instance to append
-            style (rich.Style): the style to use
+            kv (KeyValue): the KeyValue instance to append.
+            style (rich.Style): the style to use.
         """
         return self._append(kv.meta.kstring, style)
 
     def append_delim(self, kv, style):
-        """Append a delimiter
+        """Append a delimiter.
         Args:
-            kv (KeyValue): the KeyValue instance to append
-            style (rich.Style): the style to use
+            kv (KeyValue): the KeyValue instance to append.
+            style (rich.Style): the style to use.
         """
         return self._append(kv.meta.delim, style)
 
     def append_end_delim(self, kv, style):
-        """Append an end delimiter
+        """Append an end delimiter.
         Args:
-            kv (KeyValue): the KeyValue instance to append
-            style (rich.Style): the style to use
+            kv (KeyValue): the KeyValue instance to append.
+            style (rich.Style): the style to use.
         """
         return self._append(kv.meta.end_delim, style)
 
     def append_value(self, kv, style):
-        """Append a value
+        """Append a value.
         Args:
-            kv (KeyValue): the KeyValue instance to append
-            style (rich.Style): the style to use
+            kv (KeyValue): the KeyValue instance to append.
+            style (rich.Style): the style to use.
         """
         return self._append(kv.meta.vstring, style)
 
     def append_extra(self, extra, style):
-        """Append extra string
+        """Append extra string.
         Args:
-            kv (KeyValue): the KeyValue instance to append
-            style (rich.Style): the style to use
+            kv (KeyValue): the KeyValue instance to append.
+            style (rich.Style): the style to use.
         """
         return self._append(extra, style)
 
@@ -103,13 +103,12 @@ class ConsoleFormatter(FlowFormatter):
 
     def __init__(self, opts=None, console=None, **kwargs):
         super(ConsoleFormatter, self).__init__()
-        style = self.style_from_opts(opts)
+        self.style = self.style_from_opts(opts)
         self.console = console or Console(
-            no_color=(style is None),
-            color_system=(None if not style else "256"),
+            no_color=(self.style is None),
+            color_system=(None if not self.style else "256"),
             **kwargs
         )
-        self.style = style or FlowStyle()
 
     def style_from_opts(self, opts):
         return self._style_from_opts(opts, "console", Style)
