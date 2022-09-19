@@ -22,6 +22,7 @@ from ovs_dbg.ofparse.console import (
 from ovs_dbg.ofparse.html import HTMLBuffer, HTMLFormatter
 from ovs_dbg.ofparse.dp_graph import DatapathGraph
 from ovs_dbg.ofparse.dp_tree import FlowTree, FlowElem
+from ovs_dbg.ofparse.dp_tui import FlowApp
 from ovs.flow.odp import ODPFlow
 
 factory = ODPFlow
@@ -60,6 +61,29 @@ def console(opts, heat_map):
     )
     proc.process()
     proc.print()
+
+
+@datapath.command()
+@click.option(
+    "-h",
+    "--heat-map",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Create heat-map with packet and byte counters",
+)
+@click.pass_obj
+def logic(opts, heat_map):
+    """Print the flows in a tree based on the 'recirc_id'"""
+    processor = ConsoleTreeProcessor(opts, factory)
+    processor.process()
+    processor.print(heat_map)
+
+@datapath.command()
+@click.pass_obj
+def interact(opts):
+    """Creates an interactive console to view datapath flows"""
+    FlowApp.run(title="Flow Viewer", log="flowapp.log", opts=opts)
 
 
 @datapath.command()
