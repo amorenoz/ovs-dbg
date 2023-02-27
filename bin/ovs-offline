@@ -48,8 +48,8 @@ usage() {
     echo "    Options":
     echo "       -o:    Openshift environment"
     echo ""
-    echo "  collect-sos-ovs      SOS      Collects the OpenvSwitch information from the provided sos.tar.xz and prepares it for offline debugging"
-    echo "  collect-sos-ovn      SOS      Collects the OVN information from the provided sos.tar.xz and prepares it for offline debugging"
+    echo "  collect-sos-ovs      SOS      Collects the OpenvSwitch information from the provided sos archive or directory and prepares it for offline debugging"
+    echo "  collect-sos-ovn      SOS      Collects the OVN information from the provided sos archive or directory and prepares it for offline debugging"
     echo ""
     echo "  collect-db-ovs       DBFILE   Collects the provided OpenvSwitch database file and prepares it for offline debugging"
     echo "  collect-db-ovn-nb    DBFILE   Collects the provided OVN_Northbound database file and prepares it for offline debugging"
@@ -214,8 +214,6 @@ do_collect-sos-ovn() {
         exit 1
     fi
     local sos=$1
-    [ -f "$sos" ] ||  error "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
-    local dir_name=`tar -tf $sos | head -1 | cut -f1 -d"/"`
     local db_locations="var/lib/openvswitch/ovn usr/local/etc/openvswitch etc/openvswitch var/lib/openvswitch var/lib/ovn/etc"
 
     mkdir -p ${SOS_DIR}
@@ -224,7 +222,8 @@ do_collect-sos-ovn() {
     local found_db=false
     for dir in $db_locations; do
         let strip="2 + $(echo ${dir} | tr -dc "/" | wc -m)"
-        if tar -xvf $sos -C ${SOS_DIR} ${dir_name}/${dir}/ovnnb_db.db ${dir_name}/${dir}/ovnsb_db.db --strip-components=${strip} &>/dev/null; then
+        if _sos-try-extract $sos ${dir}/ovnnb_db.db true &&
+           _sos-try-extract $sos ${dir}/ovnsb_db.db true; then
             found_db=true
             do_collect-db "${SOS_DIR}/ovnnb_db.db" "ovn_nb"
             do_collect-db "${SOS_DIR}/ovnsb_db.db" "ovn_sb"
@@ -238,28 +237,66 @@ do_collect-sos-ovn() {
     fi
 }
 
+_sos-try-extract() {
+    # $1 path of the sos archive/dir to extract data from
+    # $2 file or directory to extract 
+    # $3 boolean ("true", "false) to define whether full stripping is done 
+    #
+    # Returns 0 if succeeded 1 if not.
+    local sos=$1
+    local src=$2
+    local strip=$3
+
+    if [[ -f ${sos} ]]; then
+        # It's an archive file.
+        # By default we always strip the first name which is typically the name of
+        # the archive itself (i.e: dir_name)
+        local dir_name=`tar -tf $sos | head -1 | cut -f1 -d"/"`
+        local strip_level=1
+        if [[ $strip == true ]]; then
+            let strip_level="1 + $(echo ${src} | tr -dc "/" | wc -m)"
+        fi
+
+        if tar -xvf $sos -C ${SOS_DIR} ${dir_name}/${src} --strip-components=${strip_level} &>/dev/null; then
+            return 0
+        else
+            return 1
+        fi
+    elif [[ -d ${sos} ]]; then
+        # In this case, dir_name are all the directories until we find sos_logs.
+        local dir_name=$(dirname $(cd ${sos} && find -name sos_logs 2>/dev/null))
+        if [[ $strip == true ]]; then
+            cp -r ${sos}/${dir_name}/${src} ${SOS_DIR}
+        else
+            # Create parent directories
+            local parent=$(dirname ${src})
+            mkdir -p ${SOS_DIR}/${parent}
+            cp -r ${sos}/${dir_name}/${src} ${SOS_DIR}/${parent}
+        fi
+    else
+        error "SOS archive file or directory not found. Please specify a <sosreport>.tar.xz archive file or the directory of the extracted data."
+    fi
+}
+
 do_collect-sos-ovs() {
     if [ $# -lt 1 ]; then
         usage
         exit 1
     fi
     local sos=$1
-    [ -f "$sos" ] ||  error "SOS archive file not found. Please specify a <sosreport>.tar.xz archive"
-    local dir_name=`tar -tf $sos | head -1 | cut -f1 -d"/"`
-    local sos_files="${dir_name}/sos_commands/rpm ${dir_name}/sos_commands/openvswitch"
+    local sos_files="sos_commands/rpm sos_commands/openvswitch"
     local db_locations="var/lib/openvswitch etc/openvswitch usr/local/etc/openvswitch"
 
     mkdir -p ${SOS_DIR}
 
     echo "Extracting OVS data from sos report..."
     for dir in $sos_files; do
-        tar -xvf $sos -C ${SOS_DIR} $dir --strip-components 1 &>/dev/null || error "Could not extract critical directory $dir from $sos"
+        _sos-try-extract $sos $dir false || error "Could not extract critical directory $dir from $sos"
     done
 
     found_db=false
     for dir in $db_locations; do
-        let strip="2 + $(echo ${dir} | tr -dc "/" | wc -m)"
-        if tar -xvf $sos -C ${SOS_DIR} ${dir_name}/${dir}/conf.db --strip-components=${strip} &>/dev/null; then
+        if _sos-try-extract $sos $dir/conf.db true; then
             do_collect-db ${SOS_DIR}/conf.db ovs
             rm ${SOS_DIR}/conf.db
             found_db=true
