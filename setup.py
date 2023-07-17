@@ -48,7 +48,7 @@ setup(
     keywords="ovs_dbg",
     name="ovs_dbg",
     packages=find_namespace_packages(
-        include=["ovs_dbg", "ovs_dbg.ofparse", "ovs_dbg.vendor.ovs.flow"]
+        include=["ovs_dbg", "ovs_dbg.ofparse", "ovs_dbg.vendor.ovs"]
     ),
     setup_requires=setup_requirements,
     scripts=[

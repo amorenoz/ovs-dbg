@@ -11,7 +11,7 @@ Latest released version:
 
 From the git checkout
 
-    pip install .
+    ./prepare.sh && pip install .
 
 ## Enable bash autocomplete
 
