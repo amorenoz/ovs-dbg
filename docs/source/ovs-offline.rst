@@ -2,7 +2,7 @@
 ovs-offline: Spin up OvS and OVN daemons for offline debugging
 ===============================================================
 
-The **ovs-offline** tool helps you debug OVS issues offline by recreating the OVSDB and the Openflow flows.
+The **ovs-offline** tool helps you debug OVS issues offline by recreating the OVSDB and the OpenFlow flows.
 
 ------
 Usage
@@ -10,7 +10,9 @@ Usage
 
 In general, the tool works in two steps. First you must **collect** the logs, flows etc, and then you **start** the offline debugging environment
 
-(Optional) Build the ovs-dbg container. You can choose to specify the ovs-repo and commit to pull the ovs source code from using the -r and -c flags respectively (or by setting the OVS_DBG_REPO and OVS_DBG_COMMIT env variables).
+.. admonition:: Optional
+    
+    Build the ovs-dbg container. You can choose to specify the ovs-repo and commit to pull the ovs source code from using the ``-r`` and ``-c`` flags respectively (or by setting the ``OVS_DBG_REPO`` and ``OVS_DBG_COMMIT`` env variables).
 
 ::
 
@@ -68,6 +70,10 @@ Note collecting OVS information from sos archives requires a recent sos package.
 
     ./bin/ovs-offline collect-sos-ovn /path/to/sos_controller.tar.xz
 
+.. admonition:: Optional
+    
+    For OVS, if running an older version of the sos package and encountering errors, you can start the server (start-the-setup_) early, and source the virtual env.
+    After that, run the ``./bin/ovs-offline collect-sos-ovs /path/to/sos_compute.tar.xz`` to collect the required files to import the OpenFlows.
 
 
 Start the setup
@@ -82,7 +88,9 @@ Once you start, the tool will print the commands that are available for offline 
 
 You can run OVS/OVN commands directly on your offline environment by sourcing the generated script.
 
-(Optional) ovs-offline works with both docker (default) and podman containers. It will automatically detect which is available on your system. To override the default behavior and run with podman containers, use the -p option.
+.. admonition:: Optional
+    
+    ovs-offline works with both docker (default) and podman containers. It will automatically detect which is available on your system. To override the default behavior and run with podman containers, use the ``-p`` option.
 
 ::
 
@@ -93,7 +101,7 @@ Stop and clean the setup
 
 ::
 
-    deactivate
+    ovs-offline-deactivate
     ./bin/ovs-offline stop
 
 
