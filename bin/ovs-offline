@@ -214,7 +214,7 @@ do_collect-sos-ovn() {
         exit 1
     fi
     local sos=$1
-    local db_locations="var/lib/openvswitch/ovn usr/local/etc/openvswitch etc/openvswitch var/lib/openvswitch var/lib/ovn/etc"
+    local db_locations="var/lib/openvswitch/ovn usr/local/etc/openvswitch etc/openvswitch var/lib/openvswitch var/lib/ovn/etc var/lib/ovn-ic/etc"
 
     mkdir -p ${SOS_DIR}
 
