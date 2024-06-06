@@ -198,7 +198,8 @@ EOF
 
 check_for_OpenFlow_14() {
     # If no protocol listed, default to atomic bundle txn (enabled by default on ovs 2.8 and on)
-    local hex_ofp_version=$(cat ${SOS_CMD_DIR}/ovs-ofctl_-t_5_--version | grep "OpenFlow versions" | grep -oP [0-9]*x[0-9]* | tail -1)
+    local preformatted_version=$(cat ${SOS_CMD_DIR}/ovs-ofctl_-t_5_--version 2>/dev/null || ovs-ofctl -t 5 --version)
+    local hex_ofp_version=$(echo ${preformatted_version} | grep "OpenFlow versions" | grep -oP [0-9]*x[0-9]* | tail -1)
     local version=${open_flow_protocols[$hex_ofp_version]}
     if [ -z "$version" ]; then
         echo " --bundle"
@@ -286,6 +287,8 @@ do_collect-sos-ovs() {
     local sos=$1
     local sos_files="sos_commands/rpm sos_commands/openvswitch"
     local db_locations="var/lib/openvswitch etc/openvswitch usr/local/etc/openvswitch"
+    local imported_db_file
+    imported_db_file=$(ls ${WORKDIR}/db/ovs/*.db)
 
     mkdir -p ${SOS_DIR}
 
@@ -304,7 +307,7 @@ do_collect-sos-ovs() {
         fi
     done
 
-    if ! $found_db; then
+    if [[ ! $found_db && -f $imported_db_file ]] ; then
         echo "warning: conf.db not found in default locations."
         echo "If the target cluster has defined \$ovs_dbdir it could be located there"
         echo "Please add manually using collect-db and re-run collect-sos"
@@ -324,21 +327,37 @@ do_collect-sos-ovs() {
 
     save_dir=${WORKDIR}/restore_flows
     mkdir -p $save_dir
+    
+    if [[ -n ${OVS_RUNDIR} && -f $imported_db_file ]]; then
+        # The DB already exists, we don't have to check the sosreport for the bridges/tlv-map/groups, etc. Some older versions of `sos` do not collect this.
+        # We do still need the flows from the sosreport, which should be present in most recent versions of sos (tested >= 3.8).
+        # If OVS_RUNDIR is present in the environment variables, then it means we have sourced the commands, so we can use `ovs-*` commands directly in the shell.
+        bridges=$(ovs-vsctl -t 5 list-br)
+        for br in $bridges; do
+            # Get the highest level of supported protocol for each bridge.
+            local high_ver=$(ovs-vsctl get Bridge $br protocols | tr -d '[|]' | awk '{print $NF}')
+            ovs-ofctl -O $high_ver dump-tlv-map $br > $save_dir/ovs-ofctl_-O_${high_ver}_dump-tlv-map_${br} || error "Error in executing the ovs-ofctl dump-tlv-map command. Please check your DB file."
+            ovs-ofctl -O $high_ver dump-groups $br > $save_dir/ovs-ofctl_-O_${high_ver}_dump-groups_${br} || error "Error in executing the ovs-ofctl dump-groups command. Please check your DB file."
 
-    if test -f "${SOS_CMD_DIR}/ovs-vsctl_-t_5_list-br"; then
-        bridges=$(cat ${SOS_CMD_DIR}/ovs-vsctl_-t_5_list-br)
+        done
     else
-        error "ovs-vsctl_-t_5_list-br missing from sos report. Make sure your sos archive is generated from the most recent sos report"
-    fi
+        if test -f "${SOS_CMD_DIR}/ovs-vsctl_-t_5_list-br"; then
+            bridges=$(cat ${SOS_CMD_DIR}/ovs-vsctl_-t_5_list-br)
+        else
+            error "ovs-vsctl_-t_5_list-br missing from sos report. Make sure your sos archive is generated from the most recent sos report"
+        fi
 
-    # Collect group, flow, and tlv dumps
-    for br in $bridges; do
-        local version=$(ls $SOS_CMD_DIR | grep ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_${br} | grep -o "OpenFlow[0-9]*")
-        local high_ver=$(echo "$version" | sort | tail -n 1)
-        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-flows_${br} $save_dir || error "Sos report missing dump-flows for bridge $br. Make sure your sos archive is generated from the most recent sos report"
-        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-tlv-map_${br} $save_dir || error "Sos report missing dump-tlv for bridge $br. Make sure your sos archive is generated from the most recent sos report"
-        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-groups_${br} $save_dir || error "Sos report missing dump-groups for bridge $br. Make sure your sos archive is generated from the most recent sos report"
-    done
+        # Collect group, flow, and tlv dumps
+        for br in $bridges; do
+            local version=$(ls $SOS_CMD_DIR | grep ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_${br} | grep -o "OpenFlow[0-9]*")
+            local high_ver=$(echo "$version" | sort | tail -n 1)
+            cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-tlv-map_${br} $save_dir || error "Sos report missing dump-tlv for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+            cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-groups_${br} $save_dir || error "Sos report missing dump-groups for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+        done
+    fi
+    local high_ver=$(ls ${SOS_CMD_DIR}/ovs-ofctl_-O*flows* | awk -F'OpenFlow|_dump' '{print $2}' | sort | tail -n1)
+    cp ${SOS_CMD_DIR}/ovs-ofctl_-O_OpenFlow${high_ver}_dump-flows_* $save_dir || error "Sos report missing dump-flows for bridges. Make sure your sos archive is generated from the most recent sos report"
+
     # Apply the workarounds found in ovs-save to the current flows and
     # groups to allow for restoration
     for dump in ${save_dir}/*dump-flows*; do
@@ -374,6 +393,23 @@ do_collect-sos-ovs() {
 
         echo "ovs-ofctl -O $flow_version replace-flows ${br} \
                     \"\$CURR_DIR/ovs-ofctl_-O_${flow_version}_dump-flows_${br}\" ${bundle}" >> ${save_dir}/restore.sh
+    done
+
+    echo "Do you wish to restore the OpenFlow rules immediately?"
+    select yesno in "Yes" "No"; do
+        case $REPLY in
+            1|Yes) 
+                 bash "${WORKDIR}/restore_flows/restore.sh"
+                 break
+                 ;;
+            2|No)  
+                 break
+                 ;;
+            *)
+                 echo "Invalid command $yesno $REPLY" 1>&2
+                 break
+                 ;;
+        esac
     done
 }
 
@@ -416,6 +452,9 @@ start_vswitchd() {
     ${CONTAINER_CMD} rm ovs-vswitchd &>/dev/null || true
 
     echo "Starting container ovs-vswitchd"
+    if ! test -f "${WORKDIR}/restore_flows"; then
+    mkdir -p "${WORKDIR}/restore_flows"
+    fi
     ${CONTAINER_CMD} run -d -e OVSDB_SOCKET=${socket_file} ${caps} -e UID=$(id -u) -e RESTORE_DIR="/root/restore_flows" -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --pid=host --name ovs-vswitchd ovs-dbg vswitchd-dummy
     sleep 3
 }
@@ -714,3 +753,4 @@ case $CMD in
         exit 1
         ;;
 esac
+
