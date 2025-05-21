@@ -6,8 +6,6 @@ This respository stores scripts and documentation to help debug OVS and OVN.
    :maxdepth: 1
    :caption: Tools:
 
-   ofparse
-
    ovs-offline
 
    lgrep
