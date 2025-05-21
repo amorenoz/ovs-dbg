@@ -4,7 +4,43 @@ import click
 import re
 import datetime
 
-from ovs_dbg.logs import OVSLog
+
+class OVSLog:
+    """Parses and stores information of a OVS FLow.
+
+    The logs have the following standard format:
+
+    2016-03-08T02:10:01.155Z|01417|vlog|INFO|opened log file ...
+    2016-03-08T02:20:05.425Z|01418|connmgr|INFO|br0<->unix: 1 flow_mods ...
+    2016-03-08T02:20:10.160Z|01419|connmgr|INFO|br0<->unix: 1 flow_mods ...
+    2016-03-08T11:30:52.206Z|00013|fatal_signal|WARN|terminating with ...
+
+    Attributes:
+        timestamp: the UTC time stamp
+        sequence: the sequence number of this message
+        module: the module in vlog that emitted this error
+        level: the level of error
+        message: the rest of the message
+        raw_message: the raw string
+    """
+
+    time_format = "%Y-%m-%dT%H:%M:%S.%fZ"
+    _fields = ["timestamp", "sequence", "module", "level", "message"]
+
+    def __init__(self, string):
+        """Constructor"""
+        self.raw_string = string
+        fields = string.split("|", 4)
+        if len(fields) != len(self._fields):
+            raise Exception("Not a valid OVS Flow: %s" % string)
+
+        self.timestamp = datetime.datetime.strptime(
+            fields[0], self.time_format
+        )
+        self.sequence = int(fields[1])
+        self.module = fields[2]
+        self.level = fields[3]
+        self.message = fields[4].strip()
 
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))
@@ -79,7 +115,9 @@ def find_logs(filename, expression, start, end, after, before):
         try:
             expr = re.compile(expression)
         except Exception as e:
-            raise Exception("Failed to compile regexp from %s" % expression) from e
+            raise Exception(
+                "Failed to compile regexp from %s" % expression
+            ) from e
 
     start_time = None
     if start:
@@ -109,7 +147,9 @@ def find_logs(filename, expression, start, end, after, before):
 
     if before:
         if not start:
-            raise click.BadArgumentUsage("--before requires the use of --start")
+            raise click.BadArgumentUsage(
+                "--before requires the use of --start"
+            )
         if end:
             raise click.BadArgumentUsage(
                 "--before is incompatible with the use of --end"
@@ -133,7 +173,9 @@ def find_logs(filename, expression, start, end, after, before):
     return logs
 
 
-td_re = re.compile(r"((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?")
+td_re = re.compile(
+    r"((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?"
+)
 
 
 def build_timedelta(string):
@@ -142,8 +184,12 @@ def build_timedelta(string):
         raise Exception("Failed build duration from %s" % string)
     return datetime.timedelta(
         hours=int(td_match.group("hours")) if td_match.group("hours") else 0,
-        minutes=int(td_match.group("minutes")) if td_match.group("minutes") else 0,
-        seconds=int(td_match.group("seconds")) if td_match.group("seconds") else 0,
+        minutes=(
+            int(td_match.group("minutes")) if td_match.group("minutes") else 0
+        ),
+        seconds=(
+            int(td_match.group("seconds")) if td_match.group("seconds") else 0
+        ),
     )
 
 

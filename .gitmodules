@@ -1,3 +1,0 @@
-[submodule "ovs"]
-	path = ovs
-	url = https://github.com/openvswitch/ovs.git
