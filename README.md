@@ -1,8 +1,15 @@
 # ovs-dbg
 
-Scripts to help debug OVS and OVN
+Tools to help debug OVS and OVN
 
 Full documentation here: https://ovs-dbg.readthedocs.io/en/latest
+
+# Containers
+## ovs-dbg
+A swiss-army knife container to troubleshoot OVS deployments.
+
+## ovs-offline
+Used by `ovs-offline` tool.
 
 # Available tools
 ## ovs-lgrep
@@ -15,6 +22,7 @@ Full documentation here: https://ovs-dbg.readthedocs.io/en/latest
 `ovs-offline` is a script that locally recreates a running OVS so you can debug offline (including running `ovs-appctl ofproto/trace`)
 
     ovs-offline
+
 
 # Contribute
 PRs are welcome!
