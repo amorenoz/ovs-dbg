@@ -3,7 +3,7 @@ set -eu
 
 SCRIPT=`realpath -s $0`
 SCRIPT_PATH=`dirname $SCRIPT`
-CONTAINER_PATH=${SCRIPT_PATH}/../containers/ovs-dbg
+CONTAINER_PATH=${SCRIPT_PATH}/../containers/ovs-offline
 
 OVN_NAMESPACE=ovn-kubernetes
 WORKDIR=${OVS_DBG_WORKDIR:-/tmp/ovs-offline}
@@ -94,9 +94,9 @@ do_build() {
         esac
     done
     if test -f "${CONTAINER_PATH}/Dockerfile"; then
-        ${CONTAINER_CMD} build --build-arg OVS_REPO=${OVS_REPO} --build-arg OVS_COMMIT=${OVS_COMMIT} -t ovs-dbg -f ${CONTAINER_PATH}/Dockerfile ${CONTAINER_PATH} ${cache_arg-}
+        ${CONTAINER_CMD} build --build-arg OVS_REPO=${OVS_REPO} --build-arg OVS_COMMIT=${OVS_COMMIT} -t ovs-offline -f ${CONTAINER_PATH}/Dockerfile ${CONTAINER_PATH} ${cache_arg-}
     else
-        error "Cannot build the container locally. You may need to execute the script directly via \"/<GIT-REPO-PATH>/ovs-dbg/bin/ovs-offline build\". Instead, quay.io/amorenoz/ovs-dbg will be used by default."
+        error "Cannot build the container locally. You may need to execute the script directly via \"/<GIT-REPO-PATH>/ovs-offline/bin/ovs-offline build\". Instead, quay.io/amorenoz/ovs-offline will be used by default."
     fi
 }
 
@@ -401,7 +401,7 @@ start_ovsdb() {
     ${CONTAINER_CMD} rm ovsdb-server-${name} &>/dev/null || true
 
     echo "Starting container ovsdb-server-${name}"
-    ${CONTAINER_CMD} run -d -e OVSDB_BACKUP=${backup_file} ${caps} -e UID=$(id -u) -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${backup_local_file}:${backup_file} -v ${local_var_run}:${remote_var_run} --pid=host --name ovsdb-server-${name} ovs-dbg ovsdb-${name}
+    ${CONTAINER_CMD} run -d -e OVSDB_BACKUP=${backup_file} ${caps} -e UID=$(id -u) -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${backup_local_file}:${backup_file} -v ${local_var_run}:${remote_var_run} --pid=host --name ovsdb-server-${name} ovs-offline ovsdb-${name}
     sleep 3
 }
 
@@ -416,7 +416,7 @@ start_vswitchd() {
     ${CONTAINER_CMD} rm ovs-vswitchd &>/dev/null || true
 
     echo "Starting container ovs-vswitchd"
-    ${CONTAINER_CMD} run -d -e OVSDB_SOCKET=${socket_file} ${caps} -e UID=$(id -u) -e RESTORE_DIR="/root/restore_flows" -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --pid=host --name ovs-vswitchd ovs-dbg vswitchd-dummy
+    ${CONTAINER_CMD} run -d -e OVSDB_SOCKET=${socket_file} ${caps} -e UID=$(id -u) -e RESTORE_DIR="/root/restore_flows" -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${WORKDIR}/restore_flows:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --pid=host --name ovs-vswitchd ovs-offline vswitchd-dummy
     sleep 3
 }
 
@@ -427,10 +427,10 @@ do_start() {
     fi
 
     set_container_cmd
-    # Ensure ovs-dbg image is present
-    ${CONTAINER_CMD} inspect ovs-dbg 2>&1 >/dev/null || (
-        echo "Failed to find a local container named ovs-dbg. Pulling from quay.io/amorenoz/ovs-dbg"
-        ${CONTAINER_CMD} pull quay.io/amorenoz/ovs-dbg && ${CONTAINER_CMD} tag quay.io/amorenoz/ovs-dbg ovs-dbg
+    # Ensure ovs-offline image is present
+    ${CONTAINER_CMD} inspect ovs-offline 2>&1 >/dev/null || (
+        echo "Failed to find a local container named ovs-offline. Pulling from quay.io/amorenoz/ovs-offline"
+        ${CONTAINER_CMD} pull quay.io/amorenoz/ovs-offline && ${CONTAINER_CMD} tag quay.io/amorenoz/ovs-offline ovs-offline
     )
 
     mkdir -p $VAR_RUN
