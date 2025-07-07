@@ -26,7 +26,7 @@ COPY --from=build /usr/bin/vtep* /usr/bin/
 COPY --from=build /usr/sbin/* /usr/sbin/
 COPY --from=build /etc/openvswitch /usr/etc/openvswitch
 COPY --from=build /usr/share/openvswitch /usr/share/openvswitch
-COPY --from=build /usr/lib64/lib* /usr/lib/
+COPY --from=build /usr/lib64/lib* /usr/lib64/
 
 RUN dnf install -y libatomic openssl gdb jq ovn-central bcc bcc-tools perf
 
