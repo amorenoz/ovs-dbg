@@ -3,10 +3,8 @@
 FROM quay.io/fedora/fedora:41-x86_64 as build
 
 #RUN dnf -y groupinstall "Development Tools"
-RUN dnf -y install gcc make autoconf automake libtool diffutils file
-RUN dnf -y install libcap-ng-devel openssl-devel libatomic 
-
-RUN dnf -y install git
+RUN dnf -y install gcc make autoconf automake libtool diffutils file python  \
+    libcap-ng-devel openssl-devel libatomic git
 
 ARG OVS_REPO=https://github.com/openvswitch/ovs.git
 ARG OVS_COMMIT=main
@@ -28,7 +26,7 @@ COPY --from=build /usr/bin/vtep* /usr/bin/
 COPY --from=build /usr/sbin/* /usr/sbin/
 COPY --from=build /etc/openvswitch /usr/etc/openvswitch
 COPY --from=build /usr/share/openvswitch /usr/share/openvswitch
-COPY --from=build /usr/lib/lib* /usr/lib/
+COPY --from=build /usr/lib64/lib* /usr/lib/
 
 RUN dnf install -y libatomic openssl gdb jq ovn-central bcc bcc-tools perf
 
