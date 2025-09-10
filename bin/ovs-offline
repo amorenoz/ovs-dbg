@@ -164,7 +164,7 @@ do_collect-k8s() {
     [ -f $WORKDIR/restore_flows/do_restore.sh ] || error "Could not copy /tmp/restore.sh from ${ovnkube_node}"
     save_dir=$(cat ${WORKDIR}/restore_flows/do_restore.sh | awk '/replace/{print $6; exit}' | xargs dirname)
     kubectl cp -n $OVN_NAMESPACE -c ovnkube-node $ovnkube_node:$save_dir ${WORKDIR}/restore_flows 2>&1 | grep -v 'tar: Removing leading' || true >&2
-    dump_count=`ls /tmp/ovs-offline/restore_flows/*.dump 2>/dev/null | wc -l`
+    dump_count=`ls ${WORKDIR}/restore_flows/*.dump 2>/dev/null | wc -l`
     if [ ${dump_count} -le 0 ]; then error "Could not copy $save_dir from ${ovnkube_node}"; fi
 
     cat <<EOF > ${WORKDIR}/restore_flows/restore.sh
