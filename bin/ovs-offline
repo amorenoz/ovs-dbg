@@ -161,11 +161,11 @@ do_collect-k8s() {
     bridges=$(kubectl exec -n $OVN_NAMESPACE $ovnkube_node -c ovnkube-node -- ovs-vsctl -- --real list-br)
     kubectl exec -it -n $OVN_NAMESPACE $ovnkube_node -c ovnkube-node -- sh -c "/usr/share/openvswitch/scripts/ovs-save save-flows $(echo $bridges | xargs) > /tmp/restore.sh"
     kubectl cp -n $OVN_NAMESPACE -c ovnkube-node $ovnkube_node:/tmp/restore.sh ${WORKDIR}/restore_flows/do_restore.sh 2>&1 | grep -v 'tar: Removing leading' || true >&2
-    [ -f $WORKDIR/restore_flows/do_restore.sh ] || error "Could not copy /tmp/restore.sh from ${ovnkube-node}"
+    [ -f $WORKDIR/restore_flows/do_restore.sh ] || error "Could not copy /tmp/restore.sh from ${ovnkube_node}"
     save_dir=$(cat ${WORKDIR}/restore_flows/do_restore.sh | awk '/replace/{print $6; exit}' | xargs dirname)
     kubectl cp -n $OVN_NAMESPACE -c ovnkube-node $ovnkube_node:$save_dir ${WORKDIR}/restore_flows 2>&1 | grep -v 'tar: Removing leading' || true >&2
     dump_count=`ls /tmp/ovs-offline/restore_flows/*.dump 2>/dev/null | wc -l`
-    if [ ${dump_count} -le 0 ]; then error "Could not copy $save_dir from ${ovnkube-node}"; fi
+    if [ ${dump_count} -le 0 ]; then error "Could not copy $save_dir from ${ovnkube_node}"; fi
 
     cat <<EOF > ${WORKDIR}/restore_flows/restore.sh
 CURR_DIR=\$(dirname \$(realpath \$0))
