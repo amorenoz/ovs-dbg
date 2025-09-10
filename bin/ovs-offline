@@ -11,7 +11,7 @@ VAR_RUN=${WORKDIR}/var-run
 SOS_DIR=${WORKDIR}/sos_report
 SOS_CMD_DIR=${SOS_DIR}/sos_commands/openvswitch/
 SOURCE_DIR=${WORKDIR}/bin
-CONTAINER_CMD=docker
+CONTAINER_CMD=podman
 OVS_REPO=${OVS_DBG_REPO:-https://github.com/openvswitch/ovs.git}
 OVS_COMMIT=${OVS_DBG_COMMIT:-branch-2.15}
 
@@ -60,7 +60,6 @@ usage() {
     echo "  -h:     Print help"
     echo "  -w:     Set working directory. Also configurable via OVS_DBG_WORKDIR env var. Default: /tmp/ovs-offline"
     echo "  -d:     Set debug mode"
-    echo "  -p:     Manage containers using podman (default: Docker)"
 }
 
 error() {
@@ -69,13 +68,13 @@ error() {
 }
 
 set_container_cmd() {
-    # Use docker by default. If docker is not installed, or podman-docker is being used, use podman instead
-    if [ ! -x "$(command -v docker)" ] || cat $(command -v docker) | grep "Emulate Docker CLI using podman" &>/dev/null; then
-        if [ -x "$(command -v podman)" ]; then
-            CONTAINER_CMD=podman
-        else
-            error "docker and/or podman must be installed to run ovs-offline"
-        fi
+    # Auto-detect the available runtime.
+    if command -v podman > /dev/null; then
+        CONTAINER_CMD=podman
+    elif command -v docker > /dev/null; then
+        CONTAINER_CMD=docker
+    else
+        echo "No container runtime detected. Please install 'podman' or 'docker'"
     fi
 }
 
@@ -628,9 +627,6 @@ while getopts ":hdw:p" opt; do
             ;;
         d)
             set -x
-            ;;
-        p)
-            CONTAINER_CMD=podman
             ;;
     esac
 done
