@@ -39,40 +39,45 @@ vswitchd-dummy() {
 
 }
 
-ovn-sb() {
-  OVS_OFFLINE_VAR_RUN=${OVS_OFFLINE_VAR_RUN:-/var/run/ovn/}
-  OVSDB_SOCKET=$OVS_OFFLINE_VAR_RUN/ovnsb_db.sock
-  OVSDB_PIDFILE=$OVS_OFFLINE_VAR_RUN/ovnsb_db.pid
-  #OVSDB_CTRL_SOCK=$OVS_OFFLINE_VAR_RUN/ovnsb_db.ctl
-  OVSDB_BACKUP=${OVSDB_BACKUP:-${OVS_OFFLINE_VAR_RUN}/ovn_sb.db}
-  OVSDB_REMOTE=ptcp:6642
-  OVSDB_FILE=/usr/local/etc/openvswitch/ovn_sb.db
-  mkdir -p /etc/openvswitch
+set_runtime_vars() {
+  local db_type=$1
 
-  do_ovsdb
-}
-
-ovn-nb() {
-  OVS_OFFLINE_VAR_RUN=${OVS_OFFLINE_VAR_RUN:-/var/run/ovn/}
-  OVSDB_SOCKET=$OVS_OFFLINE_VAR_RUN/ovnnb_db.sock
-  OVSDB_PIDFILE=$OVS_OFFLINE_VAR_RUN/ovnnb_db.pid
-  #OVSDB_CTRL_SOCK=$OVS_OFFLINE_VAR_RUN/ovnnb_db.ctl
-  OVSDB_BACKUP=${OVSDB_BACKUP:-${OVS_OFFLINE_VAR_RUN}/ovn_nb.db}
-  OVSDB_REMOTE=ptcp:6641
-  OVSDB_FILE=/usr/local/etc/openvswitch/ovn_nb.db
-
-  do_ovsdb
+  case $db_type in
+    ovs)
+      OVS_OFFLINE_VAR_RUN=${OVS_OFFLINE_VAR_RUN:-/usr/local/var/run/openvswitch/}
+      OVSDB_SOCKET=$OVS_OFFLINE_VAR_RUN/db.sock
+      OVSDB_PIDFILE=$OVS_OFFLINE_VAR_RUN/ovsdb-server.pid
+      OVSDB_BACKUP=${OVSDB_BACKUP:-${OVS_OFFLINE_VAR_RUN}/conf.db}
+      OVSDB_REMOTE=ptcp:6640
+      OVSDB_FILE=/usr/local/etc/openvswitch/conf.db
+      ;;
+    ovn_nb)
+      OVS_OFFLINE_VAR_RUN=${OVS_OFFLINE_VAR_RUN:-/var/run/ovn/}
+      OVSDB_SOCKET=$OVS_OFFLINE_VAR_RUN/ovnnb_db.sock
+      OVSDB_PIDFILE=$OVS_OFFLINE_VAR_RUN/ovnnb_db.pid
+      OVSDB_BACKUP=${OVSDB_BACKUP:-${OVS_OFFLINE_VAR_RUN}/ovn_nb.db}
+      OVSDB_REMOTE=ptcp:6641
+      OVSDB_FILE=/usr/local/etc/openvswitch/ovn_nb.db
+      ;;
+    ovn_sb)
+      OVS_OFFLINE_VAR_RUN=${OVS_OFFLINE_VAR_RUN:-/var/run/ovn/}
+      OVSDB_SOCKET=$OVS_OFFLINE_VAR_RUN/ovnsb_db.sock
+      OVSDB_PIDFILE=$OVS_OFFLINE_VAR_RUN/ovnsb_db.pid
+      OVSDB_BACKUP=${OVSDB_BACKUP:-${OVS_OFFLINE_VAR_RUN}/ovn_sb.db}
+      OVSDB_REMOTE=ptcp:6642
+      OVSDB_FILE=/usr/local/etc/openvswitch/ovn_sb.db
+      mkdir -p /etc/openvswitch
+      ;;
+    *)
+      echo "Error: Unknown database type: $db_type"
+      exit 1
+      ;;
+  esac
 }
 
 ovsdb() {
-  OVS_OFFLINE_VAR_RUN=${OVS_OFFLINE_VAR_RUN:-/usr/local/var/run/openvswitch/}
-  OVSDB_SOCKET=$OVS_OFFLINE_VAR_RUN/db.sock
-  OVSDB_PIDFILE=$OVS_OFFLINE_VAR_RUN/ovsdb-server.pid
-  #OVSDB_CTRL_SOCK=$OVS_OFFLINE_VAR_RUN/ovnnb_db.ctl
-  OVSDB_BACKUP=${OVSDB_BACKUP:-${OVS_OFFLINE_VAR_RUN}/conf.db}
-  OVSDB_REMOTE=ptcp:6640
-  OVSDB_FILE=/usr/local/etc/openvswitch/conf.db
-
+  local db_type=$1
+  set_runtime_vars $db_type
   do_ovsdb
 }
 
@@ -114,13 +119,13 @@ case ${cmd} in
   vswitchd-dummy
   ;;
 "ovsdb-ovs")
-  ovsdb
+  ovsdb ovs
   ;;
 "ovsdb-ovn_nb")
-  ovn-nb
+  ovsdb ovn_nb
   ;;
 "ovsdb-ovn_sb")
-  ovn-sb
+  ovsdb ovn_sb
   ;;
 "sleep")
   sleep infinity 
