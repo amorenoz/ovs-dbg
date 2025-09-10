@@ -222,7 +222,7 @@ do_collect-sos-ovn() {
     echo "Extracting OVN data from sos report..."
     local found_db=false
     for dir in $db_locations; do
-        let strip="2 + $(echo ${dir} | tr -dc "/" | wc -m)"
+        strip=$((2 + $(echo ${dir} | tr -dc "/" | wc -m)))
         if _sos-try-extract $sos ${dir}/ovnnb_db.db true &&
            _sos-try-extract $sos ${dir}/ovnsb_db.db true; then
             found_db=true
@@ -255,7 +255,7 @@ _sos-try-extract() {
         local dir_name=`tar -tf $sos | head -1 | cut -f1 -d"/"`
         local strip_level=1
         if [[ $strip == true ]]; then
-            let strip_level="1 + $(echo ${src} | tr -dc "/" | wc -m)"
+            strip_level=$((1 + $(echo ${src} | tr -dc "/" | wc -m)))
         fi
 
         if tar -xvf $sos -C ${SOS_DIR} ${dir_name}/${src} --strip-components=${strip_level} &>/dev/null; then
