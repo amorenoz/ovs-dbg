@@ -91,6 +91,7 @@ do_build() {
                 ;;
             n)
                 local cache_arg=--no-cache
+                ;;
         esac
     done
     if test -f "${CONTAINER_PATH}/Dockerfile"; then
