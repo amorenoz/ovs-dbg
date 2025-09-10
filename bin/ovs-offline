@@ -362,8 +362,8 @@ do_collect-sos-ovs() {
     # Create restore.sh script
     echo "CURR_DIR=\$(dirname \$(realpath \$0))" >> ${save_dir}/restore.sh
     for br in $bridges; do
-        local flow_version=$(ls /${save_dir}/ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_$br | grep -o OpenFlow[0-9]*)
-        local group_version=$(ls /${save_dir}/ovs-ofctl_-O_OpenFlow[0-9]*_dump-groups_$br | grep -o OpenFlow[0-9]*)
+        local flow_version=$(ls ${save_dir}/ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_$br | grep -o OpenFlow[0-9]*)
+        local group_version=$(ls ${save_dir}/ovs-ofctl_-O_OpenFlow[0-9]*_dump-groups_$br | grep -o OpenFlow[0-9]*)
         echo -n "ovs-ofctl add-tlv-map ${br} '" >> ${save_dir}/restore.sh
         cat ${save_dir}/ovs-ofctl_-O_OpenFlow[0-9]*_dump-tlv-map_$br | \
         awk '/^  *0x/ {if (cnt != 0) printf ","; \
