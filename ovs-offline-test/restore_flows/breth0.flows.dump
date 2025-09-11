@@ -1,0 +1,33 @@
+ cookie=0x304, priority=700,icmp,in_port=2,nw_dst=172.18.0.2,icmp_type=3,icmp_code=4 actions=drop
+ cookie=0x304, priority=700,icmp,in_port=2,nw_dst=172.18.0.3,icmp_type=3,icmp_code=4 actions=drop
+ cookie=0xdeff105, priority=500,ip,in_port=2,nw_src=172.18.0.4,nw_dst=169.254.0.2 actions=ct(commit,table=4,zone=64001,nat(dst=172.18.0.4))
+ cookie=0xdeff105, priority=500,ip,in_port=LOCAL,nw_dst=169.254.0.1 actions=ct(table=5,zone=64002,nat)
+ cookie=0xdeff105, priority=500,ip,in_port=LOCAL,nw_dst=10.96.0.0/16 actions=ct(commit,table=2,zone=64001,nat(src=169.254.0.2))
+ cookie=0xdeff105, priority=115,ip,in_port=2,nw_dst=10.96.0.0/16 actions=drop
+ cookie=0xdeff105, priority=500,ip,in_port=2,nw_src=10.96.0.0/16,nw_dst=169.254.0.2 actions=ct(table=3,zone=64001,nat)
+ cookie=0xdeff105, priority=205,udp,in_port=1,dl_dst=3e:e8:da:3e:dd:a6,tp_dst=6081 actions=LOCAL
+ cookie=0xdeff105, priority=200,udp,in_port=1,tp_dst=6081 actions=NORMAL
+ cookie=0xdeff105, priority=200,udp,in_port=LOCAL,tp_dst=6081 actions=output:1
+ cookie=0xdeff105, priority=110,ip,in_port=1,nw_frag=yes actions=ct(table=0,zone=64004)
+ cookie=0xdeff105, priority=105,pkt_mark=0x3f0,ip,in_port=2,dl_src=3e:e8:da:3e:dd:a6 actions=ct(commit,zone=64000,nat(src=172.18.0.4),exec(set_field:0x1->ct_mark)),output:1
+ cookie=0xdeff105, priority=103,ip,in_port=2,nw_src=10.244.0.0/16 actions=drop
+ cookie=0xdeff105, priority=102,ip,in_port=2,dl_src=3e:e8:da:3e:dd:a6,nw_dst=172.18.0.0/16 actions=ct(commit,zone=64000,exec(set_field:0x1->ct_mark)),NORMAL
+ cookie=0xdeff105, priority=102,ip,in_port=LOCAL,dl_src=3e:e8:da:3e:dd:a6,nw_dst=172.18.0.0/16 actions=ct(commit,zone=64000,exec(set_field:0x2->ct_mark)),NORMAL
+ cookie=0xdeff105, priority=100,ip,in_port=2,dl_src=3e:e8:da:3e:dd:a6 actions=ct(commit,zone=64000,exec(set_field:0x1->ct_mark)),output:1
+ cookie=0xdeff105, priority=100,ip,in_port=LOCAL actions=ct(commit,zone=64000,exec(set_field:0x2->ct_mark)),output:1
+ cookie=0xdeff105, priority=50,ip,dl_dst=3e:e8:da:3e:dd:a6 actions=ct(table=1,zone=64000,nat)
+ cookie=0xdeff105, priority=10,dl_dst=3e:e8:da:3e:dd:a6 actions=output:2,NORMAL
+ cookie=0xdeff105, priority=10,in_port=2,dl_src=3e:e8:da:3e:dd:a6 actions=NORMAL
+ cookie=0xdeff105, priority=9,in_port=2 actions=drop
+ priority=0 actions=NORMAL
+ cookie=0xdeff105, table=1, priority=100,ct_state=+est+trk,ct_mark=0x1,ip actions=output:2
+ cookie=0xdeff105, table=1, priority=100,ct_state=+est+trk,ct_mark=0x2,ip actions=LOCAL
+ cookie=0xdeff105, table=1, priority=100,ct_state=+rel+trk,ct_mark=0x1,ip actions=output:2
+ cookie=0xdeff105, table=1, priority=100,ct_state=+rel+trk,ct_mark=0x2,ip actions=LOCAL
+ cookie=0xdeff105, table=1, priority=13,udp,in_port=1,tp_dst=3784 actions=output:2,LOCAL
+ cookie=0xdeff105, table=1, priority=10,dl_dst=3e:e8:da:3e:dd:a6 actions=LOCAL
+ cookie=0xdeff105, table=1, priority=0 actions=NORMAL
+ cookie=0xdeff105, table=2, priority=100 actions=set_field:3e:e8:da:3e:dd:a6->eth_dst,output:2
+ cookie=0xdeff105, table=3, actions=move:NXM_OF_ETH_DST[]->NXM_OF_ETH_SRC[],set_field:3e:e8:da:3e:dd:a6->eth_dst,LOCAL
+ cookie=0xdeff105, table=4, ip actions=ct(commit,table=3,zone=64002,nat(src=169.254.0.1))
+ cookie=0xdeff105, table=5, ip actions=ct(commit,table=2,zone=64001,nat)

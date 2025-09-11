@@ -222,6 +222,14 @@ find_binary() {
     return 1
 }
 
+check_container_cmd() {
+
+    set_container_cmd
+    if [ -z $CONTAINER_CMD ]; then
+        log_error "No container runtime detected. Please install 'podman' or 'docker'"
+    fi
+}
+
 set_container_cmd() {
     # Auto-detect the available runtime.
     if command -v podman > /dev/null; then
@@ -229,12 +237,13 @@ set_container_cmd() {
     elif command -v docker > /dev/null; then
         CONTAINER_CMD=docker
     else
-            log_error "No container runtime detected. Please install 'podman' or 'docker'"
+        CONTAINER_CMD=
     fi
 }
 
 do_build() {
-    set_container_cmd
+    check_container_cmd
+
     while getopts "r:c:n" opt; do
         case ${opt} in
             r)
@@ -301,17 +310,19 @@ do_stop() {
     if [ -d "${VAR_RUN}" ]; then
         stop_standalone_daemons
     fi
-    
+
     # Stop containers
     set_container_cmd
-    ${CONTAINER_CMD} kill ovs-vswitchd &>/dev/null || true
-    ${CONTAINER_CMD} rm ovs-vswitchd &>/dev/null || true
-    ${CONTAINER_CMD} kill ovsdb-server-ovs &>/dev/null || true
-    ${CONTAINER_CMD} rm ovsdb-server-ovs &>/dev/null || true
-    ${CONTAINER_CMD} kill ovsdb-server-ovn_nb &>/dev/null || true
-    ${CONTAINER_CMD} rm ovsdb-server-ovn_nb &>/dev/null || true
-    ${CONTAINER_CMD} kill ovsdb-server-ovn_sb &>/dev/null || true
-    ${CONTAINER_CMD} rm ovsdb-server-ovn_sb &>/dev/null || true
+    if [ ! -z ${CONTAINER_CMD} ]; then
+        ${CONTAINER_CMD} kill ovs-vswitchd &>/dev/null || true
+        ${CONTAINER_CMD} rm ovs-vswitchd &>/dev/null || true
+        ${CONTAINER_CMD} kill ovsdb-server-ovs &>/dev/null || true
+        ${CONTAINER_CMD} rm ovsdb-server-ovs &>/dev/null || true
+        ${CONTAINER_CMD} kill ovsdb-server-ovn_nb &>/dev/null || true
+        ${CONTAINER_CMD} rm ovsdb-server-ovn_nb &>/dev/null || true
+        ${CONTAINER_CMD} kill ovsdb-server-ovn_sb &>/dev/null || true
+        ${CONTAINER_CMD} rm ovsdb-server-ovn_sb &>/dev/null || true
+    fi
     
     rm -rf ${WORKDIR}
 }
@@ -704,7 +715,7 @@ do_start() {
         done
     else
         log_info "Container mode"
-        set_container_cmd
+        check_container_cmd
         # Ensure ovs-offline image is present
         ${CONTAINER_CMD} inspect ovs-offline 2>&1 >/dev/null || (
             log_warning "Failed to find a local container named ovs-offline. Pulling from quay.io/amorenoz/ovs-offline"
