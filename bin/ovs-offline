@@ -41,6 +41,8 @@ usage() {
     echo "       -n:    Build without using cache (i.e. to rebuild a repo/branch with new changes)"
     echo ""
     echo "  start                Starts an offline debugging session service. Data must have been previously collected in the working directory"
+    echo "    Options":
+    echo "       -s:    Run in standalone mode (directly on host, no containers)"
     echo ""
     echo "  stop                 Stops the offline debugging environment"
     echo ""
@@ -103,11 +105,55 @@ do_build() {
     fi
 }
 
+stop_standalone_daemons() {
+    echo "Stopping standalone daemons..."
+    
+    # Stop ovs-vswitchd if running
+    if [ -f "${VAR_RUN}/ovs/ovs-vswitchd.pid" ]; then
+        local pid=$(cat "${VAR_RUN}/ovs/ovs-vswitchd.pid" 2>/dev/null)
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            echo "Stopping ovs-vswitchd (PID: $pid)"
+            kill "$pid" 2>/dev/null || true
+            # Wait a bit and force kill if necessary
+            sleep 2
+            if kill -0 "$pid" 2>/dev/null; then
+                kill -9 "$pid" 2>/dev/null || true
+            fi
+        fi
+        rm -f "${VAR_RUN}/ovs/ovs-vswitchd.pid"
+    fi
+    
+    # Stop ovsdb servers
+    for db_type in ovs ovn_nb ovn_sb; do
+        local pidfile="${VAR_RUN}/${db_type}/ovsdb-server.pid"
+        if [ -f "$pidfile" ]; then
+            local pid=$(cat "$pidfile" 2>/dev/null)
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                echo "Stopping ovsdb-server for ${db_type} (PID: $pid)"
+                kill "$pid" 2>/dev/null || true
+                # Wait a bit and force kill if necessary
+                sleep 1
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill -9 "$pid" 2>/dev/null || true
+                fi
+            fi
+            rm -f "$pidfile"
+        fi
+    done
+}
+
 do_stop() {
-    set_container_cmd
     if ! [ -z "${OVS_OFFLINE_ENV-}" ]; then
         error "Cannot stop, ovs-offline env is still active. Run \"ovs-offline-deactivate\" and try again"
     fi
+    
+    # Stop standalone daemons if any pidfiles exist
+    if [ -d "${VAR_RUN}" ]; then
+        stop_standalone_daemons
+    fi
+    
+    # Stop containers
+    set_container_cmd
     ${CONTAINER_CMD} kill ovs-vswitchd &>/dev/null || true
     ${CONTAINER_CMD} rm ovs-vswitchd &>/dev/null || true
     ${CONTAINER_CMD} kill ovsdb-server-ovs &>/dev/null || true
@@ -116,6 +162,7 @@ do_stop() {
     ${CONTAINER_CMD} rm ovsdb-server-ovn_nb &>/dev/null || true
     ${CONTAINER_CMD} kill ovsdb-server-ovn_sb &>/dev/null || true
     ${CONTAINER_CMD} rm ovsdb-server-ovn_sb &>/dev/null || true
+    
     rm -rf ${WORKDIR}
 }
 
@@ -427,26 +474,93 @@ start_vswitchd() {
     sleep 3
 }
 
+start_ovsdb_standalone() {
+    # run ovsdb-server directly on host (standalone mode)
+    # $1 : database_type (directory within $WORKDIR/db)
+    local name=$1
+    local db_file=$(ls -x ${WORKDIR}/db/${name} | tail -1)
+    local backup_local_file=${WORKDIR}/db/${name}/${db_file}
+    
+    echo "Starting standalone ovsdb-server for ${name}"
+    
+    # Set environment variables for __ovsdb function
+    export OVSDB_BACKUP=${backup_local_file}
+    export OVS_RUNDIR=${VAR_RUN}/${name}
+    export STANDALONE_MODE=true
+    mkdir -p ${OVS_RUNDIR}
+    
+    # Call the internal __ovsdb function (daemon will detach itself)
+    __ovsdb ${name}
+    sleep 1
+}
+
+start_vswitchd_standalone() {
+    # run ovs-vswitchd directly on host (standalone mode)
+    echo "Starting standalone ovs-vswitchd"
+    
+    # Set environment variables for __vswitchd-dummy function
+    export OVSDB_SOCKET=${VAR_RUN}/ovs/db.sock
+    export RESTORE_DIR=${RESTORE_FLOWS_DIR}
+    export STANDALONE_MODE=true
+    
+    # Call the internal __vswitchd-dummy function (daemon will detach itself)
+    __vswitchd-dummy
+    sleep 1
+}
+
 do_start() {
+    local standalone=false
+    
+    # Parse options for start command
+    OPTIND=1
+    while getopts "s" opt; do
+        case ${opt} in
+            s)
+                standalone=true
+                ;;
+        esac
+    done
+    shift $((OPTIND-1))
+    
     # Ensure ovs-offline collect ovs or ovn has been run
     if [ ! "$(ls -A ${RESTORE_FLOWS_DIR} 2> /dev/null)" ] && [ ! "$(ls -A ${WORKDIR}/db/ 2> /dev/null)" ]; then
         error "Restoration data not found in ${WORKDIR}. Please run ovs-offline collect-... first"
     fi
 
-    set_container_cmd
-    # Ensure ovs-offline image is present
-    ${CONTAINER_CMD} inspect ovs-offline 2>&1 >/dev/null || (
-        echo "Failed to find a local container named ovs-offline. Pulling from quay.io/amorenoz/ovs-offline"
-        ${CONTAINER_CMD} pull quay.io/amorenoz/ovs-offline && ${CONTAINER_CMD} tag quay.io/amorenoz/ovs-offline ovs-offline
-    )
+    if [ "$standalone" = true ]; then
+        echo "Starting in standalone mode (no containers)"
+        
+        # Check for required OVS binaries
+        for binary in ovsdb-server ovsdb-tool ovs-vswitchd ovs-vsctl; do
+            if ! command -v $binary &> /dev/null; then
+                error "Required binary '$binary' not found. Please install OVS tools or use container mode."
+            fi
+        done
+        
+        mkdir -p $VAR_RUN
+        for db_type in $(ls -x ${WORKDIR}/db); do
+            start_ovsdb_standalone ${db_type}
+            if [ ${db_type} == "ovs" ] && [ -d ${RESTORE_FLOWS_DIR} ]; then
+                start_vswitchd_standalone
+            fi
+        done
+    else
+        echo "Starting in container mode"
+        set_container_cmd
+        # Ensure ovs-offline image is present
+        ${CONTAINER_CMD} inspect ovs-offline 2>&1 >/dev/null || (
+            echo "Failed to find a local container named ovs-offline. Pulling from quay.io/amorenoz/ovs-offline"
+            ${CONTAINER_CMD} pull quay.io/amorenoz/ovs-offline && ${CONTAINER_CMD} tag quay.io/amorenoz/ovs-offline ovs-offline
+        )
 
-    mkdir -p $VAR_RUN
-    for db_type in $(ls -x ${WORKDIR}/db); do
-        start_ovsdb ${db_type}
-        if [ ${db_type} == "ovs" ] && [ test -d ${RESTORE_FLOWS_DIR} ]; then
-            start_vswitchd
-        fi
-    done
+        mkdir -p $VAR_RUN
+        for db_type in $(ls -x ${WORKDIR}/db); do
+            start_ovsdb ${db_type}
+            if [ ${db_type} == "ovs" ] && [ test -d ${RESTORE_FLOWS_DIR} ]; then
+                start_vswitchd
+            fi
+        done
+    fi
 }
 
 generate_cmd_script() {
@@ -640,7 +754,7 @@ __vswitchd-dummy() {
     fi
     ) &
 
-    if [ "${CONTAINER_TYPE}" == docker ]; then
+    if [ "${CONTAINER_TYPE:-}" == docker ]; then
         if [ "$UID" -eq 0 ] || [ -z "${UID}" ]; then
             container_user=root
         else
@@ -658,7 +772,17 @@ __vswitchd-dummy() {
         done
     done
 
-    ovs-vswitchd ${user_opt-} --enable-dummy=override -vvconn -vnetdev_dummy  --no-chdir --pidfile  -vsyslog:off unix:${OVSDB_SOCKET}
+    if [ "${STANDALONE_MODE:-}" = "true" ]; then
+        # Standalone mode: log to file, run in background
+        mkdir -p ${VAR_RUN}/ovs
+        VSWITCHD_PIDFILE=${VAR_RUN}/ovs/ovs-vswitchd.pid
+        VSWITCHD_LOGFILE=${VAR_RUN}/ovs/ovs-vswitchd.log
+        echo "Logging to: $VSWITCHD_LOGFILE"
+        ovs-vswitchd ${user_opt-} --enable-dummy=override -vvconn -vnetdev_dummy --no-chdir --pidfile=${VSWITCHD_PIDFILE} --log-file=${VSWITCHD_LOGFILE} --detach -vsyslog:off unix:${OVSDB_SOCKET}
+    else
+        # Container mode: log to stdout for podman/docker logs
+        ovs-vswitchd ${user_opt-} --enable-dummy=override -vvconn -vnetdev_dummy  --no-chdir --pidfile  -vsyslog:off unix:${OVSDB_SOCKET}
+    fi
 }
 
 __set_runtime_vars() {
@@ -671,7 +795,12 @@ __set_runtime_vars() {
             OVSDB_PIDFILE=$OVS_RUNDIR/ovsdb-server.pid
             OVSDB_BACKUP=${OVSDB_BACKUP:-${OVS_RUNDIR}/conf.db}
             OVSDB_REMOTE=ptcp:6640
-            OVSDB_FILE=/usr/local/etc/openvswitch/conf.db
+            # Use local file path for standalone mode, system path for container mode
+            if [ -z "${STANDALONE_MODE}" ]; then
+                OVSDB_FILE=/usr/local/etc/openvswitch/conf.db
+            else
+                OVSDB_FILE=${OVS_RUNDIR}/conf.db
+            fi
             ;;
         ovn_nb)
             OVS_RUNDIR=${OVS_RUNDIR:-/var/run/ovn/}
@@ -679,7 +808,12 @@ __set_runtime_vars() {
             OVSDB_PIDFILE=$OVS_RUNDIR/ovnnb_db.pid
             OVSDB_BACKUP=${OVSDB_BACKUP:-${OVS_RUNDIR}/ovn_nb.db}
             OVSDB_REMOTE=ptcp:6641
-            OVSDB_FILE=/usr/local/etc/openvswitch/ovn_nb.db
+            # Use local file path for standalone mode, system path for container mode
+            if [ -z "${STANDALONE_MODE}" ]; then
+                OVSDB_FILE=/usr/local/etc/openvswitch/ovn_nb.db
+            else
+                OVSDB_FILE=${OVS_RUNDIR}/ovn_nb.db
+            fi
             ;;
         ovn_sb)
             OVS_RUNDIR=${OVS_RUNDIR:-/var/run/ovn/}
@@ -687,8 +821,13 @@ __set_runtime_vars() {
             OVSDB_PIDFILE=$OVS_RUNDIR/ovnsb_db.pid
             OVSDB_BACKUP=${OVSDB_BACKUP:-${OVS_RUNDIR}/ovn_sb.db}
             OVSDB_REMOTE=ptcp:6642
-            OVSDB_FILE=/usr/local/etc/openvswitch/ovn_sb.db
-            mkdir -p /etc/openvswitch
+            # Use local file path for standalone mode, system path for container mode
+            if [ -z "${STANDALONE_MODE}" ]; then
+                OVSDB_FILE=/usr/local/etc/openvswitch/ovn_sb.db
+                mkdir -p /etc/openvswitch
+            else
+                OVSDB_FILE=${OVS_RUNDIR}/ovn_sb.db
+            fi
             ;;
         *)
             echo "Error: Unknown database type: $db_type"
@@ -720,9 +859,7 @@ __do_ovsdb() {
         ovsdb-tool create $OVSDB_FILE  /usr/local/share/openvswitch/vswitch.ovsschema
     fi
 
-    mkdir -p /usr/local/var/run/openvswitch/
-
-    if [ "${CONTAINER_TYPE}" == docker ]; then
+    if [ "${CONTAINER_TYPE:-}" == docker ]; then
         if [ "$UID" -eq 0 ] || [ -z "${UID}" ]; then
             container_user=root
         else
@@ -733,7 +870,16 @@ __do_ovsdb() {
         user_opt="--user ${container_user}"
     fi
 
-    ovsdb-server ${user_opt-} --remote=punix:${OVSDB_SOCKET} --remote=${OVSDB_REMOTE} --pidfile=${OVSDB_PIDFILE} $OVSDB_FILE
+    if [ "${STANDALONE_MODE:-}" = "true" ]; then
+        # Standalone mode: log to file, run in background
+        mkdir -p $(dirname ${OVSDB_PIDFILE})
+        OVSDB_LOGFILE=$(dirname ${OVSDB_PIDFILE})/ovsdb-server.log
+        echo "Logging to: $OVSDB_LOGFILE"
+        ovsdb-server ${user_opt-} --remote=punix:${OVSDB_SOCKET} --remote=${OVSDB_REMOTE} --pidfile=${OVSDB_PIDFILE} --log-file=${OVSDB_LOGFILE} --detach $OVSDB_FILE
+    else
+        # Container mode: log to stdout for podman/docker logs
+        ovsdb-server ${user_opt-} --remote=punix:${OVSDB_SOCKET} --remote=${OVSDB_REMOTE} --pidfile=${OVSDB_PIDFILE} $OVSDB_FILE
+    fi
 }
 
 while getopts ":hdw:p" opt; do
@@ -745,6 +891,10 @@ while getopts ":hdw:p" opt; do
         w)
             WORKDIR=$(realpath $OPTARG)
             VAR_RUN=${WORKDIR}/var-run
+            SOS_DIR=${WORKDIR}/sos_report
+            SOS_CMD_DIR=${SOS_DIR}/sos_commands/openvswitch/
+            SOURCE_DIR=${WORKDIR}/bin
+            RESTORE_FLOWS_DIR=${WORKDIR}/restore_flows
             ;;
         d)
             set -x
