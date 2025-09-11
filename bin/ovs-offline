@@ -67,9 +67,36 @@ usage() {
     echo "  -d:     Set debug mode"
 }
 
-error() {
-    echo "Error: $@"
+# Logging functions with emojis for better user experience
+log_info() {
+    echo "💡 $@"
+}
+
+log_success() {
+    echo "✅ $@"
+}
+
+log_warning() {
+    echo "⚠️  $@"
+}
+
+log_error() {
+    echo "❌ Error: $@"
     exit 1
+}
+
+log_status() {
+    echo "🔄 $@"
+}
+
+log_complete() {
+    echo ""
+    echo "🎉 $@"
+}
+
+# Legacy error function for compatibility
+error() {
+    log_error "$@"
 }
 
 set_container_cmd() {
@@ -79,7 +106,7 @@ set_container_cmd() {
     elif command -v docker > /dev/null; then
         CONTAINER_CMD=docker
     else
-        echo "No container runtime detected. Please install 'podman' or 'docker'"
+            log_error "No container runtime detected. Please install 'podman' or 'docker'"
     fi
 }
 
@@ -101,18 +128,18 @@ do_build() {
     if test -f "${CONTAINER_PATH}/Dockerfile"; then
         ${CONTAINER_CMD} build --build-arg OVS_REPO=${OVS_REPO} --build-arg OVS_COMMIT=${OVS_COMMIT} -t ovs-offline -f ${CONTAINER_PATH}/Dockerfile ${CONTAINER_PATH}/../.. ${cache_arg-}
     else
-        error "Cannot build the container locally. You may need to execute the script directly via \"/<GIT-REPO-PATH>/ovs-offline/bin/ovs-offline build\". Instead, quay.io/amorenoz/ovs-offline will be used by default."
+        log_error "Cannot build the container locally. You may need to execute the script directly via \"/<GIT-REPO-PATH>/ovs-offline/bin/ovs-offline build\". Instead, quay.io/amorenoz/ovs-offline will be used by default."
     fi
 }
 
 stop_standalone_daemons() {
-    echo "Stopping standalone daemons..."
+    log_status "Stopping standalone daemons..."
     
     # Stop ovs-vswitchd if running
     if [ -f "${VAR_RUN}/ovs/ovs-vswitchd.pid" ]; then
         local pid=$(cat "${VAR_RUN}/ovs/ovs-vswitchd.pid" 2>/dev/null)
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-            echo "Stopping ovs-vswitchd (PID: $pid)"
+            log_status "Stopping ovs-vswitchd (PID: $pid)"
             kill "$pid" 2>/dev/null || true
             # Wait a bit and force kill if necessary
             sleep 2
@@ -129,7 +156,7 @@ stop_standalone_daemons() {
         if [ -f "$pidfile" ]; then
             local pid=$(cat "$pidfile" 2>/dev/null)
             if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-                echo "Stopping ovsdb-server for ${db_type} (PID: $pid)"
+                log_status "Stopping ovsdb-server for ${db_type} (PID: $pid)"
                 kill "$pid" 2>/dev/null || true
                 # Wait a bit and force kill if necessary
                 sleep 1
@@ -144,7 +171,7 @@ stop_standalone_daemons() {
 
 do_stop() {
     if ! [ -z "${OVS_OFFLINE_ENV-}" ]; then
-        error "Cannot stop, ovs-offline env is still active. Run \"ovs-offline-deactivate\" and try again"
+        log_error "Cannot stop, ovs-offline env is still active. Run \"ovs-offline-deactivate\" and try again"
     fi
     
     # Stop standalone daemons if any pidfiles exist
@@ -175,7 +202,7 @@ do_collect-db() {
     local dest_dbfile=${WORKDIR}/db/${name}/$(basename -- ${orig_dbfile})
 
     if [ -f ${dest_dbfile} ]; then
-        error "A database of type ${name} already exists in the current working directory. Run 'stop' or select a different working directory"
+        log_error "A database of type ${name} already exists in the current working directory. Run 'stop' or select a different working directory"
     fi
 
     mkdir -p ${WORKDIR}/db/${name}
@@ -202,7 +229,7 @@ do_collect-k8s() {
         exit 1
     fi
     NODE=$1
-    kubectl get node $NODE &>/dev/null || error "Node not found"
+    kubectl get node $NODE &>/dev/null || log_error "Node not found"
 
     local ovnkube_node=$(kubectl get pods -n $OVN_NAMESPACE --field-selector spec.nodeName=$NODE -o name | head -1 | sed "s/^.\{4\}//")
     local container="ovnkube-controller"
@@ -211,11 +238,11 @@ do_collect-k8s() {
     bridges=$(kubectl exec -n $OVN_NAMESPACE $ovnkube_node -c $container -- ovs-vsctl -- --real list-br)
     kubectl exec -it -n $OVN_NAMESPACE $ovnkube_node -c $container -- sh -c "/usr/share/openvswitch/scripts/ovs-save save-flows $(echo $bridges | xargs) > /tmp/restore.sh"
     kubectl cp -n $OVN_NAMESPACE -c $container ${ovnkube_node}:/tmp/restore.sh ${RESTORE_FLOWS_DIR}/do_restore.sh 2>&1 | grep -v 'tar: Removing leading' || true >&2
-    [ -f ${RESTORE_FLOWS_DIR}/do_restore.sh ] || error "Could not copy /tmp/restore.sh from ${ovnkube_node}"
+    [ -f ${RESTORE_FLOWS_DIR}/do_restore.sh ] || log_error "Could not copy /tmp/restore.sh from ${ovnkube_node}"
     save_dir=$(cat ${RESTORE_FLOWS_DIR}/do_restore.sh | awk '/replace/{print $6; exit}' | xargs dirname)
     kubectl cp -n $OVN_NAMESPACE -c $container ${ovnkube_node}:${save_dir} ${RESTORE_FLOWS_DIR} 2>&1 | grep -v 'tar: Removing leading' || true >&2
     dump_count=`ls ${RESTORE_FLOWS_DIR}/*.dump 2>/dev/null | wc -l`
-    if [ ${dump_count} -le 0 ]; then error "Could not copy $save_dir from ${ovnkube_node}"; fi
+    if [ ${dump_count} -le 0 ]; then log_error "Could not copy $save_dir from ${ovnkube_node}"; fi
 
     cat <<EOF > ${RESTORE_FLOWS_DIR}/restore.sh
 CURR_DIR=\$(dirname \$(realpath \$0))
@@ -246,8 +273,8 @@ EOF
             kubectl cp -n ${OVN_NAMESPACE} -c sb-ovsdb ${ovnkube_node}:/${dir}/ovnsb_db.db  ${WORKDIR}/ovnsb_db.db 2>&1 | grep -v 'tar: Removing leading' || true >&2
         fi
     done
-    [ -f $WORKDIR/ovnnb_db.db ] || error "Could not copy ovnnb_db.db from ${ovnkube_node}"
-    [ -f $WORKDIR/ovnsb_db.db ] || error "Could not copy ovnsb_db.db from ${ovnkube_node}"
+    [ -f $WORKDIR/ovnnb_db.db ] || log_error "Could not copy ovnnb_db.db from ${ovnkube_node}"
+    [ -f $WORKDIR/ovnsb_db.db ] || log_error "Could not copy ovnsb_db.db from ${ovnkube_node}"
     do_collect-db ${WORKDIR}/ovnnb_db.db ovn_nb
     do_collect-db ${WORKDIR}/ovnsb_db.db ovn_sb
 }
@@ -272,7 +299,7 @@ do_collect-sos-ovn() {
     local sos=$1
     mkdir -p ${SOS_DIR}
 
-    echo "Extracting OVN data from sos report..."
+    log_status "Extracting OVN data from sos report"
     local found_db=false
     for dir in $OVN_DB_LOCATIONS; do
         strip=$((2 + $(echo ${dir} | tr -dc "/" | wc -m)))
@@ -287,7 +314,7 @@ do_collect-sos-ovn() {
     done
 
     if ! $found_db; then
-        error "Could not extract both OVN database files"
+        log_error "Could not extract both OVN database files"
     fi
 }
 
@@ -328,7 +355,7 @@ _sos-try-extract() {
             cp -r ${sos}/${dir_name}/${src} ${SOS_DIR}/${parent}
         fi
     else
-        error "SOS archive file or directory not found. Please specify a <sosreport>.tar.xz archive file or the directory of the extracted data."
+        log_error "SOS archive file or directory not found. Please specify a <sosreport>.tar.xz archive file or the directory of the extracted data."
     fi
 }
 
@@ -343,9 +370,9 @@ do_collect-sos-ovs() {
 
     mkdir -p ${SOS_DIR}
 
-    echo "Extracting OVS data from sos report..."
+    log_status "Extracting OVS data from sos report"
     for dir in $sos_files; do
-        _sos-try-extract $sos $dir false || error "Could not extract critical directory $dir from $sos"
+        _sos-try-extract $sos $dir false || log_error "Could not extract critical directory $dir from $sos"
     done
 
     found_db=false
@@ -359,9 +386,9 @@ do_collect-sos-ovs() {
     done
 
     if ! $found_db; then
-        echo "warning: conf.db not found in default locations."
-        echo "If the target cluster has defined \$ovs_dbdir it could be located there"
-        echo "Please add manually using collect-db and re-run collect-sos"
+        log_warning "conf.db not found in default locations."
+        log_info "If the target cluster has defined \$ovs_dbdir it could be located there"
+        log_info "Please add manually using collect-db and re-run collect-sos"
     fi
 
     # OVS 2.7 and earlier do not enable OpenFlow 1.4 (by default) and lack
@@ -369,10 +396,10 @@ do_collect-sos-ovs() {
     local ovs_ver=$(cat ${SOS_DIR}/sos_commands/rpm/package-data | grep -o ^openvswitch-[0-9].[0-9]*.[0-9])
     case $ovs_ver in
     "openvswitch-1."*.*)
-        error "Outdated ovs version (2.8 or higher required)"
+        log_error "Outdated ovs version (2.8 or higher required)"
         ;;
     "openvswitch-2."[0-7].*)
-        error "Outdated ovs version (2.8 or higher required)"
+        log_error "Outdated ovs version (2.8 or higher required)"
         ;;
     esac
 
@@ -381,16 +408,16 @@ do_collect-sos-ovs() {
     if test -f "${SOS_CMD_DIR}/ovs-vsctl_-t_5_list-br"; then
         bridges=$(cat ${SOS_CMD_DIR}/ovs-vsctl_-t_5_list-br)
     else
-        error "ovs-vsctl_-t_5_list-br missing from sos report. Make sure your sos archive is generated from the most recent sos report"
+        log_error "ovs-vsctl_-t_5_list-br missing from sos report. Make sure your sos archive is generated from the most recent sos report"
     fi
 
     # Collect group, flow, and tlv dumps
     for br in $bridges; do
         local version=$(ls $SOS_CMD_DIR | grep ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_${br} | grep -o "OpenFlow[0-9]*")
         local high_ver=$(echo "$version" | sort | tail -n 1)
-        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-flows_${br} $RESTORE_FLOWS_DIR || error "Sos report missing dump-flows for bridge $br. Make sure your sos archive is generated from the most recent sos report"
-        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-tlv-map_${br} $RESTORE_FLOWS_DIR || error "Sos report missing dump-tlv for bridge $br. Make sure your sos archive is generated from the most recent sos report"
-        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-groups_${br} $RESTORE_FLOWS_DIR || error "Sos report missing dump-groups for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-flows_${br} $RESTORE_FLOWS_DIR || log_error "Sos report missing dump-flows for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-tlv-map_${br} $RESTORE_FLOWS_DIR || log_error "Sos report missing dump-tlv for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-groups_${br} $RESTORE_FLOWS_DIR || log_error "Sos report missing dump-groups for bridge $br. Make sure your sos archive is generated from the most recent sos report"
     done
     # Apply the workarounds found in ovs-save to the current flows and
     # groups to allow for restoration
@@ -453,7 +480,7 @@ start_ovsdb() {
     ${CONTAINER_CMD} kill ovsdb-server-${name} &>/dev/null || true
     ${CONTAINER_CMD} rm ovsdb-server-${name} &>/dev/null || true
 
-    echo "Starting container ovsdb-server-${name}"
+    log_status "Starting container ovsdb-server-${name}"
     ${CONTAINER_CMD} run -d -e OVSDB_BACKUP=${backup_file} ${caps} -e UID=$(id -u) -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${backup_local_file}:${backup_file} -v ${local_var_run}:${remote_var_run} --pid=host --name ovsdb-server-${name} ovs-offline __ovsdb-${name}
     sleep 3
 }
@@ -469,7 +496,7 @@ start_vswitchd() {
     ${CONTAINER_CMD} kill ovs-vswitchd &>/dev/null || true
     ${CONTAINER_CMD} rm ovs-vswitchd &>/dev/null || true
 
-    echo "Starting container ovs-vswitchd"
+    log_status "Starting container ovs-vswitchd"
     ${CONTAINER_CMD} run -d -e OVSDB_SOCKET=${socket_file} ${caps} -e UID=$(id -u) -e RESTORE_DIR="/root/restore_flows" -e CONTAINER_TYPE=${CONTAINER_CMD} -v ${RESTORE_FLOWS_DIR}:"/root/restore_flows" -v ${local_var_run}:${remote_var_run} --pid=host --name ovs-vswitchd ovs-offline __vswitchd-dummy
     sleep 3
 }
@@ -481,7 +508,7 @@ start_ovsdb_standalone() {
     local db_file=$(ls -x ${WORKDIR}/db/${name} | tail -1)
     local backup_local_file=${WORKDIR}/db/${name}/${db_file}
     
-    echo "Starting standalone ovsdb-server for ${name}"
+    log_status "Starting standalone ovsdb-server for ${name}"
     
     # Set environment variables for __ovsdb function
     export OVSDB_BACKUP=${backup_local_file}
@@ -496,7 +523,7 @@ start_ovsdb_standalone() {
 
 start_vswitchd_standalone() {
     # run ovs-vswitchd directly on host (standalone mode)
-    echo "Starting standalone ovs-vswitchd"
+    log_status "Starting standalone ovs-vswitchd"
     
     # Set environment variables for __vswitchd-dummy function
     export OVSDB_SOCKET=${VAR_RUN}/ovs/db.sock
@@ -524,16 +551,16 @@ do_start() {
     
     # Ensure ovs-offline collect ovs or ovn has been run
     if [ ! "$(ls -A ${RESTORE_FLOWS_DIR} 2> /dev/null)" ] && [ ! "$(ls -A ${WORKDIR}/db/ 2> /dev/null)" ]; then
-        error "Restoration data not found in ${WORKDIR}. Please run ovs-offline collect-... first"
+        log_error "Restoration data not found in ${WORKDIR}. Please run ovs-offline collect-... first"
     fi
 
     if [ "$standalone" = true ]; then
-        echo "Starting in standalone mode (no containers)"
+            log_info "Standalone mode (no containers)"
         
         # Check for required OVS binaries
         for binary in ovsdb-server ovsdb-tool ovs-vswitchd ovs-vsctl; do
             if ! command -v $binary &> /dev/null; then
-                error "Required binary '$binary' not found. Please install OVS tools or use container mode."
+                log_error "Required binary '$binary' not found. Please install OVS tools or use container mode."
             fi
         done
         
@@ -545,11 +572,12 @@ do_start() {
             fi
         done
     else
-        echo "Starting in container mode"
+        log_info "Container mode"
         set_container_cmd
         # Ensure ovs-offline image is present
         ${CONTAINER_CMD} inspect ovs-offline 2>&1 >/dev/null || (
-            echo "Failed to find a local container named ovs-offline. Pulling from quay.io/amorenoz/ovs-offline"
+            log_warning "Failed to find a local container named ovs-offline. Pulling from quay.io/amorenoz/ovs-offline"
+            log_info "Pulling container image from quay.io/amorenoz/ovs-offline"
             ${CONTAINER_CMD} pull quay.io/amorenoz/ovs-offline && ${CONTAINER_CMD} tag quay.io/amorenoz/ovs-offline ovs-offline
         )
 
@@ -664,7 +692,7 @@ export OVN_SB_DB=unix:${db_sock}
 EOF
                     ;;
                 *)
-                    error "Unkown db socket file ${db_sock}"
+                    log_error "Unkown db socket file ${db_sock}"
             esac
             cat <<EOF >> ${SOURCE_DIR}/activate
 echo "      ${command} [...]"
@@ -685,12 +713,12 @@ EOF
 }
 
 print_tools() {
-    echo "Working directory: $WORKDIR:"
+    log_info "Working directory: $WORKDIR"
 
     if ls -x $VAR_RUN/ovs/ovs-vswitchd.*.ctl &>/dev/null; then
         vswitchd_ctl=$(ls -x $VAR_RUN/ovs/ovs-vswitchd.*.ctl)
         echo ""
-        echo "* openvswitch control found at ${vswitchd_ctl}"
+        log_info "openvswitch control found at ${vswitchd_ctl}"
         echo "  You can run ovs-appctl commands as:"
         echo "      ovs-appctl --target=${vswitchd_ctl} [...]"
     fi
@@ -710,10 +738,10 @@ print_tools() {
                     command="ovn-sbctl"
                     ;;
                 *)
-                    error "Unkown db socket file ${db_sock}"
+                    log_error "Unkown db socket file ${db_sock}"
             esac
             echo ""
-            echo "* ${type} ovsdb-server socket found at ${db_sock}"
+            log_info "${type} ovsdb-server socket found at ${db_sock}"
             echo "  You can run commands such as:"
             echo "      ${command} --db unix:${db_sock} [...]"
             echo "  or"
@@ -724,7 +752,7 @@ print_tools() {
     if ls -x $VAR_RUN/ovs/*.mgmt &>/dev/null; then
         ofproto_socks=$(ls -x $VAR_RUN/ovs/*.mgmt)
         echo ""
-        echo "* openflow bridge management sockets found at ${ofproto_socks}"
+        log_info "openflow bridge management sockets found at ${ofproto_socks}"
         echo "  You can run ofproto commands such as:"
         for mgt in $(ls -x $VAR_RUN/ovs/*.mgmt); do
             echo "      ovs-ofctl [...] ${mgt}"
@@ -732,7 +760,7 @@ print_tools() {
     fi
 
     echo ""
-    echo "* You can also run offline commands directly with the following:"
+    log_info "You can also run offline commands directly with the following:"
     echo "    source ${SOURCE_DIR}/activate"
 }
 
@@ -740,16 +768,16 @@ print_tools() {
 # These are called when ovs-offline runs inside a container
 
 __vswitchd-dummy() {
-    echo "=============== vswitchd-dummy ==============="
+    log_status "Starting vswitchd-dummy"
     OVSDB_SOCKET=${OVSDB_SOCKET:-/usr/local/var/run/openvswitch/db.sock}
-    echo "RESTORE_DIR=${RESTORE_DIR}"
+    log_info "RESTORE_DIR=${RESTORE_DIR}"
 
     (
-    echo "Waiting for ovs-vswitchd to start..."
+    log_status "Waiting for ovs-vswitchd to start..."
     sleep 5
 
     if [ -d "${RESTORE_DIR}" ]; then
-        echo "Restoring flows"
+        log_status "Restoring flows"
         sh -e ${RESTORE_DIR}/restore.sh
     fi
     ) &
@@ -777,7 +805,7 @@ __vswitchd-dummy() {
         mkdir -p ${VAR_RUN}/ovs
         VSWITCHD_PIDFILE=${VAR_RUN}/ovs/ovs-vswitchd.pid
         VSWITCHD_LOGFILE=${VAR_RUN}/ovs/ovs-vswitchd.log
-        echo "Logging to: $VSWITCHD_LOGFILE"
+        log_info "Logging to: $VSWITCHD_LOGFILE"
         ovs-vswitchd ${user_opt-} --enable-dummy=override -vvconn -vnetdev_dummy --no-chdir --pidfile=${VSWITCHD_PIDFILE} --log-file=${VSWITCHD_LOGFILE} --detach -vsyslog:off unix:${OVSDB_SOCKET}
     else
         # Container mode: log to stdout for podman/docker logs
@@ -830,7 +858,7 @@ __set_runtime_vars() {
             fi
             ;;
         *)
-            echo "Error: Unknown database type: $db_type"
+            log_error "Unknown database type: $db_type"
             exit 1
             ;;
     esac
@@ -843,19 +871,19 @@ __ovsdb() {
 }
 
 __do_ovsdb() {
-    echo "=============== ovsdb-server ==============="
-    echo "OVSDB_BACKUP=$OVSDB_BACKUP"
+    log_status "Starting ovsdb-server"
+    log_info "OVSDB_BACKUP=$OVSDB_BACKUP"
 
     mkdir -p $(dirname $OVSDB_FILE)
     if [ -f ${OVSDB_BACKUP} ]; then
-        echo "Using backup DB file at $OVSDB_BACKUP"
+        log_info "Using backup DB file at $OVSDB_BACKUP"
 
-        echo "Making a standalone DB if needed"
+        log_status "Making a standalone DB if needed"
         ovsdb-tool cluster-to-standalone $OVSDB_FILE $OVSDB_BACKUP || cp $OVSDB_BACKUP $OVSDB_FILE
-        echo "Compacting DB"
+        log_status "Compacting DB"
         ovsdb-tool compact $OVSDB_FILE
     else
-        echo "Creating new DB"
+        log_info "Creating new DB"
         ovsdb-tool create $OVSDB_FILE  /usr/local/share/openvswitch/vswitch.ovsschema
     fi
 
@@ -874,7 +902,7 @@ __do_ovsdb() {
         # Standalone mode: log to file, run in background
         mkdir -p $(dirname ${OVSDB_PIDFILE})
         OVSDB_LOGFILE=$(dirname ${OVSDB_PIDFILE})/ovsdb-server.log
-        echo "Logging to: $OVSDB_LOGFILE"
+        log_info "Logging to: $OVSDB_LOGFILE"
         ovsdb-server ${user_opt-} --remote=punix:${OVSDB_SOCKET} --remote=${OVSDB_REMOTE} --pidfile=${OVSDB_PIDFILE} --log-file=${OVSDB_LOGFILE} --detach $OVSDB_FILE
     else
         # Container mode: log to stdout for podman/docker logs
@@ -916,55 +944,41 @@ case $CMD in
     collect-k8s)
         do_collect-k8s $@
         echo ""
-        echo ""
-        echo "Offline OVS Debugging: data collected and stored in ${WORKDIR}"
-        echo "**********************"
+        log_complete "Offline OVS Debugging: data collected and stored in ${WORKDIR}"
         ;;
     collect-sos-ovs)
         do_collect-sos-ovs $@
         echo ""
-        echo ""
-        echo "Offline OVS Debugging: OVS data collected and stored in ${WORKDIR}"
-        echo "*******************************************************************"
+        log_complete "Offline OVS Debugging: OVS data collected and stored in ${WORKDIR}"
         ;;
     collect-sos-ovn)
         do_collect-sos-ovn $@
         echo ""
-        echo ""
-        echo "Offline OVS Debugging: OVN data collected and stored in ${WORKDIR}"
-        echo "*******************************************************************"
+        log_complete "Offline OVS Debugging: OVN data collected and stored in ${WORKDIR}"
         ;;
     collect-db-ovs)
         do_collect-db $@ "ovs"
         echo ""
-        echo ""
-        echo "Offline OVS Debugging: OVS DB file collected and stored in ${WORKDIR}"
-        echo "**********************"
+        log_complete "Offline OVS Debugging: OVS DB file collected and stored in ${WORKDIR}"
         ;;
     collect-db-ovn-nb)
         do_collect-db $@ "ovn_nb"
         echo ""
-        echo ""
-        echo "Offline OVS Debugging: OVN NB DB file collected and stored in ${WORKDIR}"
-        echo "**********************"
+        log_complete "Offline OVS Debugging: OVN NB DB file collected and stored in ${WORKDIR}"
         ;;
     collect-db-ovn-sb)
         do_collect-db $@ "ovn_sb"
         echo ""
-        echo ""
-        echo "Offline OVS Debugging: OVN SB DB file collected and stored in ${WORKDIR}"
-        echo "**********************"
+        log_complete "Offline OVS Debugging: OVN SB DB file collected and stored in ${WORKDIR}"
         ;;
     build)
         do_build $@
-        echo "Offline OVS Debugging: images built"
-        echo "***********************************"
+        log_complete "Offline OVS Debugging: images built"
         ;;
     start)
         do_start $@
         echo ""
-        echo "Offline OVS Debugging started"
-        echo "******************************"
+        log_complete "Offline OVS Debugging started"
         echo ""
         print_tools
         generate_cmd_script
@@ -974,8 +988,7 @@ case $CMD in
         ;;
     stop)
         do_stop $@
-        echo "Offline OVS Debugging stopped"
-        echo "*****************************"
+        log_complete "Offline OVS Debugging stopped"
         ;;
 # The following commands are used inside the container, thus undocumented.
     __vswitchd-dummy)
