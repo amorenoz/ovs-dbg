@@ -32,6 +32,6 @@ RUN dnf install -y libatomic openssl gdb jq ovn-central bcc bcc-tools perf
 
 RUN mkdir -p /var/run/openvswitch
 
-ADD start.sh /
-ENTRYPOINT ["/start.sh"]
+ADD bin/ovs-offline /usr/bin/
+ENTRYPOINT ["/usr/bin/ovs-offline"]
 
