@@ -12,7 +12,9 @@ SOS_DIR=${WORKDIR}/sos_report
 SOS_CMD_DIR=${SOS_DIR}/sos_commands/openvswitch/
 SOURCE_DIR=${WORKDIR}/bin
 RESTORE_FLOWS_DIR=${WORKDIR}/restore_flows
+EXTRACTED_RPMS_DIR=${WORKDIR}/extracted_rpms
 CONTAINER_CMD=podman
+RPM_PATHS=""
 OVS_REPO=${OVS_DBG_REPO:-https://github.com/openvswitch/ovs.git}
 OVS_COMMIT=${OVS_DBG_COMMIT:-branch-2.15}
 
@@ -43,6 +45,7 @@ usage() {
     echo "  start                Starts an offline debugging session service. Data must have been previously collected in the working directory"
     echo "    Options":
     echo "       -s:    Run in standalone mode (directly on host, no containers)"
+    echo "       -r:    Path to RPM file(s) to extract and use for OVS binaries (standalone mode only)"
     echo ""
     echo "  stop                 Stops the offline debugging environment"
     echo ""
@@ -97,6 +100,126 @@ log_complete() {
 # Legacy error function for compatibility
 error() {
     log_error "$@"
+}
+
+extract_rpms() {
+    # Extract RPM files to workdir for standalone mode
+    # $1: space-separated list of RPM file paths
+    local rpm_paths="$1"
+
+    if [ -z "$rpm_paths" ]; then
+        return 0
+    fi
+
+    log_status "Extracting RPM packages for standalone mode"
+
+    # Create extraction directory
+    mkdir -p "$EXTRACTED_RPMS_DIR"
+
+    # Extract each RPM
+    for rpm_path in $rpm_paths; do
+        if [ ! -f "$rpm_path" ]; then
+            log_error "RPM file not found: $rpm_path"
+        fi
+
+        log_status "Extracting $(basename "$rpm_path")"
+
+        # Use rpm2cpio and cpio to extract without running post-install scripts
+        if command -v rpm2cpio >/dev/null 2>&1; then
+            (cd "$EXTRACTED_RPMS_DIR" && rpm2cpio "$rpm_path" | cpio -idm 2>/dev/null)
+        elif command -v rpm >/dev/null 2>&1; then
+            # Alternative: use rpm command if rpm2cpio not available
+            (cd "$EXTRACTED_RPMS_DIR" && rpm2cpio "$rpm_path" | cpio -idm 2>/dev/null)
+        else
+            log_error "Neither rpm2cpio nor rpm command found. Cannot extract RPM files."
+        fi
+
+        if [ $? -eq 0 ]; then
+            log_success "Successfully extracted $(basename "$rpm_path")"
+        else
+            log_error "Failed to extract $(basename "$rpm_path")"
+        fi
+    done
+
+    # Verify that we have the required OVS binaries
+    local required_binaries="ovsdb-server ovsdb-tool ovs-vswitchd ovs-vsctl"
+    local found_binaries=""
+
+    for binary in $required_binaries; do
+        # Look for the binary in common locations within the extracted files
+        if find "$EXTRACTED_RPMS_DIR" -name "$binary" -type f -executable 2>/dev/null | head -1 >/dev/null; then
+            found_binaries="$found_binaries $binary"
+        fi
+    done
+
+    if [ -n "$found_binaries" ]; then
+        log_success "Found OVS binaries in extracted RPMs:$found_binaries"
+
+        # Set up library path for extracted binaries
+        setup_rpm_library_path
+    else
+        log_warning "No OVS binaries found in extracted RPMs. Will fall back to system binaries."
+    fi
+}
+
+get_ld_library_path() {
+    # Set up LD_LIBRARY_PATH to include library directories from extracted RPMs
+    if [ ! -d "$EXTRACTED_RPMS_DIR" ]; then
+        return 0
+    fi
+
+    local lib_paths=""
+    local common_lib_dirs="usr/lib64 usr/lib lib64 lib usr/local/lib64 usr/local/lib"
+
+    for lib_dir in $common_lib_dirs; do
+        local full_lib_path="$EXTRACTED_RPMS_DIR/$lib_dir"
+        if [ -d "$full_lib_path" ]; then
+            if [ -z "$lib_paths" ]; then
+                lib_paths="$full_lib_path"
+            else
+                lib_paths="$lib_paths:$full_lib_path"
+            fi
+        fi
+    done
+    echo $lib_paths
+}
+
+setup_rpm_library_path() {
+    lib_paths=$(get_ld_library_path)
+
+    if [ -n "$lib_paths" ]; then
+        if [ -n "${LD_LIBRARY_PATH:-}" ]; then
+            export LD_LIBRARY_PATH="$lib_paths:$LD_LIBRARY_PATH"
+        else
+            export LD_LIBRARY_PATH="$lib_paths"
+        fi
+    fi
+}
+
+find_binary() {
+    # Find a binary, preferring extracted RPM version over system version
+    # $1: binary name
+    local binary_name="$1"
+
+    # First check if we have extracted RPMs and the binary exists there
+    if [ -n "$RPM_PATHS" ] && [ -d "$EXTRACTED_RPMS_DIR" ]; then
+        local extracted_binary=$(find "$EXTRACTED_RPMS_DIR" -name "$binary_name" -type f -executable 2>/dev/null | head -1)
+        if [ -n "$extracted_binary" ]; then
+            # Ensure LD_LIBRARY_PATH is set up for extracted binaries
+            setup_rpm_library_path
+            echo "$extracted_binary"
+            return 0
+        fi
+    fi
+
+    # Fall back to system binary
+    local system_binary=$(command -v "$binary_name" 2>/dev/null)
+    if [ -n "$system_binary" ]; then
+        echo "$system_binary"
+        return 0
+    fi
+
+    return 1
 }
 
 set_container_cmd() {
@@ -443,16 +566,16 @@ do_collect-sos-ovs() {
     for br in $bridges; do
         local flow_version=$(ls ${RESTORE_FLOWS_DIR}/ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_$br | grep -o OpenFlow[0-9]*)
         local group_version=$(ls ${RESTORE_FLOWS_DIR}/ovs-ofctl_-O_OpenFlow[0-9]*_dump-groups_$br | grep -o OpenFlow[0-9]*)
-        echo -n "ovs-ofctl add-tlv-map ${br} '" >> ${RESTORE_FLOWS_DIR}/restore.sh
+        echo -n "$(find_binary ovs-ofctl) add-tlv-map ${br} '" >> ${RESTORE_FLOWS_DIR}/restore.sh
         cat ${RESTORE_FLOWS_DIR}/ovs-ofctl_-O_OpenFlow[0-9]*_dump-tlv-map_$br | \
         awk '/^  *0x/ {if (cnt != 0) printf ","; \
             cnt++;printf "{class="$1",type="$2",len="$3"}->"$4}' >> ${RESTORE_FLOWS_DIR}/restore.sh
         echo "'" >> ${RESTORE_FLOWS_DIR}/restore.sh
 
-        echo "ovs-ofctl -O ${group_version} add-groups ${br} \
+        echo "$(find_binary ovs-ofctl) -O ${group_version} add-groups ${br} \
                     \"\$CURR_DIR/ovs-ofctl_-O_${group_version}_dump-groups_${br}\" ${bundle}" >> ${RESTORE_FLOWS_DIR}/restore.sh
 
-        echo "ovs-ofctl -O $flow_version replace-flows ${br} \
+        echo "$(find_binary ovs-ofctl) -O $flow_version replace-flows ${br} \
                     \"\$CURR_DIR/ovs-ofctl_-O_${flow_version}_dump-flows_${br}\" ${bundle}" >> ${RESTORE_FLOWS_DIR}/restore.sh
     done
 }
@@ -537,13 +660,16 @@ start_vswitchd_standalone() {
 
 do_start() {
     local standalone=false
-    
+
     # Parse options for start command
     OPTIND=1
-    while getopts "s" opt; do
+    while getopts "sr:" opt; do
         case ${opt} in
             s)
                 standalone=true
+                ;;
+            r)
+                RPM_PATHS="$OPTARG"
                 ;;
         esac
     done
@@ -556,10 +682,15 @@ do_start() {
 
     if [ "$standalone" = true ]; then
             log_info "Standalone mode (no containers)"
-        
+
+        # Extract RPMs if provided
+        if [ -n "$RPM_PATHS" ]; then
+            extract_rpms "$RPM_PATHS"
+        fi
+
         # Check for required OVS binaries
         for binary in ovsdb-server ovsdb-tool ovs-vswitchd ovs-vsctl; do
-            if ! command -v $binary &> /dev/null; then
+            if ! find_binary $binary >/dev/null; then
                 log_error "Required binary '$binary' not found. Please install OVS tools or use container mode."
             fi
         done
@@ -603,6 +734,9 @@ fi
 declare -a ovs_offline_aliased
 declare -A ovs_offline_cmds
 
+old_path=\$PATH
+old_ld_path=\$LD_LIBRARY_PATH 
+
 ovs-offline-deactivate() {
     if ! [ -z "\${OLD_PS1+_}" ] ; then
         PS1="\$OLD_PS1"
@@ -623,6 +757,12 @@ ovs-offline-deactivate() {
     done
     unset ovs_offline_aliased
     unset OVS_OFFLINE_ENV
+    PATH=\$old_path
+    if [ -z "\$old_ld_path" ]; then
+        unset LD_LIBRARY_PATH
+    else
+        LD_LIBRARY_PATH=\$old_ld_path
+    fi
 }
 
 if [ -z "\${OVS_OFFLINE_ENV}" ] ; then
@@ -638,16 +778,21 @@ ovs_offline_cmds[ovsdb-server-ovn_sb]="ovn-sbctl"
 
 # Alias ovs commands if needed.
 unset command_not_found_handle
-for container in "\${!ovs_offline_cmds[@]}"; do
-    if ${CONTAINER_CMD} inspect \$container &> /dev/null; then
-        for cmd in \${ovs_offline_cmds[\$container]}; do
-            if ! \$(\$cmd --version &> /dev/null); then
-                alias \$cmd="${CONTAINER_CMD} exec -it \$container \$cmd"
-                ovs_offline_aliased+=(\$cmd)
-            fi
-        done
-    fi
-done
+if [ -n "$RPM_PATHS" ] && [ -d "$EXTRACTED_RPMS_DIR" ]; then
+    PATH="$EXTRACTED_RPMS_DIR/usr/bin:\$PATH"
+    export LD_LIBRARY_PATH="$(get_ld_library_path):\$PATH"
+else
+    for container in "\${!ovs_offline_cmds[@]}"; do
+        if ${CONTAINER_CMD} inspect \$container &> /dev/null; then
+            for cmd in \${ovs_offline_cmds[\$container]}; do
+                if ! \$(\$cmd --version &> /dev/null); then
+                    alias \$cmd="${CONTAINER_CMD} exec -it \$container \$cmd"
+                    ovs_offline_aliased+=(\$cmd)
+                fi
+            done
+        fi
+    done
+fi
 
 echo "* You can now run the following offline commands directly:"
 if [ ! -z \${OVS_RUNDIR} ] && [ -z "\${OVS_OFFLINE_ENV}" ]; then
@@ -778,6 +923,7 @@ __vswitchd-dummy() {
 
     if [ -d "${RESTORE_DIR}" ]; then
         log_status "Restoring flows"
+        sed -i "s:ovs-ofctl:$(find_binary ovs-ofctl):g" ${RESTORE_DIR}/do_restore.sh
         sh -e ${RESTORE_DIR}/restore.sh
     fi
     ) &
@@ -806,7 +952,7 @@ __vswitchd-dummy() {
         VSWITCHD_PIDFILE=${VAR_RUN}/ovs/ovs-vswitchd.pid
         VSWITCHD_LOGFILE=${VAR_RUN}/ovs/ovs-vswitchd.log
         log_info "Logging to: $VSWITCHD_LOGFILE"
-        ovs-vswitchd ${user_opt-} --enable-dummy=override -vvconn -vnetdev_dummy --no-chdir --pidfile=${VSWITCHD_PIDFILE} --log-file=${VSWITCHD_LOGFILE} --detach -vsyslog:off unix:${OVSDB_SOCKET}
+        $(find_binary ovs-vswitchd) ${user_opt-} --enable-dummy=override -vvconn -vnetdev_dummy --no-chdir --pidfile=${VSWITCHD_PIDFILE} --log-file=${VSWITCHD_LOGFILE} --detach -vsyslog:off unix:${OVSDB_SOCKET}
     else
         # Container mode: log to stdout for podman/docker logs
         ovs-vswitchd ${user_opt-} --enable-dummy=override -vvconn -vnetdev_dummy  --no-chdir --pidfile  -vsyslog:off unix:${OVSDB_SOCKET}
@@ -879,12 +1025,12 @@ __do_ovsdb() {
         log_info "Using backup DB file at $OVSDB_BACKUP"
 
         log_status "Making a standalone DB if needed"
-        ovsdb-tool cluster-to-standalone $OVSDB_FILE $OVSDB_BACKUP || cp $OVSDB_BACKUP $OVSDB_FILE
+        $(find_binary ovsdb-tool) cluster-to-standalone $OVSDB_FILE $OVSDB_BACKUP || cp $OVSDB_BACKUP $OVSDB_FILE
         log_status "Compacting DB"
-        ovsdb-tool compact $OVSDB_FILE
+        $(find_binary ovsdb-tool) compact $OVSDB_FILE
     else
         log_info "Creating new DB"
-        ovsdb-tool create $OVSDB_FILE  /usr/local/share/openvswitch/vswitch.ovsschema
+        $(find_binary ovsdb-tool) create $OVSDB_FILE  /usr/local/share/openvswitch/vswitch.ovsschema
     fi
 
     if [ "${CONTAINER_TYPE:-}" == docker ]; then
@@ -903,7 +1049,7 @@ __do_ovsdb() {
         mkdir -p $(dirname ${OVSDB_PIDFILE})
         OVSDB_LOGFILE=$(dirname ${OVSDB_PIDFILE})/ovsdb-server.log
         log_info "Logging to: $OVSDB_LOGFILE"
-        ovsdb-server ${user_opt-} --remote=punix:${OVSDB_SOCKET} --remote=${OVSDB_REMOTE} --pidfile=${OVSDB_PIDFILE} --log-file=${OVSDB_LOGFILE} --detach $OVSDB_FILE
+        $(find_binary ovsdb-server) ${user_opt-} --remote=punix:${OVSDB_SOCKET} --remote=${OVSDB_REMOTE} --pidfile=${OVSDB_PIDFILE} --log-file=${OVSDB_LOGFILE} --detach $OVSDB_FILE
     else
         # Container mode: log to stdout for podman/docker logs
         ovsdb-server ${user_opt-} --remote=punix:${OVSDB_SOCKET} --remote=${OVSDB_REMOTE} --pidfile=${OVSDB_PIDFILE} $OVSDB_FILE
