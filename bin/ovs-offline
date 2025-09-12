@@ -19,6 +19,7 @@ OVS_REPO=${OVS_DBG_REPO:-https://github.com/openvswitch/ovs.git}
 OVS_COMMIT=${OVS_DBG_COMMIT:-branch-2.15}
 
 OVN_DB_LOCATIONS="var/lib/openvswitch/ovn usr/local/etc/openvswitch etc/openvswitch etc/ovn var/lib/openvswitch var/lib/ovn/etc var/lib/ovn-ic/etc"
+REQUIRED_BINARIES="ovsdb-server ovsdb-tool ovs-vswitchd ovs-vsctl"
 
 
 declare -A open_flow_protocols=(
@@ -72,34 +73,120 @@ usage() {
 
 # Logging functions with emojis for better user experience
 log_info() {
-    echo "💡 $@"
+    >&2 echo "💡 $@"
 }
 
 log_success() {
-    echo "✅ $@"
+    >&2 echo "✅ $@"
 }
 
 log_warning() {
-    echo "⚠️  $@"
+    >&2 echo "⚠️  $@"
 }
 
 log_error() {
-    echo "❌ Error: $@"
+    >&2 echo "❌ Error: $@"
     exit 1
 }
 
 log_status() {
-    echo "🔄 $@"
+    >&2 echo "🔄 $@"
 }
 
 log_complete() {
-    echo ""
+    >&2 echo ""
     echo "🎉 $@"
 }
 
 # Legacy error function for compatibility
 error() {
     log_error "$@"
+}
+
+get_missing_libraries() {
+    # Get missing shared library dependencies for extracted binaries using ldd
+    # $1: extracted RPMs directory
+    local extracted_dir="$1"
+
+    if [ ! -d "$extracted_dir" ]; then
+        return 1
+    fi
+
+    if ! command -v ldd >/dev/null 2>&1; then
+        log_warning "ldd command not found. Cannot analyze binary dependencies."
+        return 1
+    fi
+
+    declare -A missing_libs
+    for binary in $REQUIRED_BINARIES; do
+        local binary_path=$(find "$extracted_dir" -name "$binary" -type f -executable 2>/dev/null | head -1)
+        if [ -n "$binary_path" ]; then
+            log_status "Analyzing dependencies for $binary"
+            local libs=$(ldd "$binary_path" 2>/dev/null | awk '/=> not found/ {print $1}')
+            for lib in $libs; do
+                missing_libs+=( [$lib]="" )
+            done
+        fi
+    done
+    echo "${!missing_libs[@]}"
+}
+
+download_missing_libraries() {
+    # Download packages that provide missing libraries using dnf whatprovides
+    # $1: space-separated list of missing library names
+    local missing_libs="$1"
+    local download_dir="$EXTRACTED_RPMS_DIR/deps"
+
+    if [ -z "$missing_libs" ]; then
+        return 0
+    fi
+
+    if ! command -v dnf >/dev/null 2>&1; then
+        log_warning "dnf command not found. Cannot download missing libraries."
+        log_info "You may need to manually install missing dependencies."
+        return 1
+    fi
+
+    log_status "Finding packages that provide missing libraries"
+    mkdir -p "$download_dir"
+
+    # dnf is smart enough to download the package just by requesting the missing library, thanks dnf.
+    for dep in $missing_libs; do
+        dnf_out=$(dnf download --arch $(uname -m) --destdir="$download_dir" */$dep 2>&1)
+        if [ $? -eq 0 ]; then
+            log_success "Successfully downloaded dependency packages"
+        else
+            log_warning "Failed to download missing dependency $dep:\n $dnf_out"
+        fi
+    done
+
+    for dep_rpm in "$download_dir"/*.rpm; do
+        _extract_rpm $dep_rpm
+    done
+}
+
+_extract_rpm() {
+    # Extract single RPM file to workdir for standalone mode
+    # $1: RPM file
+    local rpm_path=$1
+
+    log_status "Extracting $(basename "$rpm_path")"
+
+    # Use rpm2cpio and cpio to extract without running post-install scripts
+    if command -v rpm2cpio >/dev/null 2>&1; then
+        (cd "$EXTRACTED_RPMS_DIR" && rpm2cpio "$rpm_path" | cpio -idm 2>/dev/null)
+    elif command -v rpm >/dev/null 2>&1; then
+        # Alternative: use rpm command if rpm2cpio not available
+        (cd "$EXTRACTED_RPMS_DIR" && rpm2cpio "$rpm_path" | cpio -idm 2>/dev/null)
+    else
+        log_error "Neither rpm2cpio nor rpm command found. Cannot extract RPM files."
+    fi
+
+    if [ $? -eq 0 ]; then
+        log_success "Successfully extracted $(basename "$rpm_path")"
+    else
+        log_error "Failed to extract $(basename "$rpm_path")"
+    fi
 }
 
 extract_rpms() {
@@ -116,50 +203,31 @@ extract_rpms() {
     # Create extraction directory
     mkdir -p "$EXTRACTED_RPMS_DIR"
 
-    # Extract each RPM
+    # First pass: extract main RPMs
     for rpm_path in $rpm_paths; do
         if [ ! -f "$rpm_path" ]; then
             log_error "RPM file not found: $rpm_path"
         fi
-
-        log_status "Extracting $(basename "$rpm_path")"
-
-        # Use rpm2cpio and cpio to extract without running post-install scripts
-        if command -v rpm2cpio >/dev/null 2>&1; then
-            (cd "$EXTRACTED_RPMS_DIR" && rpm2cpio "$rpm_path" | cpio -idm 2>/dev/null)
-        elif command -v rpm >/dev/null 2>&1; then
-            # Alternative: use rpm command if rpm2cpio not available
-            (cd "$EXTRACTED_RPMS_DIR" && rpm2cpio "$rpm_path" | cpio -idm 2>/dev/null)
-        else
-            log_error "Neither rpm2cpio nor rpm command found. Cannot extract RPM files."
-        fi
-
-        if [ $? -eq 0 ]; then
-            log_success "Successfully extracted $(basename "$rpm_path")"
-        else
-            log_error "Failed to extract $(basename "$rpm_path")"
-        fi
+        _extract_rpm $rpm_path
     done
+
+    setup_rpm_library_path
+
+    # Second pass: analyze binary dependencies and download only what's missing
+    log_status "Analyzing binary dependencies to find missing libraries"
+    local missing_libs=$(get_missing_libraries "$EXTRACTED_RPMS_DIR")
+
+    if [ -n "$missing_libs" ]; then
+        log_info "Found missing dependencies: $missing_libs"
+        download_missing_libraries "$missing_libs"
+    else
+        log_success "All required libraries are available on the host system"
+    fi
 
     # Verify that we have the required OVS binaries
-    local required_binaries="ovsdb-server ovsdb-tool ovs-vswitchd ovs-vsctl"
     local found_binaries=""
 
-    for binary in $required_binaries; do
-        # Look for the binary in common locations within the extracted files
-        if find "$EXTRACTED_RPMS_DIR" -name "$binary" -type f -executable 2>/dev/null | head -1 >/dev/null; then
-            found_binaries="$found_binaries $binary"
-        fi
-    done
-
-    if [ -n "$found_binaries" ]; then
-        log_success "Found OVS binaries in extracted RPMs:$found_binaries"
-
-        # Set up library path for extracted binaries
-        setup_rpm_library_path
-    else
-        log_warning "No OVS binaries found in extracted RPMs. Will fall back to system binaries."
-    fi
+    log_success "Found OVS binaries in extracted RPMs:$found_binaries"
 }
 
 get_ld_library_path() {
@@ -266,7 +334,7 @@ do_build() {
 
 stop_standalone_daemons() {
     log_status "Stopping standalone daemons..."
-    
+
     # Stop ovs-vswitchd if running
     if [ -f "${VAR_RUN}/ovs/ovs-vswitchd.pid" ]; then
         local pid=$(cat "${VAR_RUN}/ovs/ovs-vswitchd.pid" 2>/dev/null)
@@ -281,7 +349,7 @@ stop_standalone_daemons() {
         fi
         rm -f "${VAR_RUN}/ovs/ovs-vswitchd.pid"
     fi
-    
+
     # Stop ovsdb servers
     for db_type in ovs ovn_nb ovn_sb; do
         local pidfile="${VAR_RUN}/${db_type}/ovsdb-server.pid"
@@ -305,7 +373,7 @@ do_stop() {
     if ! [ -z "${OVS_OFFLINE_ENV-}" ]; then
         log_error "Cannot stop, ovs-offline env is still active. Run \"ovs-offline-deactivate\" and try again"
     fi
-    
+
     # Stop standalone daemons if any pidfiles exist
     if [ -d "${VAR_RUN}" ]; then
         stop_standalone_daemons
@@ -323,7 +391,7 @@ do_stop() {
         ${CONTAINER_CMD} kill ovsdb-server-ovn_sb &>/dev/null || true
         ${CONTAINER_CMD} rm ovsdb-server-ovn_sb &>/dev/null || true
     fi
-    
+
     rm -rf ${WORKDIR}
 }
 
@@ -454,8 +522,8 @@ do_collect-sos-ovn() {
 
 _sos-try-extract() {
     # $1 path of the sos archive/dir to extract data from
-    # $2 file or directory to extract 
-    # $3 boolean ("true", "false) to define whether full stripping is done 
+    # $2 file or directory to extract
+    # $3 boolean ("true", "false) to define whether full stripping is done
     #
     # Returns 0 if succeeded 1 if not.
     local sos=$1
@@ -641,15 +709,15 @@ start_ovsdb_standalone() {
     local name=$1
     local db_file=$(ls -x ${WORKDIR}/db/${name} | tail -1)
     local backup_local_file=${WORKDIR}/db/${name}/${db_file}
-    
+
     log_status "Starting standalone ovsdb-server for ${name}"
-    
+
     # Set environment variables for __ovsdb function
     export OVSDB_BACKUP=${backup_local_file}
     export OVS_RUNDIR=${VAR_RUN}/${name}
     export STANDALONE_MODE=true
     mkdir -p ${OVS_RUNDIR}
-    
+
     # Call the internal __ovsdb function (daemon will detach itself)
     __ovsdb ${name}
     sleep 1
@@ -658,12 +726,12 @@ start_ovsdb_standalone() {
 start_vswitchd_standalone() {
     # run ovs-vswitchd directly on host (standalone mode)
     log_status "Starting standalone ovs-vswitchd"
-    
+
     # Set environment variables for __vswitchd-dummy function
     export OVSDB_SOCKET=${VAR_RUN}/ovs/db.sock
     export RESTORE_DIR=${RESTORE_FLOWS_DIR}
     export STANDALONE_MODE=true
-    
+
     # Call the internal __vswitchd-dummy function (daemon will detach itself)
     __vswitchd-dummy
     sleep 1
@@ -685,7 +753,7 @@ do_start() {
         esac
     done
     shift $((OPTIND-1))
-    
+
     # Ensure ovs-offline collect ovs or ovn has been run
     if [ ! "$(ls -A ${RESTORE_FLOWS_DIR} 2> /dev/null)" ] && [ ! "$(ls -A ${WORKDIR}/db/ 2> /dev/null)" ]; then
         log_error "Restoration data not found in ${WORKDIR}. Please run ovs-offline collect-... first"
@@ -699,13 +767,15 @@ do_start() {
             extract_rpms "$RPM_PATHS"
         fi
 
-        # Check for required OVS binaries
-        for binary in ovsdb-server ovsdb-tool ovs-vswitchd ovs-vsctl; do
+        for binary in $REQUIRED_BINARIES; do
+            # Look for the binary in common locations within the extracted files
             if ! find_binary $binary >/dev/null; then
-                log_error "Required binary '$binary' not found. Please install OVS tools or use container mode."
+                log_error "Required binary $binary not found"
+            elif ! $(find_binary $binary) --version >/dev/null ; then
+                log_error "Required binary $binary not runnable"
             fi
         done
-        
+
         mkdir -p $VAR_RUN
         for db_type in $(ls -x ${WORKDIR}/db); do
             start_ovsdb_standalone ${db_type}
@@ -746,7 +816,7 @@ declare -a ovs_offline_aliased
 declare -A ovs_offline_cmds
 
 old_path=\$PATH
-old_ld_path=\$LD_LIBRARY_PATH 
+old_ld_path=\$LD_LIBRARY_PATH
 
 ovs-offline-deactivate() {
     if ! [ -z "\${OLD_PS1+_}" ] ; then
@@ -1161,7 +1231,7 @@ case $CMD in
         __ovsdb ovn_sb
         ;;
     __sleep)
-        sleep infinity 
+        sleep infinity
         ;;
     *)
         echo "Invalid command $CMD" 1>&2
