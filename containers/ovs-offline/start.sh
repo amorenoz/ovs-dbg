@@ -80,6 +80,8 @@ do_ovsdb() {
   echo "=============== ovsdb-server ==============="
   echo "OVSDB_BACKUP=$OVSDB_BACKUP"
 
+  mkdir -p /usr/local/etc/openvswitch/
+
   if [ -f ${OVSDB_BACKUP} ]; then
           echo "Using backup DB file at $OVSDB_BACKUP"
 
