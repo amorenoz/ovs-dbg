@@ -335,9 +335,10 @@ do_collect-sos-ovs() {
     for br in $bridges; do
         local version=$(ls $SOS_CMD_DIR | grep ovs-ofctl_-O_OpenFlow[0-9]*_dump-flows_${br} | grep -o "OpenFlow[0-9]*")
         local high_ver=$(echo "$version" | sort | tail -n 1)
-        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-flows_${br} $save_dir || error "Sos report missing dump-flows for bridge $br. Make sure your sos archive is generated from the most recent sos report"
-        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-tlv-map_${br} $save_dir || error "Sos report missing dump-tlv for bridge $br. Make sure your sos archive is generated from the most recent sos report"
-        cp ${SOS_CMD_DIR}/ovs-ofctl_-O_${high_ver}_dump-groups_${br} $save_dir || error "Sos report missing dump-groups for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+	local version_opt=$([[ -n $high_ver ]] && echo "_-O_${high_ver}" || echo "")
+        cp ${SOS_CMD_DIR}/ovs-ofctl${version_opt}_dump-flows_${br} $save_dir || error "Sos report missing dump-flows for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+        cp ${SOS_CMD_DIR}/ovs-ofctl${version_opt}_dump-tlv-map_${br} $save_dir || error "Sos report missing dump-tlv for bridge $br. Make sure your sos archive is generated from the most recent sos report"
+        cp ${SOS_CMD_DIR}/ovs-ofctl${version_opt}_dump-groups_${br} $save_dir || error "Sos report missing dump-groups for bridge $br. Make sure your sos archive is generated from the most recent sos report"
     done
     # Apply the workarounds found in ovs-save to the current flows and
     # groups to allow for restoration
