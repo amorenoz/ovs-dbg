@@ -485,7 +485,7 @@ fi
 ovs_offline_cmds[ovsdb-server-ovs]="ovs-vsctl"
 ovs_offline_cmds[ovs-vswitchd]="ovs-ofctl ovs-appctl"
 ovs_offline_cmds[ovsdb-server-ovn_nb]="ovn-nbctl"
-ovs_offline_cmds[ovsdb-server-ovn_sb]="ovn-sbctl"
+ovs_offline_cmds[ovsdb-server-ovn_sb]="ovn-sbctl ovn-trace"
 
 # Alias ovs commands if needed.
 unset command_not_found_handle
