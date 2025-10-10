@@ -18,8 +18,12 @@ RUN ./boot.sh
 RUN ./configure CFLAGS="-g -O0" --with-ovn --prefix=/usr/
 RUN make && make install
 
+ARG OVN_REPO=https://github.com/ovn-org/ovn.git
+ARG OVN_COMMIT=main
+RUN echo "Building ovn from ${OVN_REPO} at ${OVN_COMMIT}"
+
 WORKDIR /src
-RUN git clone https://github.com/ovn-org/ovn.git
+RUN git clone ${OVN_REPO} && cd ovn && git checkout ${OVS_COMMIT}
 
 WORKDIR /src/ovn
 RUN ./boot.sh
