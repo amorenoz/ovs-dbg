@@ -15,7 +15,7 @@ RUN git clone ${OVS_REPO} && cd ovs && git checkout ${OVS_COMMIT}
 
 WORKDIR /src/ovs
 RUN ./boot.sh
-RUN ./configure CFLAGS="-g -O0" --with-ovn --prefix=/usr/
+RUN ./configure CFLAGS="-g -O0" --prefix=/usr/
 RUN make && make install
 
 ARG OVN_REPO=https://github.com/ovn-org/ovn.git
