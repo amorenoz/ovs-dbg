@@ -18,10 +18,23 @@ RUN ./boot.sh
 RUN ./configure CFLAGS="-g -O0" --prefix=/usr/
 RUN make && make install
 
+ARG OVN_REPO=https://github.com/ovn-org/ovn.git
+ARG OVN_COMMIT=main
+RUN echo "Building ovn from ${OVN_REPO} at ${OVN_COMMIT}"
+
+WORKDIR /src
+RUN git clone ${OVN_REPO} && cd ovn && git checkout ${OVS_COMMIT}
+
+WORKDIR /src/ovn
+RUN ./boot.sh
+RUN ./configure CFLAGS="-g -O0" --with-ovs-source=/src/ovs
+RUN make
+
 # Create new layer
 FROM quay.io/fedora/fedora:41-x86_64
 
 COPY --from=build /usr/bin/ovs* /usr/bin/
+COPY --from=build /src/ovn/utilities/ovn-trace /usr/bin/
 COPY --from=build /usr/bin/vtep* /usr/bin/
 COPY --from=build /usr/sbin/* /usr/sbin/
 COPY --from=build /etc/openvswitch /usr/etc/openvswitch
