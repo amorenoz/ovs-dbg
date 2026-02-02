@@ -23,6 +23,24 @@ RUN ./boot.sh
 RUN ./configure  --prefix=/usr CFLAGS="-g -O0"
 RUN make && make install
 
+# build layer: Build klockstat from bcc
+FROM quay.io/fedora/fedora:41-x86_64 as bcc-build
+
+RUN dnf -y install git cmake make which gcc gcc-c++ flex bison \
+    elfutils-libelf-devel zlib-devel llvm-devel clang-devel \
+    bcc-devel libbpf-devel
+
+ARG BCC_REPO=https://github.com/iovisor/bcc.git
+ARG BCC_COMMIT=master
+RUN echo "Building klockstat from ${BCC_REPO} at ${BCC_COMMIT}"
+
+WORKDIR /src
+RUN git clone --depth 1 ${BCC_REPO} --single-branch --branch ${BCC_COMMIT} && \
+    cd bcc && git submodule update --init --recursive --depth 1
+
+WORKDIR /src/bcc/libbpf-tools
+RUN make klockstat
+
 # Actual container layer
 FROM quay.io/fedora/fedora:41-x86_64
 
@@ -32,6 +50,7 @@ COPY --from=build /usr/sbin/* /usr/sbin/
 COPY --from=build /etc/openvswitch /usr/etc/openvswitch
 COPY --from=build /usr/share/openvswitch /usr/share/openvswitch
 COPY --from=build /usr/lib/* /usr/lib/
+COPY --from=bcc-build /src/bcc/libbpf-tools/klockstat /usr/bin/
 
 # Workaround for https://github.com/iovisor/bcc/commit/eb7cdd28a45e48d9318b0cb3f35d1bb6f01a6611
 RUN INSTALL_PKGS=" \
