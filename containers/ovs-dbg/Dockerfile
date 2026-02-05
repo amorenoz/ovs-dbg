@@ -3,7 +3,7 @@
 # sudo podman run -it --rm -v $PWD:/work --privileged --network=host --pid=host   -v /lib/modules:/lib/modules:ro -v /proc:/proc -v /:/mnt/rootdir quay.io/amorenoz/ovs-dbg:next
 
 # build layer: Build ovs.
-FROM quay.io/fedora/fedora:41-x86_64 as build
+FROM quay.io/fedora/fedora:42-x86_64 as build
 
 #RUN dnf -y groupinstall "Development Tools"
 RUN dnf -y install gcc make autoconf automake libtool diffutils file \
@@ -24,7 +24,7 @@ RUN ./configure  --prefix=/usr CFLAGS="-g -O0"
 RUN make && make install
 
 # build layer: Build klockstat from bcc
-FROM quay.io/fedora/fedora:41-x86_64 as bcc-build
+FROM quay.io/fedora/fedora:42-x86_64 as bcc-build
 
 RUN dnf -y install git cmake make which gcc gcc-c++ flex bison \
     elfutils-libelf-devel zlib-devel llvm-devel clang-devel \
@@ -42,7 +42,7 @@ WORKDIR /src/bcc/libbpf-tools
 RUN make klockstat
 
 # Actual container layer
-FROM quay.io/fedora/fedora:41-x86_64
+FROM quay.io/fedora/fedora:42-x86_64
 
 COPY --from=build /usr/bin/ovs* /usr/bin/
 COPY --from=build /usr/bin/vtep* /usr/bin/
@@ -80,7 +80,7 @@ RUN mkdir -p /var/run/openvswitch
 ENV GOPATH=$HOME/go
 
 RUN cd /root/ && git clone --depth 1 https://github.com/amorenoz/ovsdb-mon.git --single-branch --branch main
-RUN cd /root/ovsdb-mon && go install github.com/ovn-org/libovsdb/cmd/modelgen && go mod vendor
+RUN cd /root/ovsdb-mon && GOPROXY=https://proxy.golang.org,direct go install github.com/ovn-org/libovsdb/cmd/modelgen && go mod vendor
 
 WORKDIR /root
 
